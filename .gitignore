@@ -16,3 +16,6 @@ desktop.ini
 *.log
 logs/
 tmp/
+
+# 迁移计划是临时文件，绑定源哈希，不该提交
+.kb-migrate-plan.json
