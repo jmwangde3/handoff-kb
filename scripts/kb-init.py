@@ -1,26 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""kb-init.py — 一键生成「分层交接库」骨架（handoff-kb skill）
+"""kb-init.py — 一键生成分层交接库骨架（handoff-kb 2.0）
 
-用法（Bash / Git Bash，UTF-8 干净链路）：
-  py scripts/kb-init.py --target "~/projects/新项目" --project "新项目" \
-      --lines "固件,运行态,服务端,测速"
-  py scripts/kb-init.py --target /tmp/demo --no-git
-  py scripts/kb-init.py --target . --force        # 覆盖同名模板文件
+v2 关键变化
+- 事实分册编号改为 **10–17**（最多 8 条线）。00/05/06/90 是保留层，旧的 01–04 仍被认作事实分册。
+- 写盘前完整预检查：目标目录、父目录 git 仓库、文件名碰撞（大小写 / Unicode NFC）、符号链接、敏感信息、暂存区。
+- `--plan` 只打印计划，不落盘。
+- 只有"独立且没有 git 仓库"的目录才自动 `git init`；已有仓库不再嵌套、不自动提交。
+- 只 `git add --` 本次生成的白名单文件（**从不** `git add -A`）。
+- 凭证扫描命中 → 拒绝提交并返回非 0，不再"报成功"。
+- `.gitignore` / `.gitattributes` / `AGENTS.md` / 入口指针属于受保护配置，覆盖需要 `--overwrite-config`。
 
-产出：AGENTS/CLAUDE/GEMINI 入口、00 基线、01..0N 事实层、05 现状、
-06 流水、90 归档、启动消息、.gitignore/.gitattributes、handoff-check 占位、归档/。
-自动 git init -b main + 首次 commit，并做除密扫描与接手成本估算。
+用法：
+  py kb-init.py --target ./demo --project Demo --lines "固件,运行态,服务端"
+  py kb-init.py --target ./demo --plan
+  py kb-init.py --target ./demo --lines "固件" --no-git --force
+  py kb-init.py --target ./demo --overwrite-config --force
 """
 from __future__ import annotations
 
 import argparse
 import datetime
-import io
 import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib import protocol, security  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -31,131 +40,107 @@ except Exception:
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
 
-SECRET_PATTERNS = [
-    (re.compile(r"LTAI[0-9A-Za-z]{8,}"), "云厂商 AK"),
-    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "私钥 PEM"),
-    (re.compile(r"(?i)(password|passwd|secret|token)\s*[:=]\s*['\"][^'\"$]{6,}['\"]"), "明文口令/令牌"),
-    (re.compile(r"(?i)sk-[0-9A-Za-z]{20,}"), "API key"),
-]
+PROTECTED = set(protocol.ENTRY_FILES) | {".gitignore", ".gitattributes"}
+ILLEGAL = re.compile(r'[\\/:*?"<>|\r\n\t]')
+
+
+class Refused(Exception):
+    """预检查拒绝操作。"""
 
 
 def read(p: Path) -> str:
-    return io.open(p, encoding="utf-8").read()
+    return p.read_text(encoding="utf-8")
 
 
 def write(p: Path, s: str) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
-    io.open(p, "w", encoding="utf-8", newline="\n").write(s)
+    with open(p, "w", encoding="utf-8", newline="\n") as f:
+        f.write(s)
 
 
 def render(s: str, ctx: dict) -> str:
     for k, v in ctx.items():
         s = s.replace("{{" + k + "}}", str(v))
-    # 未提供的占位符一律清空，避免模板残留
     return re.sub(r"\{\{[A-Z_]+\}\}", "", s)
 
 
 def sh(args, cwd=None) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        args, cwd=cwd, capture_output=True, text=True,
-        encoding="utf-8", errors="replace",
-    )
+    return subprocess.run(args, cwd=cwd, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
 
 
-def scan_secrets(target: Path):
-    hits = []
-    for p in target.rglob("*"):
-        if not p.is_file() or ".git" in p.parts:
-            continue
-        try:
-            if p.stat().st_size > 2_000_000:
-                continue
-            text = read(p)
-        except Exception:
-            continue
-        for pat, label in SECRET_PATTERNS:
-            if pat.search(text):
-                hits.append((str(p.relative_to(target)), label))
-    return hits
+def find_git_repo(path: Path):
+    """返回最近的包含 .git 的目录（含自身），没有则 None。"""
+    p = path.resolve()
+    for cand in [p] + list(p.parents):
+        if (cand / ".git").exists():
+            return cand
+    return None
 
 
-def safe(s: str) -> str:
-    return re.sub(r'[\\/:*?"<>|]', "_", s)
+def normalize_name(raw: str):
+    """清洗线名：去控制字符、Unicode NFC、拒绝路径分隔符。返回 (name, warnings)。"""
+    warn = []
+    n = unicodedata.normalize("NFC", raw).strip()
+    if not n:
+        raise Refused("线名不能为空")
+    if ILLEGAL.search(n):
+        cleaned = ILLEGAL.sub("_", n)
+        warn.append("线名 %r 含非法字符，已改为 %r" % (n, cleaned))
+        n = cleaned
+    if n in ("其他",):
+        raise Refused("线名 %r 是保留名（分片里已有 其他.md）" % n)
+    if protocol.number_of(n + ".md") is not None:
+        raise Refused("线名不能以 NN_ 形式开头：%r" % n)
+    return n, warn
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="生成分层交接库骨架")
-    ap.add_argument("--target", required=True, help="目标目录（绝对或相对）")
-    ap.add_argument("--project", default=None, help="项目名，默认取目录名")
-    ap.add_argument("--lines", default="线A,线B,线C,线D",
-                    help="事实层分册名，逗号分隔，决定 01..0N（最多 8）")
-    ap.add_argument("--no-git", action="store_true", help="只生成文件，不初始化 git")
-    ap.add_argument("--force", action="store_true", help="已存在同名文件时覆盖（默认跳过）")
-    ap.add_argument("--shards", choices=["auto", "none"], default="auto",
-                    help="auto=按 --lines 生成 06_流水/<线>.md 分片（默认）；none=单份 06_会话日志.md")
-    args = ap.parse_args()
-
-    target = Path(args.target).expanduser().resolve()
-    project = args.project or target.name
-    lines = [x.strip() for x in args.lines.split(",") if x.strip()]
-    if not lines:
-        lines = ["线A"]
-    if len(lines) > 8:
-        print("! 事实层分册最多 8 个（编号 01-08，05/06/90 已被占用）", file=sys.stderr)
-        return 2
-
+def build_plan(target: Path, project: str, lines, shards: str, force: bool,
+               overwrite_config: bool):
+    """生成 {rel: content} 与元信息；不写盘。"""
     today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    route_rows, file_rows, status_rows, route_inline = [], [], [], []
-    for i, name in enumerate(lines, 1):
-        fn = "%02d_%s.md" % (i, safe(name))
+    lo, hi = protocol.FACT_RANGE
+    route_rows, file_rows, status_rows, route_inline, shard_rows = [], [], [], [], []
+    for i, name in enumerate(lines):
+        num = lo + i
+        fn = "%02d_%s.md" % (num, name)
         route_rows.append("| %s | `%s` + `00` |" % (name, fn))
         file_rows.append("| `%s` | %s（事实层） |" % (fn, name))
         status_rows.append("| %s | 稳定 | [填] | %s |" % (name, today))
         route_inline.append("%s → `%s`" % (name, fn))
+        shard_rows.append("| `06_流水/%s.md` | %s线 |" % (name, name))
+    shard_rows.append("| `06_流水/其他.md` | 无法归类 / 跨线交叉点 |")
 
     ctx = {
         "PROJECT": project,
         "PROJECT_ROOT": str(target),
         "DATE": today,
+        "SCHEMA": protocol.SCHEMA_VERSION,
+        "FACT_RANGE": protocol.fact_shard_range_text(),
+        "ID": "%02d" % lo,
+        "LINE_NAME": lines[0] if lines else "线A",
         "ROUTE_TABLE": "\n".join(route_rows),
         "FILE_TABLE": "\n".join(file_rows),
         "LINE_STATUS": "\n".join(status_rows),
         "ROUTE_INLINE": "；".join(route_inline),
         "INITIAL_STATUS": "- [填：一句话现状，例如「XX 已上线，YY 观察中」]",
-        "ID": "01",
-        "LINE_NAME": "线A",
+        "SHARD_TABLE": "\n".join(shard_rows),
     }
 
-    # 按线分片：一写者一文件，从根上消除共享单文件的并发覆盖
-    shard_names = lines + ["其他"]
-    shard_rows = []
-    for n in shard_names:
-        if n == "其他":
-            shard_rows.append("| `06_流水/其他.md` | 无法归类 / 跨线交叉点 |")
-        else:
-            shard_rows.append("| `06_流水/%s.md` | %s线 |" % (safe(n), n))
-    shard_table = "\n".join(shard_rows)
-    if args.shards == "auto":
-        shard_section = (
-            "## 流水分片\n\n"
-            "每条线**只写自己那一份**，从根上消除共享单文件的并发覆盖：\n\n"
-            "| 分片 | 归它写 |\n|---|---|\n" + shard_table + "\n\n"
+    if shards == "auto":
+        ctx["SHARD_SECTION"] = (
+            "## 流水分片\n\n每条线**只写自己那一份**，从根上消除共享单文件的并发覆盖：\n\n"
+            "| 分片 | 归它写 |\n|---|---|\n" + ctx["SHARD_TABLE"] + "\n\n"
             "- 每条 1–3 行；**单分片**超 200 行 / 60 KB 才折叠进 `90`（触线再拆）。\n"
             "- `06_会话日志.md` 是历史卷 + 索引，**只读、不追加流水**。\n"
             "- 与 `05` §5 同源，改一处必须同步另一处。\n"
         )
     else:
-        shard_section = (
-            "## 流水\n\n"
-            "- `06_会话日志.md` 单份 append-only 流水；超 200 行 / 60 KB 折叠进 `90`（触线再拆）。\n"
-        )
-    ctx["SHARD_TABLE"] = shard_table
-    ctx["SHARD_SECTION"] = shard_section
+        ctx["SHARD_SECTION"] = (
+            "## 流水\n\n- `06_会话日志.md` 单份 append-only 流水；"
+            "超 200 行 / 60 KB 折叠进 `90`（触线再拆）。\n")
 
-    print("== 目标：%s" % target)
-    print("== 项目：%s | 事实层 %d 册：%s" % (project, len(lines), ", ".join(lines)))
-
-    files: dict[str, str] = {}
+    files = {}
 
     def put(rel, src, extra=None):
         c = dict(ctx)
@@ -169,15 +154,15 @@ def main() -> int:
     files["CLAUDE.md"] = pointer
     files["GEMINI.md"] = pointer
     put("00_基线.md", "00_baseline.md")
-    for i, name in enumerate(lines, 1):
-        put("%02d_%s.md" % (i, safe(name)), "fact_book.md",
-            {"ID": "%02d" % i, "LINE_NAME": name})
+    for i, name in enumerate(lines):
+        num = lo + i
+        put("%02d_%s.md" % (num, name), "fact_book.md",
+            {"ID": "%02d" % num, "LINE_NAME": name})
     put("05_进度仪表盘.md", "05_dashboard.md")
-    if args.shards == "auto":
+    if shards == "auto":
         put("06_会话日志.md", "06_index.md")
-        for n in shard_names:
-            put("06_流水/%s.md" % safe(n), "06_shard.md",
-                {"LINE_NAME": n, "LINE_SCOPE": "本线"})
+        for n in lines + ["其他"]:
+            put("06_流水/%s.md" % n, "06_shard.md", {"LINE_NAME": n})
     else:
         put("06_会话日志.md", "06_log.md")
     put("90_过程档案.md", "90_archive.md")
@@ -188,73 +173,242 @@ def main() -> int:
         "#!/bin/sh\n"
         "# 只读自检模板 —— 按项目填充：把文档里的当前值与实机/远端核对，只 echo，不改任何东西。\n"
         "# 例：uci get passwall.@global[0].node / ssh HOST 'app --version' / 查询 API\n"
-        'echo "[handoff-check] TODO: 按项目填充只读核对项"\n'
-    )
+        'echo "[handoff-check] TODO: 按项目填充只读核对项"\n')
 
-    created, skipped = [], []
+    create, skip, modify, conflicts = [], [], [], []
     for rel, content in files.items():
         p = target / rel
-        if p.exists() and not args.force:
-            skipped.append(rel)
+        if p.is_symlink():
+            conflicts.append("%s 是符号链接，拒绝穿透写入" % rel)
             continue
-        write(p, content)
-        created.append(rel)
+        if p.exists():
+            try:
+                same = read(p) == content
+            except Exception:
+                same = False
+            if same:
+                skip.append(rel)
+                continue
+            if rel in PROTECTED and not (force and overwrite_config):
+                skip.append(rel + "（受保护配置，需 --overwrite-config）")
+                continue
+            if not force:
+                skip.append(rel)
+                continue
+            modify.append(rel)
+        else:
+            create.append(rel)
+    return files, {"create": create, "skip": skip, "modify": modify, "conflicts": conflicts}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="生成分层交接库骨架（v2：10–17 编号 + 安全预检）")
+    ap.add_argument("--target", required=True, help="目标目录（绝对或相对）")
+    ap.add_argument("--project", default=None, help="项目名，默认取目录名")
+    ap.add_argument("--lines", default="线A,线B,线C,线D",
+                    help="事实层分册名，逗号分隔，决定 10..17（最多 8）")
+    ap.add_argument("--no-git", action="store_true", help="只生成文件，不初始化 git")
+    ap.add_argument("--force", action="store_true",
+                    help="覆盖同名模板文件（不绕过敏感信息检查与受保护配置）")
+    ap.add_argument("--overwrite-config", action="store_true",
+                    help="允许覆盖 AGENTS.md / .gitignore / .gitattributes（需同时 --force）")
+    ap.add_argument("--shards", choices=["auto", "none"], default="auto",
+                    help="auto=按 --lines 生成 06_流水/<线>.md 分片（默认）；none=单份 06_会话日志.md")
+    ap.add_argument("--plan", action="store_true", help="只输出计划，不写任何文件")
+    ap.add_argument("--json", action="store_true", help="机器可读输出")
+    args = ap.parse_args()
+
+    target = Path(args.target).expanduser().resolve()
+    project = args.project or target.name or "project"
+
+    # ---- 预检查 1：目标目录 ----
+    if target.exists() and not target.is_dir():
+        print("ERR: 目标已存在且不是目录：%s" % target, file=sys.stderr)
+        return 2
+
+    # ---- 预检查 2：线名 ----
+    raw = [x.strip() for x in args.lines.split(",") if x.strip()]
+    if not raw:
+        raw = ["线A"]
+    if len(raw) > protocol.MAX_LINES:
+        print("ERR: 事实分册最多 %d 个（编号 %s；00/05/06/90 是保留层）"
+              % (protocol.MAX_LINES, protocol.fact_shard_range_text()), file=sys.stderr)
+        return 2
+    lines, warnings = [], []
+    seen = {}
+    for item in raw:
+        try:
+            name, warn = normalize_name(item)
+        except Refused as exc:
+            print("ERR: %s" % exc, file=sys.stderr)
+            return 2
+        warnings.extend(warn)
+        key = name.casefold()
+        if key in seen:
+            print("ERR: 线名重复（大小写/Unicode 折叠后相同）：%r 与 %r"
+                  % (seen[key], name), file=sys.stderr)
+            return 2
+        seen[key] = name
+        lines.append(name)
+
+    files, buckets = build_plan(target, project, lines, args.shards,
+                                args.force, args.overwrite_config)
+
+    # ---- 预检查 3：git 现状 ----
+    repo = find_git_repo(target)
+    git_action, git_reason = "init", "目标与父目录都没有 git 仓库"
+    if repo is not None:
+        if repo == target:
+            git_action, git_reason = "skip", "目标已是 git 仓库，不重复初始化、不自动提交"
+        else:
+            git_action, git_reason = "skip", "父目录 %s 已是 git 仓库，拒绝嵌套第二个仓库" % repo
+
+    # ---- 预检查 4：敏感信息（将要写入的内容 + 将被暂存的文件）----
+    secret_hits = []
+    for rel, content in files.items():
+        for label, lineno, snip in security.scan_text(content):
+            secret_hits.append((rel, label, lineno, snip))
+    for extra in (target / "00_基线.md", target / "05_进度仪表盘.md"):
+        if extra.is_file():
+            for label, lineno, snip in security.scan_file(extra):
+                secret_hits.append((str(extra.relative_to(target)), label, lineno, snip))
+
+    problems = list(buckets["conflicts"])
+    if secret_hits:
+        problems.append("敏感信息命中 %d 处：%s"
+                        % (len(secret_hits),
+                           ", ".join("%s:%s(%s)" % (a, c, b) for a, b, c, _ in secret_hits[:5])))
+
+    plan = {
+        "target": str(target), "project": project, "schema_version": protocol.SCHEMA_VERSION,
+        "fact_range": protocol.fact_shard_range_text(),
+        "lines": lines,
+        "files": {k: len(v.encode("utf-8")) for k, v in files.items()},
+        "create": buckets["create"], "skip": buckets["skip"],
+        "modify": buckets["modify"], "conflicts": buckets["conflicts"],
+        "git": {"action": git_action, "reason": git_reason, "repo": str(repo) if repo else None},
+        "secrets": [{"path": a, "label": b, "line": c} for a, b, c, _ in secret_hits],
+        "warnings": warnings, "problems": problems,
+    }
+
+    if args.plan:
+        if args.json:
+            print(json_dumps(plan))
+        else:
+            print("== 计划（--plan 不写盘）=========================================")
+            print("目标：%s\n项目：%s\n事实层：%s（编号 %s）\n"
+                  % (target, project, ", ".join(lines), protocol.fact_shard_range_text()))
+            print("将创建 %d 个：\n  %s" % (len(buckets["create"]),
+                                          "\n  ".join(buckets["create"]) or "（无）"))
+            print("将跳过 %d 个：\n  %s" % (len(buckets["skip"]),
+                                          "\n  ".join(buckets["skip"]) or "（无）"))
+            print("将覆盖 %d 个：%s" % (len(buckets["modify"]),
+                                       ", ".join(buckets["modify"]) or "（无）"))
+            print("git：%s —— %s" % (git_action, git_reason))
+            for w in warnings:
+                print("! %s" % w)
+            for p in problems:
+                print("ERR: %s" % p)
+        return 1 if problems else 0
+
+    if problems:
+        for p in problems:
+            print("ERR: %s" % p, file=sys.stderr)
+        print("已拒绝写入：先处理上面的问题（可用 --plan 复看计划）。", file=sys.stderr)
+        return 1
+
+    # ---- 写盘 ----
+    target.mkdir(parents=True, exist_ok=True)
+    written = []
+    for rel in buckets["create"] + buckets["modify"]:
+        write(target / rel, files[rel])
+        written.append(rel)
     (target / "归档").mkdir(parents=True, exist_ok=True)
     if not (target / "归档" / ".gitkeep").exists():
         write(target / "归档" / ".gitkeep", "")
 
-    print("\n-- 生成 %d 个文件，跳过 %d 个已存在（--force 可覆盖）" % (len(created), len(skipped)))
-    for r in created:
+    print("== 目标：%s\n== 项目：%s | 事实层 %d 册：%s"
+          % (target, project, len(lines), ", ".join(lines)))
+    print("-- 生成 %d 个文件，跳过 %d 个%s"
+          % (len(written), len(buckets["skip"]),
+             "（--force 可覆盖模板；受保护配置需 --overwrite-config）" if buckets["skip"] else ""))
+    for r in written:
         print("   + %s" % r)
-    if skipped:
-        print("   = 跳过：%s" % ", ".join(skipped))
+    for r in buckets["skip"]:
+        print("   = 跳过：%s" % r)
 
-    hits = scan_secrets(target)
-    if hits:
-        print("\n!! 疑似明文凭证 %d 处（入库前处理，或加进 .gitignore）：" % len(hits))
-        for f, label in hits[:20]:
-            print("   - %s  [%s]" % (f, label))
-    else:
-        print("\n-- 除密扫描：0 处明文凭证")
-
-    if not args.no_git:
-        if (target / ".git").exists():
-            print("-- 已是 git 仓库，跳过 init")
-        else:
-            r = sh(["git", "init", "-b", "main"], cwd=target)
-            if r.returncode != 0:  # 老版本 git 不支持 -b
-                sh(["git", "init"], cwd=target)
-                sh(["git", "checkout", "-b", "main"], cwd=target)
-            for k, v in (("core.autocrlf", "false"), ("core.quotepath", "false")):
-                sh(["git", "config", k, v], cwd=target)
-            # 机器上没有全局身份时补一份本仓库兜底，否则首次 commit 直接失败
-            if not sh(["git", "config", "user.name"], cwd=target).stdout.strip():
-                sh(["git", "config", "user.name", "handoff-kb"], cwd=target)
-            if not sh(["git", "config", "user.email"], cwd=target).stdout.strip():
-                sh(["git", "config", "user.email", "handoff-kb@localhost"], cwd=target)
-            sh(["git", "add", "-A"], cwd=target)
-            r = sh(["git", "commit", "-m",
-                    "初始基线：分层交接库骨架（00-0N 事实层 / 05 现状 / 06 流水 / 90 归档 / AGENTS 入口）"],
-                   cwd=target)
-            if r.returncode == 0:
-                print("-- git init + 首次 commit 完成（main）")
-            else:
-                print("!! commit 失败：%s" % (r.stderr or r.stdout).strip()[:200])
-    else:
+    # ---- git ----
+    if args.no_git:
         print("-- --no-git：跳过版本控制（建议尽快 git init）")
+    elif git_action == "skip":
+        print("-- git：%s（%s）" % (git_action, git_reason))
+    else:
+        r = sh(["git", "init", "-b", "main"], cwd=target)
+        if r.returncode != 0:
+            r = sh(["git", "init"], cwd=target)
+            if r.returncode == 0:
+                sh(["git", "checkout", "-b", "main"], cwd=target)
+            else:
+                print("!! git init 失败：%s" % (r.stderr or r.stdout).strip()[:200], file=sys.stderr)
+                return 1
+        for k, v in (("core.autocrlf", "false"), ("core.quotepath", "false")):
+            sh(["git", "config", k, v], cwd=target)
+        if not sh(["git", "config", "user.name"], cwd=target).stdout.strip():
+            sh(["git", "config", "user.name", "handoff-kb"], cwd=target)
+        if not sh(["git", "config", "user.email"], cwd=target).stdout.strip():
+            sh(["git", "config", "user.email", "handoff-kb@localhost"], cwd=target)
+
+        stage = [p for p in (buckets["create"] + buckets["modify"] + ["归档/.gitkeep"])
+                 if (target / p).is_file()]
+        r = sh(["git", "add", "--"] + stage, cwd=target)
+        if r.returncode != 0:
+            print("!! git add 失败：%s" % (r.stderr or r.stdout).strip()[:200], file=sys.stderr)
+            return 1
+        staged = sh(["git", "diff", "--cached", "--name-only"], cwd=target).stdout.split("\n")
+        staged = [s for s in (x.strip() for x in staged) if s]
+        outside = [s for s in staged if s not in stage]
+        if outside:
+            print("!! 暂存区出现了白名单外的文件：%s" % ", ".join(outside[:5]), file=sys.stderr)
+            sh(["git", "reset"], cwd=target)
+            return 1
+        hits = []
+        for s in staged:
+            for label, lineno, snip in security.scan_file(target / s):
+                hits.append((s, label, lineno))
+        if hits:
+            sh(["git", "reset"], cwd=target)
+            print("!! 暂存内容命中敏感信息，已取消提交：", file=sys.stderr)
+            for s, label, lineno in hits:
+                print("   - %s:%s  [%s]" % (s, lineno, label), file=sys.stderr)
+            return 1
+        r = sh(["git", "commit", "-m",
+                "初始基线：分层交接库骨架 v%d（00 基线 / %s 事实层 / 05 现状 / 06 流水 / 90 归档）"
+                % (protocol.SCHEMA_VERSION, protocol.fact_shard_range_text())], cwd=target)
+        if r.returncode != 0:
+            print("!! commit 失败：%s" % (r.stderr or r.stdout).strip()[:200], file=sys.stderr)
+            return 1
+        print("-- git init + 首次 commit 完成（main），仅暂存本次生成的 %d 个文件" % len(staged))
 
     core = [target / f for f in ("00_基线.md", "05_进度仪表盘.md")]
     b = sum(p.stat().st_size for p in core if p.exists())
     total = sum(p.stat().st_size for p in target.rglob("*")
-                if p.is_file() and ".git" not in p.parts)
-    print("\n== 接手成本：00 + 05 = %d B ≈ %.1f k tokens（按 4.5 B/token 估）"
+                if p.is_file() and ".git" not in p.parts and ".kb-txn" not in p.parts)
+    print("\n== 接手成本：00 + 05 = %d B ≈ %.1f k tokens（估算，CJK 1 字≈1 token）"
           % (b, b / 4500))
     print("== 全库 %d B；按需读而非全读，是这套结构省 token 的关键" % total)
-    print("== 下一步：填 00 的 K-xx 基线行 / 05 §0 现状 / AGENTS.md 硬约束；")
-    print("   按项目补 .gitignore（大文件先排再 add）、把 handoff-check.sh 换成真实只读核对项；")
-    print("   把 新会话启动消息.txt 复制给新会话。")
+    print("== 下一步：填 00 的 K-xx 基线行 / 05 的 kb:id 章节 / AGENTS.md 硬约束；")
+    print("   跑 kb-handoff.py check 看还缺什么；把 新会话启动消息.txt 复制给新会话。")
     return 0
 
 
+def json_dumps(obj):
+    import json
+    return json.dumps(obj, ensure_ascii=False, indent=2)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Refused as exc:
+        print("ERR: %s" % exc, file=sys.stderr)
+        sys.exit(2)

@@ -1,0 +1,8 @@
+# 统一换行：仓库里存 LF，工作区按平台处理，避免整文件 CRLF 差异
+* text=auto eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.png binary
+*.jpg binary
