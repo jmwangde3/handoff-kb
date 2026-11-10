@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地记忆与运行产物（skill 装进项目时会被生成）
+.workbuddy/
+*.log
+logs/
+tmp/
