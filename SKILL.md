@@ -1,9 +1,9 @@
 ---
 name: handoff-kb
-description: 给「多会话并行 / 上下文容易满 / 需要长期维护」的项目搭分层交接库（00-04 事实层 + 05 现状 + 06 流水 + 90 归档 + AGENTS 入口 + git 机制），并做体检、存量改造与大文档分段读。触发词：上下文满了、文档臃肿、多会话同步、进度仪表盘、按线分片、结论索引、别再建第 N 份文档、老项目改造、存量迁移、文档库分层、知识库改造、handoff 库。**不适用**：单会话一次性交接、只要一份 handoff / 继续提示词、临时任务收尾、文档少于 3 份且只有一个会话——这类直接写一份 6 行 handoff 即可，不必展开本 skill、不要建库。内含一键脚手架、只读体检、分段读、改造手册与话术、全套模板。
+description: 给「多会话并行 / 上下文容易满 / 需要长期维护」的项目搭分层交接库（00 基线 + 10–17 事实分册 + 05 现状 + 06 流水 + 90 归档 + AGENTS 入口 + git 机制），并提供按 Token 预算的上下文路由、带哈希校验的安全写入、证据驱动的交接检查、v1→v2 无损迁移、客户端 Hook 与评测。触发词：上下文满了、文档臃肿、多会话同步、进度仪表盘、按线分片、结论索引、别再建第 N 份文档、老项目改造、存量迁移、文档库分层、知识库改造、handoff 库、token 预算、safe write。**不适用**：单会话一次性交接、只要一份 handoff / 继续提示词、临时任务收尾、文档少于 3 份且只有一个会话——这类直接写一份 6 行 handoff 即可，不必展开本 skill、不要建库。
 ---
 
-# 分层交接库（handoff-kb）
+# 分层交接库（handoff-kb 2.0）
 
 ## 适用边界（加载后先读这段）
 
@@ -14,8 +14,8 @@ description: 给「多会话并行 / 上下文容易满 / 需要长期维护」�
 | 单会话、任务做完传给下一个会话、只要一份交接说明 | **别用本 skill** → 简单 handoff |
 | 文档 < 3 份、没有并行会话、一次性任务 | **别用本 skill** → 简单 handoff |
 | 想给当前会话留个「继续提示词」 | **别用本 skill** → 简单 handoff |
-| 多条线 + 多个会话并行 + 上下文容易满 + 需要长期维护 | 用本 skill，从 §1 开始 |
-| 老项目已有一堆文档要整理成库 | 用本 skill §3 + `references/migration.md` |
+| 多条线 + 多个会话并行 + 上下文容易满 + 需要长期维护 | 用本 skill，从 §3 开始 |
+| 老项目已有一堆文档要整理成库 | 用本 skill，§4 + `references/migration.md` |
 
 **简单 handoff 模板**（贴进新会话即可，不落盘、不建库、不 git）：
 
@@ -28,167 +28,183 @@ description: 给「多会话并行 / 上下文容易满 / 需要长期维护」�
 别重复踩：[1 行，没有就删]
 ```
 
-> 判定更细的「该不该改造」表见 `references/migration.md` §0。
-> **项目侧兜底**：某个项目若确定不用这套库，在它自己的 `AGENTS.md` 第一行写「本项目用简单 handoff，不加载 handoff-kb」即可，agent 优先听项目规则。
+> 项目侧兜底：某个项目确定不用这套库，在它自己的 `AGENTS.md` 第一行写「本项目用简单 handoff，不加载 handoff-kb」，agent 优先听项目规则。
 
-## 0. 这套东西解决什么
+## 1. 分层模型与 2.0 的新增
 
-一个项目被拆成多条线、多个会话并行推进时，会出现三个必然问题：
+| 层 | 文件 | 放什么 | 接手必读 |
+|---|---|---|---|
+| L0 入口 | `AGENTS.md`（+ `CLAUDE.md`/`GEMINI.md` 指针） | 读哪份、怎么写。**不写当前值** | 读 |
+| L1 事实 | `00`（`K-xx` + 状态 + 证据）+ `10–17` 按线分册 | 当前值 / 判据 / 命令 / 坑 | 按线读 |
+| L2 现状 | `05_进度仪表盘.md`（`kb:id` 章节） | 现状 / 下一手 / 各线状态 / 待办 / 硬约束 | **必读** |
+| L3 流水 | `06_会话日志.md`（历史卷只读）+ `06_流水/<线>.md` | append-only 时间线 | 追溯才读 |
+| L4 归档 | `90_过程档案.md` + `归档/` | 过程证据 / 验证快照 / 版本考古 | 非必读 |
 
-1. **上下文爆炸**：每开一个新会话就「全读所有文档」，一上来烧掉几万 token。
-2. **进度失同步**：每条线在自己文档里记待办，分会话看不到别人到哪了，只能靠人工复述。
-3. **并发覆盖**：共享文档被两个会话同时「读-改-写」，后写者全胜，无 diff、无回滚。
+2.0 相对 v1 的实质变化：
 
-核心答案不是「把文档写薄」，而是 **把「存」和「读」解耦**：总字数可以一直涨，但单次接手只读固定的一小份。实测该项目全库 308 KB，接手只需 `05`+`00` = 25 KB（≈5.6k tokens），**占 8.2%**，而总行数反而从 1,759 行涨了——因为过程被归档而不是删掉。
+1. **编号不再冲突**：事实分册 `10–17`（旧库 `01–04` 仍合法），`00/05/06/90` 固定不动。
+2. **章节可被稳定引用**：`<!-- kb:id: dashboard.current -->`，与标题文字、行号解耦。
+3. **写回有并发保护**：全量 `sha256` + 文件锁 + 事务日志，`CONFLICT` 不覆盖。
+4. **上下文按预算取**：`kb-context.py` 分 P0–P4 装配，硬约束永不裁。
+5. **交接带证据**：`kb-handoff.py` 把「没证据的完成」判为待核。
+6. **旧库能迁移**：`kb-migrate.py` 只补 schema 注释与章节 ID，不改正文。
 
-> 准确叫法是「**人工 RAG + 分层 wiki**」：靠文件名 + 章节号 + 编号 ID 人工路由，零依赖、纯文本、可 diff；没有 embedding / 语义检索 / 并发锁。规模上限靠 **机制**（git + 膨胀阈值）守，不靠纪律。
-
-## 1. 分层模型（LAYER 0–3）
-
-| 层 | 文件 | 放什么 | 改动频率 | 接手是否读 |
-|---|---|---|---|---|
-| 入口 | `AGENTS.md`（+`CLAUDE.md`/`GEMINI.md` 两行指针） | 只写「读哪份、按什么规矩写」，**不写当前值** | 极少 | **读**（3 KB） |
-| 事实层 | `00` 唯一共享页 + `01`–`0N` 按线分册 | 当前值 / 不变量 / 判据 / 命令 / 踩过的坑与结论 | 少（刷机、换节点、组件更新才改） | 按线读 |
-| 现状层 | `05_进度仪表盘.md` | 各线状态 + 待办 + 交叉点 + 接手顺序 + 最近 5 条摘要 | **常改** | **必读** |
-| 流水层 | `06_会话日志.md`（历史卷，只读）+ `06_流水/<线>.md`（按线分片） | append-only 时间线，超 3 行的完整记录 | 按线只写自己那份 | 追溯才读 |
-| 深归档 | `90_过程档案.md` + `归档/` | 过程证据 / 验证快照 / 版本考古 / 已消除矛盾 / 一次性任务单 | 折叠时才写 | **非必读** |
-
-`00` 的 K-xx 表和事实层的 §编号是**跨文档契约**：别的文件在引用，改内容可以，**别重排编号、别复用已作废的 ID**。
-
-## 2. 从零搭一个项目（一键）
+## 2. 安装与作用域
 
 ```bash
-SKILL="$HOME/.skills-manager/skills/handoff-kb"   # Windows: C:/Users/<你>/.skills-manager/skills/handoff-kb
-py "$SKILL/scripts/kb-init.py" \
-    --target "~/projects/新项目" \
-    --project "新项目" \
-    --lines "固件,运行态,服务端,测速"
+KB="$HOME/.skills-manager/skills/handoff-kb"   # Windows: C:/Users/<你>/.skills-manager/skills/handoff-kb
+ls "$KB/scripts"                               # 先确认路径再往下跑
 ```
 
-会生成：`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`00_基线.md`、`01_固件.md`…`04_测速.md`、`05_进度仪表盘.md`、`06_会话日志.md`（历史卷 + 索引）、**`06_流水/<每条线>.md` + `其他.md` 分片**、`90_过程档案.md`、`新会话启动消息.txt`、`.gitignore`、`.gitattributes`、`scripts/handoff-check.sh` 占位、`归档/`，并自动 `git init -b main` + 首次 commit。
+客户端目录里的 `skills/handoff-kb` 通常是软链（`~/.workbuddy`、`~/.codex`、项目内 `.claude/skills` 等），真实目录只有一份。所有脚本只读写 `--target` 指定的根目录内部；路径逃出根、`..`、绝对路径、符号链接越界都会被拒绝。
 
-> `SKILL` 就是本 skill 的安装目录，下文各节统一写 `$SKILL/scripts/...`。真实目录通常只有一份，客户端目录用软链指过来：
-> - skills-manager 统一管理：`~/.skills-manager/skills/handoff-kb`（Windows：`C:/Users/<你>/.skills-manager/skills/handoff-kb`）
-> - 项目内软链：`.workbuddy/skills/`、`.codex/skills/`、`.qoder/skills/`、`.trae/skills/` 下的 `handoff-kb` → 同真实目录
-> - 只装单客户端：`~/.claude/skills/handoff-kb`、`~/.codex/skills/handoff-kb` 一类
->
-> 先 `ls "$SKILL/scripts"` 确认路径，再往下跑。
+## 3. 新建项目（一键）
 
-生成后必做三件事（脚本会提示）：
-1. 填 `00` 的 K-xx 基线行与状态列；填 `05` §0 现状；填 `AGENTS.md` 的硬约束。
-2. 按项目补 `.gitignore`（**视频 / 大二进制必须先排再 add**），把 `handoff-check.sh` 换成真实只读核对项。
-3. 把 `新会话启动消息.txt` 复制到新会话，末尾填具体任务。
+```bash
+py "$KB/scripts/kb-init.py" --target "~/projects/新项目" --project "新项目" \
+    --lines "固件,运行态,服务端,测速"
+py "$KB/scripts/kb-init.py" --target "~/projects/新项目" --plan    # 只看计划
+```
 
-`--shards auto`（默认）按 `--lines` 生成分片、`--shards none` 回到单份 `06_会话日志.md`；`--no-git` 只生成文件；`--force` 覆盖同名文件。
+生成：`AGENTS.md`、`CLAUDE.md`/`GEMINI.md`、`00_基线.md`、`10–17_<线>.md`、`05_进度仪表盘.md`、`06_会话日志.md` + `06_流水/*.md`、`90_过程档案.md`、`新会话启动消息.txt`、`.gitignore`/`.gitattributes`、`scripts/handoff-check.sh` 占位、`归档/`。
 
-## 3. 存量项目改造（五步 SOP，别跳步）
+生成后必做三件事：
 
-> **完整手册** `references/migration.md`：第 0 步只读诊断 → 五步逐步展开（目标 / 判据 / 命令 / 产物 / 坑）→ 验收 → 回滚 → 真实案例。
-> **可直接复制给新会话的话术** `assets/migration-prompt.txt`：占位符填空即可，不用自己拼。
+1. 填 `00` 的 `K-xx` 行（值 / 状态 / 证据）与 `05` 的现状、下一手、硬约束。
+2. 按项目补 `.gitignore`（大文件、凭证先排），把 `handoff-check.sh` 换成真实只读核对。
+3. `py "$KB/scripts/kb-handoff.py" check --target . --strict` 看还缺什么。
 
-**第 0 步（必做）**：`py kb-check.py --target DIR --loose` 只读诊断，先拿到「接手成本 / 有无 git / 明文凭证 / 编号契约 / 未提交改动」，再决定动不动。老项目别一上来跑 `kb-init.py` 覆盖。
+安全边界：`--plan` 不落盘；已有 git 仓库不嵌套、不自动提交；只 `git add --` 白名单；凭证命中即拒绝提交（`--force` 不绕过）；受保护配置要 `--force --overwrite-config`。
 
-1. **先 `git init`**（先写 `.gitignore` 排除凭证 / 日志 / 大二进制，再 `git add`）。没有版本控制，后面任何拆分都无法回滚。
-2. **过程下沉**：把「历史矛盾、验证快照、版本考古、已结案背景、时间戳长串」整段搬进 `90 §A–§G`，主文档对应位置只留 `详见 90 §X`。**只删过程，坑与结论一条不留地保留**。
-3. **建 `05`**：把散落在各文档、话术文件里的「状态 / 待办 / 进度」抽到一处，删掉同源重复的副本。
-4. **拆 `06`**：当 `05` 出现单条 >3 行、或涨到 ~70 行以上，把完整流水整段移进 `06`（append-only，用 `sed -n 'Np' >> 06` 原样搬 + `cmp` 校验，别手抄），`05` 只留摘要；**多会话优先按线分片** `06_流水/<线>.md`。
-5. **加机制**：`AGENTS.md` 入口、`00` 的 K-xx 编号与状态列、`06` 轮转阈值、收尾 commit 规则。最后再补 `CLAUDE.md`/`GEMINI.md` 指针。
+## 4. 存量项目（先诊断，再迁移）
 
-**别提前拆**：进度文件只有 30 行时拆成两份，反而要翻两份。涨到「接手等于读日志」再拆。
-**验收**：只看 `05` 能答出 §9 四问 + `kb-check.py --strict` 0 ERR + `git status` 干净。
+```bash
+py "$KB/scripts/kb-check.py"   --target ./old --loose      # 只读诊断（不要求改名）
+py "$KB/scripts/kb-migrate.py" --target ./old --plan       # 计划绑定源哈希
+py "$KB/scripts/kb-migrate.py" --target ./old --apply      # 哈希不符就拒绝
+```
 
-## 4. 接手 SOP / 写回 SOP
+`kb-migrate.py` 只补 `<!-- kb:schema: 2 -->` 与已知章节的 `kb:id`：不重命名 `01–04`、不重排章节、不改正文、不删证据；重复执行幂等。有未提交改动时默认拒绝（确认无并发会话才 `--force`）。
 
-接手（四步，任何任务都一样）：
-1. 读 `05_进度仪表盘.md` —— 只读这一份就接上所有线。
-2. `git status` + `git log --oneline -5` —— 有没有别的会话正在改。
-3. 按 `05` §4 只读本任务所属线的详情文档（**不全读全库**）。
-4. 跑只读自检脚本，确认实机与文档一致，再动手。
+结构改造（过程下沉 `90`、建 `05`、拆 `06`）仍按 `references/migration.md` 的五步 SOP，别跳步、别提前拆。
 
-写回：
-- 改了实机 / 配置 / 结论 → 改 `05` §0–§2，§6 追加一行 `[时间] <线> <做了什么 → 下一手>`。
-- 超 3 行的细节整条写 `06`，`05` 只留一行摘要 + 指针。**不改别人的行**。多会话项目优先**按线分片**：`06_流水/<线>.md` 一写者一文件，历史卷 `06_会话日志.md` 只读不再追加——从根上消除共享单文件的并发覆盖。
-- 收尾 `git add -A && git commit -m "<线> <做了什么>"`。**别整文件覆盖写**。
-- 引用别处事实写 ID（`00` K-xx）或 `文档 §节`，**不复述数值**，避免两套说法漂移。
+## 5. 接手 SOP
 
-## 5. 阈值表（写进 `05` §5，触线才动手）
+```bash
+py "$KB/scripts/kb-context.py" --target . --task "<本次任务>" --budget 3000 --explain
+git status && git log --oneline -5
+py "$KB/scripts/kb-search.py"  --target . --query "<关键词>" --limit 5     # 需要定位时
+py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboard.next
+```
+
+预算装配顺序：P0 硬约束 → P1 现状 + 下一手 → P2 本线事实 → P3 基线命中 + 证据 + 交叉链 → P4 相关度补满（≤30% 预算、≤3 块）。
+
+- 报「超额」时**不要删硬约束**：拆任务或提高 `--budget`，并把超额项写进输出让用户知情。
+- 没有命中就报缺口，去 `kb-search`，别编。
+- token 默认 `heuristic` 估算；用 `--tokenizer cl100k_base` 且装了 tiktoken 才是真实计数。
+
+## 6. 写回 SOP（禁止整文件覆盖）
+
+1. `py "$KB/scripts/kb-write.py" read --target . --file 05_进度仪表盘.md --json` → 拿 `sha256` 与章节 ID。
+2. 组装 `changes.json`（`replace_section` / `append` / `update_fact`，每条带 64 位 `expected_sha256`）。
+3. `--dry-run` 看差异 → `apply` 落盘。
+4. `CONFLICT` = 别人改过：重新 `read`、合并、重写，**不重试覆盖**。
+5. `LockHeld` = 另一个会话在写：等；确认对端进程已死才 `recover --break-lock`。
+
+分流规则：状态/待办/下一手写 `05`；超 3 行的细节整条写 `06_流水/<线>.md`；长期事实进 `00` 或 `10–17`（带证据）；过程与验证快照进 `90`。**不改别人的行**。
+
+## 7. 交接检查
+
+```bash
+py "$KB/scripts/kb-handoff.py" check --target . --strict
+```
+
+8 个问题逐项判定：任务 / 已完成 / 证据 / 待核 / 阻塞 / 下一步 / 受影响文件 / 禁止重复的操作。占位符（`[填`、`TODO`）与「有效但无证据」都算待核，`--strict` 直接失败。
+
+## 8. 体检
+
+```bash
+py "$KB/scripts/kb-check.py" --target .                 # 人读
+py "$KB/scripts/kb-check.py" --target . --strict        # WARN 也算失败
+py "$KB/scripts/kb-check.py" --target . --json          # CI / Hook
+py "$KB/scripts/kb-check.py" --target . --loose         # 自有命名（60_进度.md 等）
+py "$KB/scripts/kb-check.py" --target . --mode template # 空模板：不报证据缺失
+```
+
+检查：必需文件（精确命名）、各层体积与接手成本、阈值、`K-xx` 重复/未定义/作废/循环引用、`kb:id` 重复与非法、事实证据与时效、表格列数、TODO、明文凭证、git 状态。
+
+## 9. Hook（可选，默认不装）
+
+```bash
+py "$KB/scripts/kb-hooks.py" install --client claude --target . --plan
+py "$KB/scripts/kb-hooks.py" install --client claude --target . --write
+py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
+```
+
+只写项目级配置；`run` 只读、永远退出 0；不联网、不自动提交、不阻断压缩。事件语义见 `references/hooks.md`，装之前先 `--plan`。
+
+## 10. 评测
+
+```bash
+py "$KB/scripts/kb-benchmark.py" --target . --report markdown
+```
+
+A 全量 / B `00+05` / C 路由，10 个固定任务，同时报 token、P4 噪声比与质量通过数。口径见 `references/benchmark.md`——**估算值不要当 API 账单**。
+
+## 11. 阈值表（写进 `05`，触线才动手）
 
 | 对象 | 阈值 | 动作 |
 |---|---|---|
-| `05` §0 现状 | > 4 行 | 压缩，细节进 `06` |
-| `05` §6 摘要 | > 5 条 / 单条 > 3 行 | 整条移进 `06` |
-| `06` 流水（**单分片**） | > 200 行 或 > 60 KB | 该分片按主题折叠进 `90 §X`，只留标题 + 指针；历史卷只读不计 |
-| `00` 基线 | > 150 行 | 升级成结论索引（K-xx + 状态列） |
-| `90` 归档 | > 600 行 | 再分卷或移 `归档/`，主文档指针不变 |
-| 事实层分册 | > 8 个 | 说明该按领域合并，不是继续加编号 |
+| `05` 现状 | > 4 行 | 压缩，细节进流水 |
+| `05` 最近记录 | > 5 条 / 单条 > 3 行 | 整条移进 `06_流水/<线>.md` |
+| `06` 单分片 | > 200 行 或 > 60 KB | 折叠进 `90`，只留标题 + 指针 |
+| `00` 基线 | > 150 行 或 `K-xx` > 30 条 | 升级成结论索引 |
+| `90` 归档 | > 600 行 | 再分卷或移 `归档/` |
+| 事实分册 | > 8 个 | 按领域合并 |
 
-真实教训：某项目进度文件涨到 **79 行 / 17 KB、单条 976 字**，等于把 `05` 写成了第二个 `90`；接手时读它就是在读日志。
+## 12. 反模式
 
-## 6. 反模式清单（踩过的坑，别再走）
+| 坑 | 后果 |
+|---|---|
+| 长话术多份同源 | 改一处漏两处，口径漂移 |
+| 参考手册列进「接手必读」 | 每个新会话白烧几十 k token |
+| `05` 堆已完成的待办 | 待办区被历史稀释 |
+| 删过程时连坑一起删 | 下次重走旧路 |
+| 明文凭证直接 `git init` | 永久进历史，删不掉 |
+| 大视频没排除就 `add` | 仓库几十 MB，历史不可清 |
+| `git add -A` | 把别的会话的半成品一起提交 |
+| 整文件覆盖写 `05` | 抹掉别人刚追加的行 |
+| 重排 §编号 / 复用 `K-xx` | 全库引用失效 |
+| 没证据就写「已修复」 | 交接不可验证，等于没交 |
 
-| 坑 | 后果 | 正确做法 |
-|---|---|---|
-| 长话术三份同源（`00` §6 / `04` §9 / 启动 txt） | 改一处漏两处，口径漂移 | 唯一源 = `AGENTS.md` / 启动 txt，其余只留指针 |
-| 把 500 行参考手册列进「接手必读」 | 每个新会话白烧 100k+ 字符 | 参考手册按需查章节 |
-| `05` 里堆已完成的待办 | 待办区被历史稀释 | 完成即移 `06` |
-| 删过程时连坑一起删 | 下次重走旧路 | **只删过程叙述，坑与结论全留** |
-| 明文密码 / AK 直接 `git init` | 凭证永久进历史，删不掉 | 先 `.gitignore` + 除密扫描，再 add |
-| 大视频 / 日志没排除就 add | 仓库瞬间几十 MB，历史不可清 | 先写 `.gitignore`，`git ls-files` 验收 |
-| 无 git 时并发改共享文档 | 后写者全胜且无提示 | git status/diff 是唯一冲突信号 |
-| 提前把 30 行进度文件拆两份 | 接手要翻两份 | 涨到阈值再拆 |
-| 重排 `02 §1–§9` / 复用 K-xx ID | 全库引用失效 | 编号是契约，只改内容 |
-| 整文件覆盖写 `05` | 抹掉别的会话刚追加的行 | 追加 + commit |
+## 13. 验收四问（只看 `05` 一份）
 
-## 7. 体检（只读，不改文件）
+1. 各条线现在什么状态？
+2. 下一手做什么？
+3. 哪些待定 / 进行中 / 已完成，证据是什么？
+4. 动某个具体配置该读哪几份？
 
-```bash
-py "$SKILL/scripts/kb-check.py" --target "~/projects/新项目"
-py "$SKILL/scripts/kb-check.py" --target . --strict   # WARN 也算失败
-py "$SKILL/scripts/kb-check.py" --target "~/projects/老项目" --loose  # 自有命名（60_进度.md / 00_INDEX.md）
-```
+答不出 = `05` 缺信息或又膨胀了，别去全读全库补。
 
-输出：各层体积表 + 接手成本估算、膨胀阈值命中、残留 TODO / 明文凭证、K-xx/G-xxx 编号统计与重复、Markdown 表格列数一致、git 未提交改动与最近 5 条 log。ERROR 项 >0 时退出码 1。
-
-`--loose` 用于**已经有自己命名体系的项目**：必需文件名（`05_/06_/90_`）缺失只报 WARN，其余检查照跑——这样不用先改造就能拿到一份体检报告，缺的那几项本身就是要不要做分离的判据。别名识别：`*进度*` / `*现状*` → 现状层，`*INDEX*` / `*索引*` → 基线，`*流水*` / `*日志*` → 流水。
-
-`06` 若按线分片（`06_流水/<线>.md`），体检器会单独统计每个分片、按**单分片**判 200 行 / 60 KB，历史卷只读不计增长。
-
-体积统计自动跳过 >2 MB 文本与资料目录（`AI_files/` / `assets/` / `data/` / `output/` / `evidence/` / `paktools/` / `build/` 等），避免解包数据把接手成本比例压成 0 —— 老项目诊断时尤其重要，详见 `references/migration.md` §1。
-
-## 7b. 大文档分段读（`kb-outline.py`）
-
-几百行的参考手册（如 428 行服务端手册）别整份塞进上下文。先拿目录与 `source-hash`，再按节读：
-
-```bash
-S="$HOME/.skills-manager/skills/handoff-kb/scripts/kb-outline.py"
-py "$S" --file 03_xray-hy服务端_精简交接.md                       # 目录树：#N / 行号 / 节行数 / source-hash
-py "$S" --file 03_...md --find 磁盘                               # 只列标题含关键词的节
-py "$S" --file 03_...md --section 21 --hash 1ff381af139d          # 按序号取节（含子节）
-py "$S" --file 03_...md --section "J. 磁盘" --hash 1ff381af139d --no-children
-py "$S" --file 03_...md --section 11 --max-lines 80 --offset 0     # bounded excerpt + 续读
-```
-
-`--hash` 传了就校验：文档变了会拒绝读取并退出 2，防止按过期目录取到错节。`--max-lines` / `--offset` 做分段，`--no-children` 只取本节正文。跳过 fenced code block 里的 `#` 行，行号可直接写成 `文档 §X` 引用。
-
-> 借鉴 `mcncarl/agent-memory-vault` 的 `outline` / `section` + current-hash 重验证；纯 Python 标准库、只读、不改文件。
-
-## 8. 文件索引
+## 14. 文件索引
 
 | 路径 | 用途 |
 |---|---|
-| `scripts/kb-init.py` | 一键生成骨架（含按线分片）+ git init + 除密扫描 + 接手成本估算 |
-| `scripts/kb-check.py` | 只读体检（含 `06_流水/` 分片统计） |
-| `scripts/kb-outline.py` | 大文档目录树 + 按节读 + source-hash 重验证 |
-| `references/protocol.md` | 设计原理、并发模型、验收四问、可移植契约（适合贴进项目或给人读） |
-| `references/migration.md` | 存量项目改造完整手册（诊断 → 五步 → 验收 → 回滚 → 案例） |
-| `assets/migration-prompt.txt` | 老项目改造启动话术，可直接复制给新会话 |
-| `assets/` | 11 个骨架模板（`AGENTS` / `00` / 事实层 / `05` / `06` 单卷与分片两套 / `90` / 启动消息 / gitignore / gitattributes） |
-
-## 9. 验收四问（改造完只看 `05` 一份，答得出即合格）
-
-1. 四条线各自现在什么状态？
-2. 下一手做什么？
-3. 哪些是待定 / 进行中 / 已完成？
-4. 动某个具体配置该读哪几份？
-
-答不出就是 `05` 缺信息或又膨胀了，别去全读全库补。
+| `scripts/kb-init.py` | 脚手架（10–17 编号）+ 预检查 + 白名单提交 + 凭证阻断 |
+| `scripts/kb-check.py` | 只读体检（`--loose` / `--strict` / `--json` / `--mode`） |
+| `scripts/kb-outline.py` | 目录树 + `--section-id` + 按节读 + `--hash` 校验 |
+| `scripts/kb-write.py` | 安全写入（哈希 / 锁 / 事务 / `recover`） |
+| `scripts/kb-migrate.py` | v1 → v2 无损迁移（计划绑定哈希） |
+| `scripts/kb-search.py` | 轻量全文检索（章节级打分） |
+| `scripts/kb-context.py` | 预算内上下文路由（`--explain`） |
+| `scripts/kb-handoff.py` | 交接有效性检查（证据优先） |
+| `scripts/kb-hooks.py` | 客户端 Hook 适配（默认不安装） |
+| `scripts/kb-benchmark.py` | Token 与质量评测 |
+| `scripts/lib/` | 共享库：protocol / scope / markdown / safeio / security / tokens / terms |
+| `references/protocol-v2.md` | 2.0 协议（编号 / 章节 ID / changes.json / 并发恢复） |
+| `references/protocol.md` | v1 设计原理（历史） |
+| `references/migration.md` | 存量改造手册（含 v1 → v2） |
+| `references/hooks.md` | Hook 语义与安装 |
+| `references/benchmark.md` | 评测口径 |
+| `assets/` | 骨架模板 |
+| `tests/` | unittest + smoke |
