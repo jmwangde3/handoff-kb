@@ -109,6 +109,7 @@ py "$KB/scripts/kb-migrate.py" --target ./old --apply      # 校验源哈希后�
 
 ```bash
 py "$KB/scripts/kb-context.py" --target . --task "排查 NSS 网络问题" --budget 3000 --explain
+py "$KB/scripts/kb-context.py" --target . --loose --task "查看当前项目状态"  # 自有命名项目
 ```
 
 装配顺序（高 → 低）：
@@ -183,6 +184,7 @@ py "$KB/scripts/kb-write.py" recover --target . [--dry-run|--apply] [--break-loc
 
 ```bash
 py "$KB/scripts/kb-handoff.py" check  --target . --strict
+py "$KB/scripts/kb-handoff.py" check  --target . --loose   # 无 kb:id 时按标题兜底
 py "$KB/scripts/kb-handoff.py" report --target . --json
 ```
 
@@ -206,7 +208,9 @@ py "$KB/scripts/kb-check.py" --target . --mode template  # 刚初始化的空模
 
 检查：必需文件（精确命名优先，不用 `05_*.md` 通配）、各层体积与接手成本、阈值命中、`K-xx` 重复定义 / 未定义引用 / 作废引用 / 循环作废链、`kb:id` 重复与非法格式、事实证据与核实时效、表格列数、残留 TODO、明文凭证、git 未提交改动。ERROR > 0 退出码 1。
 
-体积统计跳过 `AI_files/` / `assets/` / `data/` / `output/` / `evidence/` / `node_modules/` / `build/` 等资料目录与 >2 MB 文本。
+体积统计**分两层报**：正文（不含 `归档/`）与归档各自计数，接手成本只对正文算；跳过 `AI_files/` / `assets/` / `data/` / `output/` / `evidence/` / `unpack/` / `_tmp/` / `node_modules/` / `build/` 等资料目录与 >2 MB 文本。归档长期大于正文 3 倍会报 WARN——备份该折叠了。
+
+编号检查认「定义位」：标题首、列表首、表格首列，**跨文件**都算（`## G-010 …` 就是定义）；只在句子里提到的算引用。`--loose` 下未定义引用降为 WARN，避免自有命名项目一上来就 10 条 ERR。
 
 ---
 
@@ -228,7 +232,7 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests -v     # 80 个用例
+python -m unittest discover -s tests -v     # 84 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
@@ -288,7 +292,7 @@ scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
 scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms
-tests/                      80 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+tests/                      84 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
 .github/workflows/test.yml  Ubuntu + Windows × 3 个 Python 版本

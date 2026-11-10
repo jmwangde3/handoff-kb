@@ -92,6 +92,7 @@ py "$KB/scripts/kb-migrate.py" --target ./old --apply      # 哈希不符就拒�
 
 ```bash
 py "$KB/scripts/kb-context.py" --target . --task "<本次任务>" --budget 3000 --explain
+py "$KB/scripts/kb-context.py" --target . --loose --task "<本次任务>"   # 自有命名项目
 git status && git log --oneline -5
 py "$KB/scripts/kb-search.py"  --target . --query "<关键词>" --limit 5     # 需要定位时
 py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboard.next
@@ -117,6 +118,7 @@ py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboa
 
 ```bash
 py "$KB/scripts/kb-handoff.py" check --target . --strict
+py "$KB/scripts/kb-handoff.py" check --target . --loose   # 无 kb:id 时按标题兜底
 ```
 
 8 个问题逐项判定：任务 / 已完成 / 证据 / 待核 / 阻塞 / 下一步 / 受影响文件 / 禁止重复的操作。占位符（`[填`、`TODO`）与「有效但无证据」都算待核，`--strict` 直接失败。
@@ -131,7 +133,9 @@ py "$KB/scripts/kb-check.py" --target . --loose         # 自有命名（60_进�
 py "$KB/scripts/kb-check.py" --target . --mode template # 空模板：不报证据缺失
 ```
 
-检查：必需文件（精确命名）、各层体积与接手成本、阈值、`K-xx` 重复/未定义/作废/循环引用、`kb:id` 重复与非法、事实证据与时效、表格列数、TODO、明文凭证、git 状态。
+检查：必需文件（精确命名）、各层体积与接手成本（正文与归档分开算）、阈值、`K-xx` 重复/未定义/作废/循环引用、`kb:id` 重复与非法、事实证据与时效、表格列数、TODO、明文凭证、git 状态。
+
+「定义位」= 标题首 / 列表首 / 表格首列，跨文件都算；句子里提到只算引用。`--loose` 下未定义引用降 WARN。
 
 ## 9. Hook（可选，默认不装）
 

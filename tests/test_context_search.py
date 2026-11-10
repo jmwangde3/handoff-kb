@@ -107,6 +107,18 @@ class ContextTest(TempProject):
         self.assertIn("## [P0]", p.stdout)
         self.assertIn("预算与取舍", p.stdout)
 
+    def test_unmigrated_dashboard_falls_back_to_head(self):
+        """05 没有 kb:id 时不能给空包：退回前 40 行，并报缺口。"""
+        self.make_v1()
+        data, p = run_json("kb-context.py", "--target", self.root,
+                           "--task", "查看当前项目状态", "--budget", "3000",
+                           "--format", "json", "--loose")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertTrue(data["blocks"], data)
+        self.assertTrue(any(b["priority"] == "P1" for b in data["blocks"]))
+        self.assertGreater(data["used"], 0)
+
+
     def test_missing_dashboard_is_clear_error(self):
         empty = self.tmp / "empty"
         empty.mkdir()

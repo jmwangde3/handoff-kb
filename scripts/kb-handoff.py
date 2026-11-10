@@ -39,16 +39,32 @@ def is_filled(text: str) -> bool:
     return len("".join(real).strip(" -|:\t")) >= 4
 
 
+FALLBACK = {
+    "dashboard.current": ("现状", "现在在做什么", "当前在做什么", "进度"),
+    "dashboard.next": ("下一手", "下一步", "接下来", "待办"),
+    "dashboard.constraints": ("硬约束", "边界", "禁止", "不要", "安全"),
+}
+
+
 def sec_text(doc, sid, children=False):
+    """先按 kb:id 找；没有 ID 的老库按标题关键词兜底（返回的 sec.id 为 None）。"""
     sec = md.find_by_id(doc, sid)
+    if not sec:
+        for kw in FALLBACK.get(sid, ()):
+            for s in doc.sections:
+                if s.level >= 1 and kw in s.title:
+                    sec = s
+                    break
+            if sec:
+                break
     if not sec:
         return None, ""
     text, _ = md.render(doc, sec, include_children=children)
     return sec, text
 
 
-def check(root: Path):
-    files = scope.role_files(root)
+def check(root: Path, loose: bool = False):
+    files = scope.role_files(root, loose=loose)
     items, gaps = [], []
 
     def add(key, status, detail, question):
@@ -62,7 +78,7 @@ def check(root: Path):
 
     sec, text = sec_text(dash, "dashboard.current")
     if sec is None:
-        add("current", "missing", "缺少 kb:id: dashboard.current", "1 当前任务是什么")
+        add("current", "missing", "缺少「现状」章节（或 kb:id: dashboard.current）", "1 当前任务是什么")
     elif is_filled(text):
         add("current", "ok", "现状已填写（%d 行）" % len(text.strip().splitlines()),
             "1 当前任务是什么")
@@ -71,7 +87,7 @@ def check(root: Path):
 
     sec, text = sec_text(dash, "dashboard.next")
     if sec is None:
-        add("next", "missing", "缺少 kb:id: dashboard.next", "6 下一步具体做什么")
+        add("next", "missing", "缺少「下一手」章节（或 kb:id: dashboard.next）", "6 下一步具体做什么")
     elif is_filled(text):
         add("next", "ok", "下一手已填写", "6 下一步具体做什么")
     else:
@@ -79,7 +95,7 @@ def check(root: Path):
 
     sec, text = sec_text(dash, "dashboard.constraints")
     if sec is None:
-        add("constraints", "missing", "缺少 kb:id: dashboard.constraints", "8 哪些操作别重复")
+        add("constraints", "missing", "缺少「硬约束」章节（或 kb:id: dashboard.constraints）", "8 哪些操作别重复")
     elif is_filled(text):
         add("constraints", "ok", "硬约束已声明", "8 哪些操作别重复")
     else:
@@ -109,7 +125,7 @@ def check(root: Path):
     todo_rows = [l for l in text.splitlines() if l.strip().startswith("|") and "---" not in l]
     filled_todo = [l for l in todo_rows[1:] if not PLACEHOLDER.search(l)]
     if sec is None:
-        add("todo", "missing", "缺少 kb:id: dashboard.todo", "2 确实完成了什么")
+        add("todo", "missing", "缺少「待办」章节（或 kb:id: dashboard.todo）", "2 确实完成了什么")
     elif filled_todo:
         add("todo", "ok", "%d 条待办已具体化" % len(filled_todo), "2 确实完成了什么")
     else:
@@ -149,6 +165,7 @@ def main() -> int:
     ap.add_argument("cmd", choices=["check", "report"])
     ap.add_argument("--target", default=".")
     ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--loose", action="store_true", help="按别名识别 05/06/90（自有命名项目）")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
@@ -158,7 +175,7 @@ def main() -> int:
         print("ERR: %s" % exc, file=sys.stderr)
         return 2
 
-    items, gaps = check(root)
+    items, gaps = check(root, args.loose)
     ok, bad = summarize(items)
     missing = [i for i in items if i["status"] == "missing"]
     pending = [i for i in items if i["status"] == "pending"]

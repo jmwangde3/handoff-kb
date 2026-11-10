@@ -97,6 +97,38 @@ class CheckTest(TempProject):
             self.assertIn(key, data)
         self.assertIn("core_bytes", data["stats"])
 
+    def test_loose_self_named_project_no_false_err(self):
+        """自有命名项目：60_进度.md + 标题里定义的 G-xxx，不该报「引用未定义」。"""
+        self.write("60_进度.md", "# 60 进度\n\n## 现在在做什么\n\n- 在做甲。\n\n"
+                   "## 待办\n\n| 事项 | 条目 |\n|---|---|\n| 采信号 | G-002 |\n")
+        self.write("00_INDEX.md", "# 索引\n\n## 结论速查\n\n"
+                   "| 关键词 | 摘要 | 条目 |\n|---|---|---|\n| 甲 | 结论 | G-001、G-002 |\n\n"
+                   "## G-001 甲结论\n\n详情。\n\n## G-002 乙结论\n\n详情。\n")
+        data, pr = self.report("--loose")
+        self.assertEqual(data["counts"]["ERR"], 0, data["findings"])
+        self.assertEqual(pr.returncode, 0)
+        cats = [f["category"] for f in data["findings"] if f["level"] == "OK"]
+        self.assertIn("编号契约", cats)
+
+    def test_undefined_id_is_warn_only_in_loose(self):
+        self.make_filled()
+        self.write("10_甲.md", self.read("10_甲.md") + "\n见 G-999。\n")
+        strict, _ = self.report()
+        self.assertEqual(strict["counts"]["ERR"], 1)
+        loose, pr = self.report("--loose")
+        self.assertEqual(loose["counts"]["ERR"], 0)
+        self.assertEqual(pr.returncode, 0)
+
+    def test_archive_counted_separately(self):
+        self.make_filled()
+        self.write("归档/旧备份.md", "# 旧\n\n" + "- 旧记录\n" * 200)
+        data, _ = self.report()
+        self.assertGreater(data["stats"]["archive_bytes"], 0)
+        self.assertGreater(data["stats"]["searchable_bytes"], 0)
+        self.assertGreater(data["stats"]["physical_bytes"],
+                           data["stats"]["searchable_bytes"])
+
+
     def test_scope_outside_rejected(self):
         p = run("kb-check.py", "--target", self.tmp / "nope")
         self.assertEqual(p.returncode, 2)

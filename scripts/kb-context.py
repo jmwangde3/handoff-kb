@@ -140,6 +140,13 @@ def build(root: Path, files, task: str, line: str, include_archive: bool, budget
                                     "接手必读；决定本次任务从哪开始", required=True))
             else:
                 gaps.append("缺少 kb:id: %s" % sid)
+        # 未迁移的库（没有 kb:id）不能给空包：退回「05 前 40 行」，并提示迁移
+        if not any(b["priority"] == "P1" for b in blocks):
+            head = "\n".join(dash.lines[:40]).strip()
+            if head:
+                blocks.append(block("P1", "现状（无 kb:id 兜底）", dash_p.name, None, head,
+                                    "05 尚未加 kb:id，取前 40 行；跑 kb-migrate.py 可精确到节",
+                                    required=True))
 
     # P2 本线事实
     fact = find_line_fact(files, line, terms, task)
@@ -284,6 +291,7 @@ def main() -> int:
     ap.add_argument("--budget", type=int, default=3000)
     ap.add_argument("--format", choices=["markdown", "json"], default="markdown")
     ap.add_argument("--include-archive", action="store_true")
+    ap.add_argument("--loose", action="store_true", help="按别名识别 05/06/90（自有命名项目）")
     ap.add_argument("--tokenizer", default="heuristic")
     ap.add_argument("--explain", action="store_true")
     args = ap.parse_args()
@@ -297,7 +305,7 @@ def main() -> int:
         print("ERR: --budget 必须为正", file=sys.stderr)
         return 2
 
-    files = scope.role_files(root)
+    files = scope.role_files(root, loose=args.loose)
     if not files.get("dashboard") and not files.get("baseline"):
         print("ERR: 这里不像交接库（没有 00/05）；先 kb-init.py 或 kb-migrate.py",
               file=sys.stderr)

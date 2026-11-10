@@ -65,6 +65,8 @@ DATA_DIRS = {
     "ai_files", "assets", "data", "output", "evidence", "paktools",
     "build", "dist", "vendor", "tmp", "node_modules", "__pycache__",
     ".git", ".kb-txn", ".kb.lock", ".venv", "venv", ".idea", ".vscode",
+    # 解包/工具产物与备份残留：正文里出现这些目录基本都是数据，不是交接文档
+    "unpack", "unpacked", "_tmp", ".trash",
 }
 
 MAX_TEXT_BYTES = 2 * 1024 * 1024  # 超过按数据产物处理

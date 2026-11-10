@@ -150,31 +150,45 @@ def check_structure(files, rep: Report, loose: bool):
 
 
 def check_sizes(root: Path, rep: Report, files):
-    searchable, excluded, total = [], [], 0
+    """体积统计：正文（非归档）与归档分开记，避免备份把「接手成本」算糊。"""
+    main, archive, excluded = [], [], []
     for p, reason in scope.iter_text_files(root, include_archive=True):
         if reason:
             excluded.append((p, reason))
             continue
         size = p.stat().st_size
-        total += size
-        searchable.append((p, size))
+        rel = p.relative_to(root).as_posix()
+        if any(part.lower() in ("归档", "archive") for part in rel.split("/")[:-1]):
+            archive.append((p, size))
+        else:
+            main.append((p, size))
+    total = sum(s for _, s in main)
+    arch = sum(s for _, s in archive)
     physical = sum(p.stat().st_size for p in root.rglob("*")
                    if p.is_file() and ".git" not in p.parts)
     core = sum(p.stat().st_size for role in ("baseline", "dashboard")
                for p in files.get(role, []))
     rep.stats.update({"physical_bytes": physical, "searchable_bytes": total,
-                      "searchable_files": len(searchable),
+                      "archive_bytes": arch, "searchable_files": len(main),
+                      "archive_files": len(archive),
                       "excluded_files": len(excluded), "core_bytes": core,
                       "core_ratio": round(core / total, 4) if total else 0.0})
     rep.add(OK, "接手成本",
-            "%d B / 全库 %d B = %.1f%%（≈%.1f k tokens，估算）"
+            "%d B / 正文 %d B = %.1f%%（≈%.1f k tokens，估算）"
             % (core, total, (core / total * 100) if total else 0, core / 4500))
+    if archive:
+        rep.add(OK, "体积分层", "归档 %d B / %d 份（不计入接手成本，检索默认跳过）"
+                % (arch, len(archive)))
+        if total and arch > 3 * total:
+            rep.add(WARN, "体积分层",
+                    "归档是正文的 %.1f 倍（%d B vs %d B）——备份留太多，建议按主题折叠"
+                    % (arch / total, arch, total))
     if excluded:
-        rep.add(OK, "体积排除", "已跳过 %d 个数据产物/超限文件（不计入全库）" % len(excluded))
+        rep.add(OK, "体积排除", "已跳过 %d 个数据产物/超限文件（不计入正文）" % len(excluded))
     if total > 50 * 1024 and core / total > 0.35:
-        rep.add(WARN, "接手成本", "必读集合占全库 %.0f%%（>35%%，必读太大或库太小）"
+        rep.add(WARN, "接手成本", "必读集合占正文 %.0f%%（>35%%，必读太大或库太小）"
                 % (core / total * 100))
-    return searchable
+    return main, archive
 
 
 def check_dashboard(files, rep: Report):
@@ -260,7 +274,37 @@ def check_todo_and_secrets(searchable, rep: Report):
         rep.add(OK, "明文凭证", "0 处")
 
 
-def check_ids(files, shards, searchable, rep: Report):
+DEF_HEADING_RE = re.compile(r"^#{1,6}\s*[`*\s]*([KG]-\d{2,3})\b")
+DEF_BULLET_RE = re.compile(r"^[-*+]\s*[`*\s]*([KG]-\d{2,3})\b")
+DEF_TABLE_RE = re.compile(r"^\|\s*[`*\s]*([KG]-\d{2,3})\s*\|")
+
+
+def def_id_at(line: str):
+    """判断这一行是否在「定义位」上写了个 ID：标题首 / 列表首 / 表格首列。"""
+    for rx in (DEF_HEADING_RE, DEF_BULLET_RE, DEF_TABLE_RE):
+        m = rx.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def iter_code_aware(doc):
+    """产出 (行号, 行文本, 是否在围栏内)。"""
+    fence = None
+    for i, raw in enumerate(doc.lines, 1):
+        line = raw.rstrip("\r")
+        m = re.match(r"^( {0,3})(`{3,}|~{3,})", line)
+        if m:
+            if fence is None:
+                fence = (m.group(2)[0], len(m.group(2)))
+            elif m.group(2)[0] == fence[0] and len(m.group(2)) >= fence[1]:
+                fence = None
+            yield i, line, True
+            continue
+        yield i, line, fence is not None
+
+
+def check_ids(files, shards, searchable, rep: Report, loose: bool = False):
     defs, rows = {}, []
     baseline = files.get("baseline", [None])[0]
     if baseline:
@@ -298,29 +342,27 @@ def check_ids(files, shards, searchable, rep: Report):
             doc = md.parse_file(p)
         except Exception:
             continue
-        fence = None
-        for i, raw in enumerate(doc.lines, 1):
-            line = raw.rstrip("\r")
-            m = re.match(r"^( {0,3})(`{3,}|~{3,})", line)
-            if m:
-                if fence is None:
-                    fence = (m.group(2)[0], len(m.group(2)))
-                elif m.group(2)[0] == fence[0] and len(m.group(2)) >= fence[1]:
-                    fence = None
+        for i, line, in_fence in iter_code_aware(doc):
+            if in_fence:
                 continue
-            if fence is not None:
-                continue
+            defined_here = def_id_at(line)
             for mid in protocol.FACT_ID_RE.finditer(line):
                 fid = mid.group(1)
-                if p == baseline and fid in defs \
-                        and re.match(r"^\s*\|\s*%s\s*\|" % re.escape(fid), line):
+                if fid == defined_here:
+                    # 定义位：标题首 / 列表首 / 表格首列，跨文件都算（自命名项目常见）
+                    prev = defs.get(fid)
+                    if prev and prev.get("line") and p == baseline:
+                        continue
+                    defs.setdefault(fid, {"status": "", "evidence": "",
+                                          "verified_at": "", "line": i, "path": p})
                     continue
                 refs.setdefault(fid, []).append((p, i))
 
     undefined = {k: v for k, v in refs.items() if k not in defs}
     for fid, where in sorted(undefined.items())[:10]:
         p, i = where[0]
-        rep.add(WARN if rep.mode == "template" else ERR, "编号引用",
+        level = WARN if (loose or rep.mode == "template") else ERR
+        rep.add(level, "编号引用",
                 "引用未定义的 ID：%s（%d 处，首见 %s:%d）"
                 % (fid, len(where), p.name, i), p, i)
 
@@ -466,13 +508,13 @@ def main() -> int:
     rep.max_age_days = args.max_age_days
 
     check_structure(files, rep, args.loose)
-    searchable = check_sizes(root, rep, files)
+    main, archive = check_sizes(root, rep, files)
     check_dashboard(files, rep)
     check_thresholds(root, files, rep)
-    check_todo_and_secrets(searchable, rep)
-    check_ids(files, find_shards(root), searchable, rep)
+    check_todo_and_secrets(main + archive, rep)
+    check_ids(files, find_shards(root), main, rep, args.loose)
     check_section_ids(files, find_shards(root), rep)
-    check_tables(searchable, rep)
+    check_tables(main, rep)
     check_git(root, rep)
 
     counts = rep.counts()
@@ -489,9 +531,12 @@ def main() -> int:
                                     ":%d" % f["line"] if f["line"] else "")
             print("[%-4s] %-12s %s%s" % (f["level"], f["category"], f["message"], loc))
         print("\n== 汇总：OK %d / WARN %d / ERR %d" % (counts[OK], counts[WARN], counts[ERR]))
-        print("== 全库 %d B，参与检索 %d B（≈%.1f k tokens，估算）"
-              % (rep.stats.get("physical_bytes", 0), rep.stats.get("searchable_bytes", 0),
-                 rep.stats.get("searchable_bytes", 0) / 4500))
+        print("== 正文 %d B（%d 份）/ 归档 %d B（%d 份）/ 物理总量 %d B"
+              % (rep.stats.get("searchable_bytes", 0), rep.stats.get("searchable_files", 0),
+                 rep.stats.get("archive_bytes", 0), rep.stats.get("archive_files", 0),
+                 rep.stats.get("physical_bytes", 0)))
+        print("== 参与检索 ≈%.1f k tokens（估算，不含数据产物）"
+              % (rep.stats.get("searchable_bytes", 0) / 4500))
         print("== tokenizer：%s" % tokens.estimate("", "heuristic")[1])
 
     if counts[ERR] > 0:
