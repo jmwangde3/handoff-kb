@@ -26,7 +26,7 @@
 - 除 `Stop` 外不主动「教育」模型；`Stop` 只在交接真缺内容时提示一次，**不阻断**结束。
 - 未知事件 / 目标不是交接库 / 项目根不可用 → 输出空对象、退出 0，会话不受影响。
 - 两家的 `SessionStart` 来源都是 `startup|resume|clear|compact|fork`，生成器对两家都写全五个
-  （2.0.1 漏了 `clear`，导致「清空会话后重新开始」拿不到接手上下文）。
+  （2.0.1 漏了 `clear`，导致「清空会话后重新开始」拿不到接手上下文；2.0.1-hotfix 补上）。
 - 触发来源不影响运行时行为：五种来源都注入同一份按预算裁过的上下文。
 
 ## 2.1 官方依据（2026-11 核对）
@@ -43,7 +43,7 @@
 | 客户端 | 文件 | 结构 |
 |---|---|---|
 | Claude Code | `.claude/settings.json` | `hooks.<Event>[{"matcher": "", "hooks": [{"type": "command", "command": "…"}]}]` |
-| Codex | `.codex/hooks.json` | 同上**三级结构** `{matcher, hooks:[{type, command}]}`（2.0.1 修正：此前写成扁平 `{type, command}`，官方格式不认） |
+| Codex | `.codex/hooks.json` | 同上**三级结构** `{matcher, hooks:[{type, command}]}`（2.0.1-hotfix 修正：此前写成扁平 `{type, command}`，官方格式不认） |
 | Codex | `.codex/hooks.snippet.toml.txt` | 供手工并入 `config.toml` 的 `[[hooks.<Event>]]` 片段，写盘前用 `tomllib` 自检 |
 
 生成的命令用**绝对路径**（配置是按机器生成的，`$KB` 之类变量不会展开）：
