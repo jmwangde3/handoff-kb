@@ -21,9 +21,9 @@
 | 场景 | 结果 | 口径 |
 |---|---|---|
 | 真实路由器项目（v1 时代） | 全库 1,759 行 / 221 KB → 接手 20.6 KB（`05`+`00`），降 90% | 实际文件体积，非估算 |
-| 本仓库合成夹具（v2 benchmark） | A 全量 3,056 / B `00+05` 389 / C 路由 89 tokens，质量 10/10 | `heuristic` **估算**，夹具 ~11 KB |
+| 本仓库合成夹具（v2 benchmark） | A 全量 3,055 / B `00+05` 389 / C 路由 395.6 tokens，任务 10/10，质量项 55/55 | `heuristic` **估算**，夹具 ~11 KB |
 
-第二行可用两条命令复现（`py tests/make_fixture.py ../kbdemo` → `py scripts/kb-benchmark.py --target ../kbdemo`），只说明「路由确实能压到比 00+05 更小」，**不代表真实项目或 API 账单**；口径与逐任务明细见 `references/benchmark.md`。
+第二行可用两条命令复现（`py tests/make_fixture.py ../kbdemo` → `py scripts/kb-benchmark.py --target ../kbdemo`）。**注意夹具上 C（395.6）并不比 B（389）小**：C 含包装（标题 / 来源 / 理由 / 缺口），B 只是 `00+05` 原文；夹具太小，包装开销占满。真正有意义的是相对 A 的 87%——A 才是「全读」的成本。口径与逐任务明细见 `references/benchmark.md`。
 
 ---
 
@@ -223,7 +223,8 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ```
 
 - 只写**项目级**配置（`.claude/settings.json`、`.codex/hooks.json` + TOML 片段），不动全局。
-- 事件语义：`SessionStart` 注入小预算上下文；`PreCompact` 提醒收尾；`PostCompact` 给指针；`Stop` 做交接检查（只提醒、不阻断）；`SessionEnd` 只读体检。
+- 事件：`SessionStart`（注入小预算上下文）/ `PreCompact`（提醒收尾）/ `Stop`（交接自检，只提醒）/ `SessionEnd`（Claude 侧空响应）。Codex 侧按官方三级结构 `{matcher, hooks:[{type, command}]}` 写，Claude 侧独立结构；**不使用** `decision: block`，任何事件都不阻断会话。
+- 预览是默认行为：`--plan` 与不带 `--write` 都只打印「新增/移除/保留/SHA 前后」，**零写入**；`--write` 才落盘，且写前重校验 SHA，别人改过就放弃。
 - `run` **永远退出 0**：Hook 自己出错也不能破坏会话。不联网、不自动提交、不重写事实文档。
 - 事件名与退出码语义以各客户端当前官方文档为准（见 `references/hooks.md`），`--plan` 先看清楚再 `--write`。
 
@@ -232,15 +233,16 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests -v     # 84 个用例
+python -m unittest discover -s tests        # 201 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
 ```
 
-- 测试覆盖：编号冲突、路径穿越、符号链接越界、并发锁、事务回滚、恢复、哈希冲突、ID 引用、围栏解析、预算超额、Hook 卸载幂等、迁移幂等与计划过期。
+- 测试覆盖（201 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、事实三定义位与作废链、多工作线装配与预算收敛、`--loose` 自有命名、Hook 预览零写入与官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
+- `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价。
 - CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
-- benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务；输出 Markdown 与 JSON，并显式标注 tokenizer 与估算口径。
+- benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 8 项质量指标，`硬约束保留` 与 `错误路径被拒绝` 是硬门槛，不接受被平均值抹平。
 
 ---
 
@@ -291,12 +293,43 @@ scripts/kb-context.py       预算内上下文路由（--explain）
 scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
-scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms
-tests/                      84 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
+tests/                      201 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
+tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
 .github/workflows/test.yml  Ubuntu + Windows × 3 个 Python 版本
 ```
+
+---
+
+## 16. 2.0.1 修了什么（以及撤回了哪个数字）
+
+2.0.1 是**修缺陷**的补丁版，不新增协议能力，`kb:schema: 2` 与 v1→v2 迁移方式都没变。
+
+安全与并发：
+
+- `kb-hooks install` 默认**预览**，`--write` 才落盘；写前重校验 SHA；TOML 卸载不再留下空表头。
+- `WorkspaceLock` 有 owner token；只回收「同机 + 原进程确定已退出 / PID 复用」的锁；不完整锁不抢占；`release` 拒绝删除别人的锁。
+- `Transaction` journal 升 schema 2 带 checksum；`recover` 认 `.kb-txn/journal.json`（此前只看子目录，**真实崩溃现场看不见**）；证据不足一律保留现场，绝不 `rmtree`。
+- `kb-migrate --apply` 加锁 + 事务化，计划绑定 `root_id` 与源文件哈希，操作白名单化。
+- `kb-init` 不再写入 `handoff-kb@localhost` 这类虚构 Git 身份：没有身份就提示你自己配，并保留已暂存文件。
+
+上下文与事实：
+
+- 新增 `lib/facts.py` 统一「定义位」解析（标题 / 列表 / 表格），`kb-check` / `kb-handoff` / `kb-write` 共用一套判定。
+- `kb-context` 支持一次加载**多条**工作线；预算按**最终渲染**收敛；装不下的线如实列进 `omitted_lines` 与缺口。
+- 修掉「P2 事实块根本没进装配」的缺陷——此前 `selected_lines` 永远为空、还误报成「预算不足」。
+- JSON `context` 不再因同名 `kb:id` 互相覆盖；`--loose` 贯穿 search / context / handoff / hooks / benchmark，并识别 `60_流水/` 这类分片目录。
+- `kb-write read` 改成严格 UTF-8：坏字节直接报 `ENCODING`，不再用替换字符糊出一个「看起来正常」的文本。
+
+评测：
+
+- benchmark 重写统计：错误路径单列、均值不含错误路径、A/B/C 同口径、8 项质量指标 + 硬门槛。
+- **撤回 2.0 文档里的「C = 89 tokens / 降 77%」**：那个数字是在 P2 事实块缺失的缺陷下跑出来的，属于把部分成功报成完整成功。现在夹具上是 C=395.6（vs B=389、A=3055），真实 FFRS 上是 C≈1886（vs B=4866、A=1.75M）。
+- 未迁移库（无 `kb:id`）的 section 类任务标为「跳过」而不是「答错」，并在报告里提示先跑 `kb-migrate.py`。
+
+---
 
 ## License
 
