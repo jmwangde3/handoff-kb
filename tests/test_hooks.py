@@ -154,13 +154,26 @@ class HookRunTest(TempProject):
         self.assertIn("上下文包", out["additionalContext"])
         self.assertNotIn("decision", json.dumps(data))
 
-    def test_precompact_uses_system_message(self):
+    def test_precompact_claude_uses_plain_stdout(self):
+        """Claude Code 丢弃 PreCompact 的 systemMessage；非阻断时 stdout 才是压缩指令。"""
         p = run("kb-hooks.py", "run", "--client", "claude", "--event", "PreCompact",
+                "--target", self.root, input="{}")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        text = p.stdout.strip()
+        self.assertTrue(text, "Claude 的 PreCompact 必须给 stdout 纯文本")
+        self.assertFalse(text.startswith("{"), "发 JSON 等于没说话：systemMessage 会被丢弃")
+        self.assertIn("kb-handoff.py", text)
+        self.assertNotIn("decision", text, "不能用 decision: block 阻止压缩")
+
+    def test_precompact_codex_uses_system_message(self):
+        """Codex 的 PreCompact 认共享字段 systemMessage，纯文本 stdout 被忽略。"""
+        p = run("kb-hooks.py", "run", "--client", "codex", "--event", "PreCompact",
                 "--target", self.root, input="{}")
         self.assertEqual(p.returncode, 0, p.stderr)
         data = json.loads(p.stdout)
         self.assertIn("systemMessage", data)
         self.assertNotIn("decision", data)
+        self.assertNotIn("continue", data, "不要用 continue:false 阻断压缩")
 
     def test_unknown_event_exits_zero_with_empty_object(self):
         p = run("kb-hooks.py", "run", "--client", "codex", "--event", "NoSuchEvent",
@@ -188,6 +201,44 @@ class HookRunTest(TempProject):
                 "--target", other, input="{}")
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(p.stdout.strip(), "")
+
+
+class HookProtocolTest(TempProject):
+    """两家输出协议不同：按各自官方文档断言，不按「看起来合理」断言。"""
+
+    def setUp(self):
+        super().setUp()
+        self.make_filled()
+
+    def hook(self, client, event):
+        p = run("kb-hooks.py", "run", "--client", client, "--event", event,
+                "--target", self.root, input="{}")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return p
+
+    def test_session_start_both_clients_use_additional_context(self):
+        for client in ("claude", "codex"):
+            data = json.loads(self.hook(client, "SessionStart").stdout)
+            out = data.get("hookSpecificOutput") or {}
+            self.assertEqual(out.get("hookEventName"), "SessionStart", client)
+            self.assertIn("上下文包", out.get("additionalContext", ""), client)
+            self.assertNotIn("systemMessage", data,
+                             "%s 的 SessionStart 走 additionalContext" % client)
+
+    def test_no_event_emits_blocking_fields(self):
+        for client in ("claude", "codex"):
+            for event in ("SessionStart", "PreCompact", "Stop"):
+                out = self.hook(client, event).stdout
+                self.assertNotIn('"decision"', out, "%s/%s 不得阻断" % (client, event))
+                self.assertNotIn('"continue"', out, "%s/%s 不得阻断" % (client, event))
+
+    def test_precompact_matches_documented_shape(self):
+        claude = self.hook("claude", "PreCompact").stdout
+        self.assertFalse(claude.lstrip().startswith("{"),
+                         "Claude Code 丢弃 PreCompact 的 systemMessage，只能用纯文本 stdout")
+        codex = json.loads(self.hook("codex", "PreCompact").stdout)
+        self.assertEqual(sorted(codex), ["systemMessage"],
+                         "Codex 的 PreCompact 只认共享字段 systemMessage")
 
 
 class HookTomlStripTest(TempProject):
@@ -281,6 +332,59 @@ class HookLifecycleTest(TempProject):
         self.assertIn("已回滚", err.getvalue())
         self.assertFalse((self.root / ".codex" / "hooks.json").exists(),
                          "第一个文件本来不存在，回滚后必须仍不存在")
+
+    def test_rollback_restores_existing_file_and_leaves_no_temp(self):
+        """回滚已存在的文件必须是原子写：内容逐字节还原，且不留临时文件。"""
+        target = self.root / ".codex" / "hooks.json"
+        target.parent.mkdir()
+        original = '{"hooks": {}, "mine": 1}\n'
+        target.write_text(original, encoding="utf-8", newline="\n")
+        before = target.read_bytes()
+        rows = self._plan(client="codex")
+        real = self.mod.atomic_write
+
+        def boom(path, text):
+            if str(path).endswith(".toml.txt"):
+                raise OSError("磁盘满了（模拟）")
+            return real(path, text)
+
+        buf, err = io.StringIO(), io.StringIO()
+        from contextlib import redirect_stderr
+        with mock.patch.object(self.mod, "atomic_write", boom):
+            with redirect_stdout(buf), redirect_stderr(err):
+                code = self.mod.apply_rows(self.root, rows, "install")
+        self.assertEqual(code, 2, buf.getvalue())
+        self.assertIn("已回滚", err.getvalue())
+        self.assertEqual(target.read_bytes(), before,
+                         "回滚要把原字节一字不差地写回去")
+        leftovers = [p.name for p in target.parent.iterdir() if p.name.startswith(".kb-tmp-")]
+        self.assertEqual(leftovers, [], "原子写的临时文件必须清理干净")
+
+    def test_rollback_does_not_overwrite_third_party_edit(self):
+        """回滚途中文件被第三方改过 → 保留现场并报冲突，不强行覆盖。"""
+        target = self.root / ".codex" / "hooks.json"
+        target.parent.mkdir()
+        target.write_text('{"hooks": {}}\n', encoding="utf-8")
+        rows = self._plan(client="codex")
+        real = self.mod.atomic_write
+
+        def boom(path, text):
+            if str(path).endswith(".toml.txt"):
+                # 模拟：写第二个文件失败之前，用户手改了第一个文件
+                target.write_text('{"hooks": {}, "edited": true}\n', encoding="utf-8")
+                raise OSError("磁盘满了（模拟）")
+            return real(path, text)
+
+        buf, err = io.StringIO(), io.StringIO()
+        from contextlib import redirect_stderr
+        with mock.patch.object(self.mod, "atomic_write", boom):
+            with redirect_stdout(buf), redirect_stderr(err):
+                code = self.mod.apply_rows(self.root, rows, "install")
+        self.assertEqual(code, 2, buf.getvalue())
+        self.assertIn("第三方改动", err.getvalue())
+        self.assertIn("保留现场", err.getvalue())
+        self.assertEqual(target.read_text(encoding="utf-8"),
+                         '{"hooks": {}, "edited": true}\n', "第三方改动必须保留")
 
     def test_dir_symlink_outside_is_refused(self):
         outside = self.tmp / "outside"

@@ -34,8 +34,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import scope  # noqa: E402
-from lib.safeio import (SafeIOError, atomic_write, read_text_strict,  # noqa: E402
-                        sha256_bytes, sha256_file)
+from lib.safeio import (SafeIOError, atomic_write, atomic_write_bytes,  # noqa: E402
+                        read_text_strict, sha256_bytes, sha256_file)
 
 SCRIPT = Path(__file__).resolve()
 MARK = "kb-hooks.py"
@@ -538,14 +538,16 @@ def _rollback(done, snapshots) -> list:
                 continue
             if snap["existed"]:
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_bytes(snap["data"])
+                # 回滚也要原子写：直接 p.write_bytes() 在写到一半崩掉时会把
+                # 「本来完好的旧配置」变成半截文件，比不回滚更糟。
+                atomic_write_bytes(p, snap["data"], mode_from=p)
             continue
         now = read_text_strict(p) if p.is_file() else ""
         if not p.is_file() or not _same_text(now, want):
             conflicts.append(r["path"])
             continue
         if snap["existed"]:
-            p.write_bytes(snap["data"])
+            atomic_write_bytes(p, snap["data"], mode_from=p)
         else:
             p.unlink()
     return conflicts
@@ -757,7 +759,17 @@ def cmd_run(args, root: Path) -> int:
             msg = ("handoff-kb：压缩前先收尾——py kb-handoff.py check --target .%s；"
                    "未保存的状态用 kb-write.py 写回 05/06。这是提醒，不阻止压缩。"
                    % (" --loose" if loose else ""))
-            _emit({"systemMessage": msg})
+            if client == "claude":
+                # Claude Code 官方文档（PreCompact output）：
+                #   「Claude Code discards a PreCompact hook's systemMessage and continue fields.」
+                #   非阻断退出 0 时 **stdout 纯文本**才是压缩摘要的指令。
+                # 所以这里输出纯文本，不发 JSON —— 发 systemMessage 等于什么都没说。
+                print(msg)
+            else:
+                # Codex 官方文档（learn.chatgpt.com/docs/hooks）：
+                #   PreCompact 支持共享输出字段 systemMessage；
+                #   纯文本 stdout 在 Codex 上被忽略。codex 没有 customInstructions。
+                _emit({"systemMessage": msg})
             return 0
 
         if event == "Stop":
