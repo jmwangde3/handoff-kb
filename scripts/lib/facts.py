@@ -21,6 +21,13 @@
   - 只有「定义位」才算定义：标题首 / 列表首 / 表格首列。句中提到一律算引用。
   - 重复定义不静默覆盖：全部保留在列表里，由调用方报 ERR。
   - 元数据解析失败不默认「有效」，标 unknown + meta_error。
+
+索引页（文件名形如 `00_INDEX.md` / `00_索引.md` / `目录.md`）里的条目算**指针**：
+它们写着同一批 ID，但只有「见某文件」的导航作用，不带状态与证据。指针条目会让
+「重复定义」在健康的库上天天报 ERR（真实库实测 4 条），所以：
+  - 指针定义仍被解析（不丢事实），但标 `pointer=True`；
+  - 重复检查只看非指针定义；只有**全库只剩指针**时才退回按指针算（避免整库事实消失）；
+  - 读取「这条事实现在是什么」时优先取非指针定义（`canonical()`）。
 """
 
 from __future__ import annotations
@@ -38,6 +45,9 @@ META_RE = re.compile(r"^\s*<!--\s*kb:fact-meta:\s*(\{.*\})\s*-->\s*$")
 HEADING_RE = re.compile(r"^(#{1,6})\s*[`*\s]*([KG]-\d{2,3})\b\s*[`*]?\s*(.*)$")
 LIST_RE = re.compile(r"^(\s*[-*+]\s*)[`*]*([KG]-\d{2,3})[`*]*\s*(?:[:：]\s*)?(.*)$")
 TABLE_RE = re.compile(r"^\|\s*[`*\s]*([KG]-\d{2,3})\s*\|")
+
+# 索引页文件名：00_INDEX.md / 00_索引.md / 索引目录.md / index.md / TOC.md
+INDEX_NAME_RE = re.compile(r"(?:^|[_\-\s.])(?:index|索引|目录|toc)(?:$|[_\-\s.]|\d)", re.I)
 
 STATUS_MAP = {
     "有效": "valid", "valid": "valid", "ok": "valid", "✅": "valid",
@@ -73,6 +83,7 @@ class FactDefinition:
     volatility: str = "unknown"
     superseded_by: str = ""
     meta_error: str = ""
+    pointer: bool = False           # 出现在索引页里：是指针，不是规范定义
     meta: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
@@ -81,7 +92,8 @@ class FactDefinition:
                 "title": self.title, "status": self.status,
                 "evidence": self.evidence, "verified_at": self.verified_at,
                 "owner": self.owner, "volatility": self.volatility,
-                "superseded_by": self.superseded_by, "meta_error": self.meta_error}
+                "superseded_by": self.superseded_by, "meta_error": self.meta_error,
+                "pointer": self.pointer}
 
 
 @dataclass
@@ -228,10 +240,36 @@ def _meta_after(doc, lineno: int, kind: str) -> dict:
     return {}
 
 
+def is_index_page(rel: str) -> bool:
+    """这个文件是不是「索引页」（按文件名判定，不看内容）。
+
+    只认 `INDEX` / `索引` / `目录` / `TOC` 这类**整词**命名，例如
+    `00_INDEX.md`、`00_索引.md`、`索引目录.md`。`00_共享页.md` 不算。
+    """
+    stem = Path(rel).name
+    if stem.lower().endswith(".md"):
+        stem = stem[:-3]
+    return bool(INDEX_NAME_RE.search(stem))
+
+
+def canonical(items) -> list:
+    """同一 ID 的多处定义里，规范定义排在前面（索引页指针排最后）。
+
+    指针条目没有状态与证据，用它当「这条事实现在是什么」的答案是错的。
+    全是指针时按原顺序返回——那是这个库唯一的事实来源，不能丢。
+    """
+    items = list(items or [])
+    real = [d for d in items if not d.pointer]
+    if not real:
+        return items
+    return real + [d for d in items if d.pointer]
+
+
 def _mk(fid, rel, kind, start, end, title, meta, doc, lineno,
         haystack: str = "") -> FactDefinition:
     d = FactDefinition(id=fid, path=rel, definition_type=kind,
-                       line_start=start, line_end=end, title=title)
+                       line_start=start, line_end=end, title=title,
+                       pointer=is_index_page(rel))
     if meta.get("_raw"):
         try:
             data = json.loads(meta["_raw"])
@@ -305,7 +343,26 @@ def find_fact_references(root, include_archive: bool = False) -> list[FactRefere
 
 
 def duplicates(defs_by_id) -> dict[str, list[FactDefinition]]:
-    return {k: v for k, v in defs_by_id.items() if len(v) > 1}
+    """真正需要报的重复定义：同一 ID 在**非指针**定义里有 2 处以上。
+
+    索引页 + 分册各一条不是重复，是「导航页指向事实页」，不该拦人。
+    """
+    out = {}
+    for k, v in defs_by_id.items():
+        real = [d for d in v if not d.pointer] or list(v)
+        if len(real) > 1:
+            out[k] = v
+    return out
+
+
+def pointer_only(defs_by_id) -> dict[str, list[FactDefinition]]:
+    """有规范定义、但索引页里也写了同一个 ID 的情况（只报提示，不算重复）。"""
+    out = {}
+    for k, v in defs_by_id.items():
+        ptr = [d for d in v if d.pointer]
+        if ptr and len(ptr) < len(v):
+            out[k] = ptr
+    return out
 
 
 def validate_fact_metadata(root, include_archive: bool = False):
@@ -314,11 +371,12 @@ def validate_fact_metadata(root, include_archive: bool = False):
     defs, problems = parse_fact_definitions(root, include_archive=include_archive)
     issues = []
     for fid, items in defs.items():
-        if len(items) > 1:
+        real = [d for d in items if not d.pointer] or list(items)
+        if len(real) > 1:
             issues.append({"kind": "duplicate", "id": fid, "locations":
-                           ["%s:%d" % (d.path, d.line_start) for d in items],
-                           "message": "%s 重复定义 %d 次" % (fid, len(items))})
-        for d in items:
+                           ["%s:%d" % (d.path, d.line_start) for d in real],
+                           "message": "%s 重复定义 %d 次" % (fid, len(real))})
+        for d in real:
             if d.meta_error:
                 issues.append({"kind": "meta", "id": fid, "path": d.path,
                                "line": d.line_start, "message": d.meta_error})
@@ -493,13 +551,16 @@ def definition_text(root, d: FactDefinition, *, max_chars: int = 4000) -> str:
 def counts(defs_by_id, problems) -> dict:
     """统计口径：让「一条事实都没解析出来」与「全都通过」在输出里分得开。"""
     items = [d for v in defs_by_id.values() for d in v]
+    pointers = [d for d in items if d.pointer and any(not x.pointer for x in defs_by_id[d.id])]
     return {
         "definitions": len(items),
+        "canonical": len(items) - len(pointers),
+        "pointers": len(pointers),
         "ids": len(defs_by_id),
         "valid": sum(1 for d in items if d.status == "valid"),
         "pending": sum(1 for d in items if d.status == "pending"),
         "deprecated": sum(1 for d in items if d.status == "deprecated"),
         "unknown": sum(1 for d in items if d.status == "unknown"),
-        "duplicated_ids": sum(1 for v in defs_by_id.values() if len(v) > 1),
+        "duplicated_ids": len(duplicates(defs_by_id)),
         "problems": len(problems),
     }

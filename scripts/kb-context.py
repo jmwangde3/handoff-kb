@@ -273,7 +273,7 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
                     % (len(fact_problems), fact_problems[0]))
     asked = sorted({m.upper() for m in TASK_ID_RE.findall(task or "")})
     for fid in asked:
-        items = fact_defs.get(fid) or []
+        items = facts.canonical(fact_defs.get(fid) or [])
         if not items:
             gaps.append("任务点名 %s，但库里没有这个事实定义（ID 写错？还是还没建？）" % fid)
             continue
@@ -289,10 +289,13 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
             add("P3", "任务点名的事实 %s" % fid, d.path, None, text,
                 "%s 的定义位（%s，状态 %s）" % (fid, d.definition_type, d.status))
         if len(live) > 1:
-            gaps.append("%s 有 %d 处定义（%s）：已取第一处，建议合并"
-                        % (fid, len(live),
-                           "、".join("%s:%d" % (x.path, x.line_start) for x in live[:3])))
-
+            # 索引页指针不算「多处定义」——那只是导航，合并它没有意义
+            real = [x for x in live if not x.pointer]
+            if len(real) > 1:
+                gaps.append("%s 有 %d 处定义（%s）：已取第一处，建议合并"
+                            % (fid, len(real),
+                               "、".join("%s:%d" % (x.path, x.line_start)
+                                        for x in real[:3])))
     base_p = files.get("baseline", [None])[0]
     if base_p and terms:
         bdoc = md.parse_file(base_p)

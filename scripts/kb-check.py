@@ -315,12 +315,18 @@ def check_ids(root: Path, searchable, rep: Report, loose: bool = False):
                 "%d 个文件解析失败，其中的事实**未被检查**：%s"
                 % (len(failed), "; ".join("%s（%s）" % (a, b[:60]) for a, b in failed[:3])))
 
-    # 1) 重复定义：跨文件也报，列出全部位置
-    dup = {k: v for k, v in defs.items() if len(v) > 1}
+    # 1) 重复定义：跨文件也报，列出全部位置。索引页里的条目算指针，不报重复
+    dup = facts.duplicates(defs)
     for fid, items in sorted(dup.items())[:10]:
         locs = ", ".join("%s:%d" % (d.path, d.line_start) for d in items[:4])
         rep.add(ERR, "编号契约", "ID 重复定义：%s（%d 处：%s）"
                 % (fid, len(items), locs))
+    ptr = facts.pointer_only(defs)
+    if ptr:
+        first = sorted(ptr)[0]
+        rep.add(WARN, "编号契约",
+                "索引页里有 %d 条指向定义（如 %s 见 %s:%d）：按指针处理，不算重复"
+                % (len(ptr), first, ptr[first][0].path, ptr[first][0].line_start))
     # 2) 未定义引用
     undefined = {k: v for k, v in refs.items() if k not in defs}
     for fid, where in sorted(undefined.items())[:10]:
@@ -367,10 +373,11 @@ def check_ids(root: Path, searchable, rep: Report, loose: bool = False):
     stat["files_scanned"] = parsed
     stat["files_failed"] = len(failed)
     rep.add(OK if defs and not meta_problems else WARN, "事实统计",
-            "定义 %d（有效 %d / 待核 %d / 作废 %d / 未知 %d）｜ID %d｜重复 %d｜"
-            "文件 %d 解析成功 %d 失败｜元数据问题 %d"
-            % (stat["definitions"], stat["valid"], stat["pending"], stat["deprecated"],
-               stat["unknown"], stat["ids"], stat["duplicated_ids"],
+            "定义 %d（规范 %d / 索引指针 %d）｜有效 %d / 待核 %d / 作废 %d / 未知 %d｜"
+            "ID %d｜重复 %d｜文件 %d 解析成功 %d 失败｜元数据问题 %d"
+            % (stat["definitions"], stat["canonical"], stat["pointers"],
+               stat["valid"], stat["pending"], stat["deprecated"], stat["unknown"],
+               stat["ids"], stat["duplicated_ids"],
                stat["files_scanned"] + stat["files_failed"], stat["files_failed"],
                stat["problems"]))
 

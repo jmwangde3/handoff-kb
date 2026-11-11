@@ -177,7 +177,10 @@ def main() -> int:
 
         def emit(title, sid, line_no, start, end):
             body = "\n".join(lines[start:end])
-            fact_ids = {d.id.upper() for d in defs if start < d.line_start <= end}
+            # 索引页里的条目是「指向」，不给定义位满分——否则搜 G-004 会先命中
+            # 00_INDEX.md 上的导航行，而不是 10_xx.md 里的正式定义。
+            fact_ids = {d.id.upper() for d in defs
+                        if start < d.line_start <= end and not d.pointer}
             if not body.strip() and not (args.include_superseded and fact_ids):
                 return
             sc, rs, mt = score_block(title, body, terms, path.name, line_name, fact_ids)
