@@ -101,7 +101,7 @@ py "$KB/scripts/kb-search.py"  --target . --query "<关键词>" --limit 5     # 
 py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboard.next
 ```
 
-预算装配顺序：P0 硬约束 → P1 现状 + 下一手 → P2 本线事实 → P3 基线命中 + 证据 + 交叉链 → P4 相关度补满（≤3 块、≤30% 预算、且命中 ≥2 个关键词或 1 个 ≥4 字符的独特词；任务点名的事实所在文件不参与 P4）。
+预算装配顺序：P0 硬约束 → P1 现状 + 下一手 → P2 本线事实 → P3 基线命中 + 证据 + 交叉链 → P4 相关度补满（≤3 块、≤30% 预算、且命中 ≥2 个关键词或 1 个 ≥4 字符的独特词；任务点名的事实所在文件不参与 P4；只含已作废事实的章节默认不参与，问「以前 / 历史」或加 `--include-superseded` 才带回，并标注「已作废」与替代 ID）。
 
 - 报「超额」时**不要删硬约束**：拆任务或提高 `--budget`，并把超额项写进输出让用户知情。
 - 没有命中就报缺口，去 `kb-search`，别编。
@@ -221,5 +221,5 @@ A 全量 / B `00+05` / C 路由，10 个固定任务（1 个错误路径单列�
 | `references/hooks.md` | Hook 语义与安装 |
 | `references/benchmark.md` | 评测口径 |
 | `assets/` | 骨架模板 |
-| `tests/` | 255 个 unittest + smoke + 依赖检查 |
+| `tests/` | 268 个 unittest + smoke + 依赖检查 |
 | `tests/fixtures/ffrs/` | 脱敏「自有命名」项目夹具（`--loose` 用，内容全部虚构） |

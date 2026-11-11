@@ -237,13 +237,13 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 255 个用例
+python -m unittest discover -s tests        # 268 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
 ```
 
-- 测试覆盖（255 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
+- 测试覆盖（268 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
 - `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价。
 - CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
 - benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平。
@@ -299,7 +299,7 @@ scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
 scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
-tests/                      255 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+tests/                      268 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
 tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
@@ -327,9 +327,12 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 ### 16.2 Hook 集成
 
 - 安装前预检 `original_exists` + `sha256` 双状态：预览之后文件被别的会话改过，就**放弃整个安装**。
-- 多文件安装要么全做要么全退：逐文件写，失败按字节快照回滚，不留半套配置。
+- 多文件安装要么全做要么全退：逐文件写，失败按字节快照回滚，不留半套配置；
+  回滚本身也走原子字节写（临时文件 → `os.replace`），不会把旧配置写成半截。
 - `SessionStart` 的 matcher 按两家官方语义修正为 `startup|resume|clear|compact|fork`
   （2.0.1 漏了 `clear`，清空会话后重新开始拿不到接手上下文）。
+- `PreCompact` 的输出按两家协议分开：Claude Code 丢弃 `systemMessage`，非阻断时
+  **stdout 纯文本**才是压缩摘要的指令；Codex 认 `systemMessage`、忽略纯文本。
 - 输出用 `hookSpecificOutput.additionalContext` / `systemMessage`，不用 `decision: block`；
   `run` 永远退出 0、只读、不联网。Codex 用官方三级结构 `{matcher, hooks:[{type, command}]}`。
 
@@ -353,6 +356,8 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
   待核 → 明说「待核」；库里没有 → 报缺口，不编。
 - **P4 受控**：最多 3 块、最多占预算 30%、且必须命中 ≥2 个关键词或 1 个 ≥4 字符的独特词；
   任务点名的事实所在文件整份不参与 P4（否则会把已作废的整篇捞回来），事实 ID 也不作 P4 关键词。
+- **只含已作废事实的章节默认不进 P4**（见 §16.7）：任务没在问「以前 / 历史」时，作废内容
+  不该混进「当前配置」；混合节保留有效内容，但正文前标出哪条已作废、替代 ID 是什么。
 - 归档（`90_*`）与流水（`06_流水/`）统一按相对路径定角色降权，`--include-archive` 才升级。
 
 ### 16.5 评测
@@ -372,6 +377,27 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
   （8 项 → 10 项，任务集换了 4 条），这组数不再可比，已删除。当前口径下的数字见 §1 与
   `references/benchmark.md`。
 
+### 16.7 PR #1 复审补丁（四处收口）
+
+复审在已经通过六环境 CI 的 `52dcecf` 上又找出四个口子，只修这四处、不扩范围：
+
+1. **`AGENTS.md` 没有路径校验**：`kb-context` 读入口文件前只看 `is_file()`。
+   库里放一个指向库外的符号链接，就能把别人的文件当「本库硬约束」注入。
+   现在先过 `scope.is_within()`（`resolve()` 展开符号链接与 Windows Junction），
+   越界则跳过并写进缺口。`role_files` / `iter_text_files` 早就这么做，只有这处漏了。
+2. **P4 不认 `status: deprecated`**：只含已作废事实的章节会被当成普通「相关补充」捞回来，
+   而 P3 按 ID 查同一条时明明会说「已作废」。现在 P4 用 `lib/facts.py` 的解析结果标注节内事实：
+   整节作废 → 默认排除（任务在问「以前 / 历史 / 作废」或显式 `--include-superseded` 才带回，
+   且正文前加「已作废：G-011（替代 K-04）」）；混合节 → 保留有效内容并标注作废条目。
+   `p4.deprecated_skipped` 计入 JSON，缺口里也会说明排除了几节。
+3. **`PreCompact` 用了 Claude 会丢弃的字段**：Claude Code 官方文档写明
+   「discards a PreCompact hook's `systemMessage` and `continue` fields」，非阻断时
+   **stdout 纯文本**才是压缩摘要的指令。现在 Claude 发纯文本、Codex 发 `{"systemMessage": …}`，
+   两家都不发 `decision` / `continue`。此前对 Claude 发 `systemMessage` 等于什么都没说。
+4. **回滚用 `write_bytes()` 直接盖**：写到一半崩掉会把本来完好的旧配置变成半截。
+   改用 `atomic_write_bytes()`（临时文件 → fsync → `os.replace` → fsync 目录），
+   第三方改动的冲突检测保持不变——检测不过就保留现场，不覆盖。
+
 判断依据很简单：`used` 只有 89，而 P0+P1 本身的包装就超过这个量。现在的实现会
 1) 先把 P2 真正装配进去，2) 按**最终渲染**收敛预算，3) 把装不下的线写进 `omitted_lines` 与缺口。
 宁可数字变大，也不把「漏给」记成「省了」。
@@ -386,7 +412,7 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **255 passed**（起点 201，本版新增 54） |
+| `python -m unittest discover -s tests` | **268 passed**（起点 201，本版新增 67；无 skip） |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
 | `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |
@@ -414,8 +440,9 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 
 ### 17.3 客户端 Hook
 
-- **已验证**：配置结构符合两家官方格式、预览零写入、SHA 变更即放弃、多文件回滚、
-  `SessionStart` 五种来源都被覆盖（模拟事件测试）。
+- **已验证**：配置结构符合两家官方格式、预览零写入、SHA 变更即放弃、多文件回滚（含原子写与
+  第三方改动冲突）、`SessionStart` 五种来源都被覆盖、`PreCompact` 按两家协议分别输出
+  （Claude 纯文本 / Codex `systemMessage`，都不带 `decision` / `continue`）——均为模拟事件测试。
 - **未验证**：真实客户端启动进程时的实际注入效果。测试只到「配置结构与事件映射」这一层，
   没有起 Claude Code / Codex 真跑一遍。`references/hooks.md` 里标了同样的边界。
 
