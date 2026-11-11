@@ -425,19 +425,20 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
-**实跑结果**（run [43053794612](https://github.com/jmwangde3/handoff-kb/actions/runs/43053794612)，2026-11-11，`pull_request`）：
+**实跑结果**（run [43058773827](https://github.com/jmwangde3/handoff-kb/actions/runs/43058773827)，2026-11-11，`pull_request`，HEAD `4346389`）：
 
 | 环境 | 结果 | 用时 |
 |---|---|---|
-| py3.10 / ubuntu-latest | pass | 40s |
-| py3.12 / ubuntu-latest | pass | 43s |
-| py3.13 / ubuntu-latest | pass | 49s |
-| py3.10 / windows-latest | pass | 2m3s |
-| py3.12 / windows-latest | pass | 1m7s |
-| py3.13 / windows-latest | pass | 1m27s |
+| py3.10 / ubuntu-latest | pass | 51s |
+| py3.12 / ubuntu-latest | pass | 46s |
+| py3.13 / ubuntu-latest | pass | 47s |
+| py3.10 / windows-latest | pass | 1m46s |
+| py3.12 / windows-latest | pass | 1m15s |
+| py3.13 / windows-latest | pass | 1m26s |
 
-六环境全部 `Ran 255 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
+六环境全部 `Ran 269 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
 此前的 main 上是**三连红**（`42865218867` / `42866356878` / `43041287159`），本版修的就是那两处。
+同一分支早先两次运行（`43053794612` / `43054353521`）是 255 用例版本，结论一致。
 
 > 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
 
@@ -466,6 +467,8 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 | 真实大库未压测 | 只读跑过 FFRS（正文 47 份 / 0.6 MB，归档 795 份 / 5.6 MB，物理总量约 36 GB 含素材） | 那是「文件多」不是「单文件大」；>10 MB 单文件或 >500 份参与检索的正文没测过，`kb-context` 仍是全库扫描，可能慢 |
 | 跨进程竞态 | 锁 + 二次校验，非 CAS | 两个 `kb-write` 同时写同一文件，极端时序下可能都要重试；不会静默覆盖 |
 | 客户端启动未端到端验证 | 见 §17.3 | Hook 装了但没生效时，只能靠「没有注入上下文」这个现象发现 |
+| P4 的「在问历史」靠关键词猜 | `历史 / 以前 / 作废 / 沿革…` 命中才带回作废内容 | 换一种说法（「当初」「回滚前」）可能不触发；给人用的显式开关是 `--include-superseded`，模型侧只能看缺口提示 |
+| 作废内容按「定义行」置空 | 只认 `lib/facts.py` 解析出的定义位 | 章节里用自然语言复述旧值（没写成定义位）不会被置空；要靠写库时把旧值标成 `status: deprecated` |
 
 ---
 
