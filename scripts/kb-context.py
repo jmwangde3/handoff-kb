@@ -323,8 +323,16 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
 
     # P4 受控补充：数量、预算占比、相关性阈值三者同时生效
     used_sources = {b["source"] for b in blocks}
+    # 任务点名事实所在的文件整份不参与 P4：那条事实已经由 P3 按状态处理过，
+    # 再从全文捞一遍会把「已作废」的内容当补充材料塞回上下文。
+    for fid in asked:
+        for d in fact_defs.get(fid, []):
+            used_sources.add(d.path)
     used_keys = {(b["source"], b["section_id"]) for b in blocks if b["section_id"]}
-    p4 = p4_candidates(root, terms, used_sources, used_keys, include_archive, loose)
+    # 事实 ID 不作为 P4 关键词：ID 的查找有专门路径（含状态判定），
+    # 交给全文匹配只会在整个文件里乱捞。
+    p4_terms = [t for t in terms if not TASK_ID_RE.fullmatch(t)]
+    p4 = p4_candidates(root, p4_terms, used_sources, used_keys, include_archive, loose)
     p4_cap = int(budget * P4_BUDGET_SHARE)
     picked, used_tokens = [], 0
     for row in p4:
