@@ -251,6 +251,153 @@ class ContextFactsTest(TempProject):
         self.assertEqual(data["selected_lines"], [])
         self.assertTrue(any("不存在" in g for g in data["gaps"]), data["gaps"])
 
+    # -- P4 不能把「已作废」当普通当前上下文 ----------------------------- #
+    def test_p4_skips_deprecated_only_section(self):
+        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 归档备注
+
+### G-012 旧 DNS 缓存
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"K-04"} -->
+- 缓存令牌ZZZ9377，TTL 3600
+""")
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000")
+        text = " ".join(data["context"].values())
+        self.assertNotIn("缓存令牌ZZZ9377", text, "整节已作废的内容默认不得进入上下文")
+        self.assertGreaterEqual(data["p4"]["deprecated_skipped"], 1)
+        self.assertTrue(any("已作废" in g and "历史" in g for g in data["gaps"]),
+                        data["gaps"])
+
+    def test_p4_brings_deprecated_back_when_task_asks_history(self):
+        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 归档备注
+
+### G-012 旧 DNS 缓存
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"K-04"} -->
+- 缓存令牌ZZZ9377，TTL 3600
+""")
+        data, _ = self.ctx("--task", "以前 DNS 缓存 TTL 缓存令牌ZZZ9377 是什么",
+                           "--line", "甲", "--budget", "3000")
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertTrue(any("含已作废" in b["title"] for b in p4), p4)
+        text = " ".join(data["context"].values())
+        self.assertIn("缓存令牌ZZZ9377", text, "问历史时必须能查到作废内容")
+        self.assertIn("已作废：G-012", text, "作废内容必须自带标注，不能冒充当前配置")
+        self.assertIn("K-04", text)
+
+    def test_p4_include_superseded_flag_is_explicit(self):
+        """不靠中文关键词猜：显式 --include-superseded 也能带回历史。"""
+        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 归档备注
+
+### G-012 旧 DNS 缓存
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"K-04"} -->
+- 缓存令牌ZZZ9377，TTL 3600
+""")
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000", "--include-superseded")
+        text = " ".join(data["context"].values())
+        self.assertIn("缓存令牌ZZZ9377", text)
+        self.assertIn("已作废：G-012", text)
+
+    def test_p4_marks_mixed_section_instead_of_dropping_it(self):
+        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 缓存区
+
+### G-013 现行缓存策略
+<!-- kb:fact-meta: {"status":"valid","evidence":"cat cfg"} -->
+- 缓存令牌ZZZ9377 = 60s
+
+### G-014 旧缓存策略
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"G-013"} -->
+- 缓存令牌ZZZ9377 = 3600s
+""")
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000")
+        text = " ".join(data["context"].values())
+        self.assertIn("60s", text, "同一节里的有效内容不能因为邻居作废而被丢掉")
+        self.assertIn("已作废：G-014", text, "混合节要标出哪条已作废")
+        self.assertIn("G-013", text, "作废条目的替代 ID 要写在标注里")
+
+
+class EntryFileSafetyTest(TempProject):
+    """AGENTS.md 是入口文件，也可能是符号链接：读之前必须核对真实路径。"""
+
+    def setUp(self):
+        super().setUp()
+        self.make_filled()
+
+    def ctx(self, *args):
+        return run_json("kb-context.py", "--target", self.root, "--format", "json", *args)
+
+    def strip_constraints(self):
+        """拿掉 dashboard 的硬约束段，逼 kb-context 走 AGENTS.md 兜底。"""
+        p = self.root / "05_进度仪表盘.md"
+        text = p.read_text(encoding="utf-8")
+        head = text.split("<!-- kb:id: dashboard.constraints -->")[0]
+        p.write_text(head, encoding="utf-8", newline="\n")
+
+    def test_agents_fallback_still_works(self):
+        self.strip_constraints()
+        self.write("AGENTS.md", "# AGENTS\n\n## 硬约束\n\n- 不许动 r1\n")
+        data, _ = self.ctx("--task", "查看现状", "--budget", "3000")
+        titles = [b["title"] for b in data["blocks"] if b["priority"] == "P0"]
+        self.assertIn("硬约束（AGENTS.md）", titles)
+        self.assertIn("不许动 r1", " ".join(data["context"].values()))
+
+    def test_agents_symlink_outside_is_refused(self):
+        import os
+        self.strip_constraints()
+        outside = self.tmp / "outside"
+        outside.mkdir(exist_ok=True)
+        secret = outside / "AGENTS.md"
+        secret.write_text("# 别人的 AGENTS\n\n## 硬约束\n\n- 库外机密约束ZZZ\n",
+                          encoding="utf-8")
+        link = self.root / "AGENTS.md"
+        if link.exists():
+            link.unlink()          # kb-init 默认会建一份，先挪开才能放链接
+        try:
+            os.symlink(str(secret), str(link))
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest("本机无法创建文件符号链接：%s" % exc)
+        data, _ = self.ctx("--task", "查看现状", "--budget", "3000")
+        text = " ".join(data["context"].values())
+        self.assertNotIn("库外机密约束ZZZ", text, "库外文件不能冒充本库硬约束")
+        self.assertFalse(any(b["priority"] == "P0" and "AGENTS" in b["title"]
+                             for b in data["blocks"]))
+        self.assertTrue(any("工作区外" in g for g in data["gaps"]), data["gaps"])
+
+    def test_agents_junction_dir_named_agents_is_ignored(self):
+        """AGENTS.md 若是个目录链接（Junction），不是文件，不该被当成入口。"""
+        import os
+        import subprocess
+        self.strip_constraints()
+        outside = self.tmp / "outside2"
+        outside.mkdir(exist_ok=True)
+        (outside / "x.md").write_text("# 库外\n", encoding="utf-8")
+        link = self.root / "AGENTS.md"
+        if link.exists():
+            link.unlink()
+        try:
+            os.symlink(str(outside), str(link), target_is_directory=True)
+        except (OSError, NotImplementedError):
+            r = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                               capture_output=True)
+            if r.returncode != 0:
+                self.skipTest("本机无法创建目录链接：%s"
+                              % (r.stdout + r.stderr).decode("utf-8", "replace").strip())
+        data, p = self.ctx("--task", "查看现状", "--budget", "3000")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertFalse(any("AGENTS" in b["title"] for b in data["blocks"]))
+
 
 class ContextTest(TempProject):
     def setUp(self):

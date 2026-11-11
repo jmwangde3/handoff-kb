@@ -44,6 +44,9 @@ P4_MAX_BLOCKS = 3
 P4_BUDGET_SHARE = 0.30
 P4_MIN_TERMS = 2
 TASK_ID_RE = re.compile(r"\b([KG]-\d{2,3})\b")
+# 只有明确在问「过去」的任务，才允许 P4 把已作废章节带回上下文
+TASK_HISTORY_HINTS = ("历史", "以前", "旧值", "旧的", "曾经", "当初", "作废",
+                      "沿革", "变更记录", "为什么改", "什么时候改")
 
 
 def parse_terms(text: str):
@@ -139,8 +142,39 @@ def find_line_facts(files, line_spec, terms, task: str = ""):
     return [], "任务没有命中任何事实分册"
 
 
+def wants_history(task: str) -> bool:
+    """任务是否在问「过去」——只有这种问法才允许 P4 带回已作废章节。"""
+    return any(k in (task or "") for k in TASK_HISTORY_HINTS)
+
+
+def fact_marks(fact_defs) -> dict:
+    """{相对路径: [(line_start, line_end, id, status, superseded_by)]}；只看规范定义。
+
+    索引页里的同 ID 行是**指针**（导航），不该把整个索引节标成「已作废」。
+    """
+    out = {}
+    for items in (fact_defs or {}).values():
+        for d in items:
+            if d.pointer:
+                continue
+            out.setdefault(d.path, []).append(
+                (d.line_start, d.line_end, d.id, d.status, d.superseded_by))
+    return out
+
+
+def section_marks(marks, sec):
+    """落在某一节里的定义（Section.line / end 都是 1 基、含端点）。"""
+    return [m for m in marks if sec.line <= m[0] <= sec.end]
+
+
+def dead_note(dead) -> str:
+    ids = "、".join("%s%s" % (m[2], "（替代 %s）" % m[4] if m[4] else "") for m in dead[:3])
+    return "> 已作废：%s —— 以下内容仅作历史参考，不是当前配置。\n\n" % ids
+
+
 def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
-                  include_archive: bool, loose: bool, max_blocks=P4_MAX_BLOCKS):
+                  include_archive: bool, loose: bool, max_blocks=P4_MAX_BLOCKS,
+                  fact_defs=None, allow_deprecated: bool = False):
     """受控 P4：只补「确实相关」的少量章节。
 
     约束（全部硬性）：
@@ -148,9 +182,15 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
       - 至少命中 P4_MIN_TERMS 个不同关键词，否则不补（返回 0 块是正确结果）
       - 归档默认不参与；流水/归档按权重降序靠后
       - 已经被 P0–P3 用过的文件/章节不重复加入
+      - **整节只有已作废事实**的章节默认不补；任务在问「历史/以前/作废」时
+        才带回，并在正文前标注「已作废」。混合有效/作废的章节保留并标注。
+
+    返回 (rows, dropped)：dropped 是被过滤掉的「整节已作废」章节说明。
     """
+    dropped = []
     if not terms:
-        return []
+        return [], dropped
+    marks_by_file = fact_marks(fact_defs)
     rows = []
     for p, reason in scope.iter_text_files(root, include_archive=include_archive):
         if reason:
@@ -164,6 +204,7 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
             doc = md.parse_file(p)
         except Exception:
             continue
+        marks = marks_by_file.get(rel) or []
         for sec in doc.sections:
             key = (rel, sec.id or sec.line)
             if key in used_section_keys:
@@ -177,15 +218,30 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
             distinctive = len(hits) == 1 and len(hits[0]) >= 4
             if len(hits) < P4_MIN_TERMS and not distinctive:
                 continue
-            rows.append({"score": len(hits) * weight, "file": rel, "section_id": sec.id,
-                         "heading": sec.title, "line": sec.line,
-                         "text": text.strip(), "hits": hits, "role": role})
+            found = section_marks(marks, sec)
+            dead = [m for m in found if m[3] == "deprecated"]
+            live = [m for m in found if m[3] != "deprecated"]
+            if dead and not live and not allow_deprecated:
+                dropped.append("%s:%d %s（%s）" % (
+                    rel, sec.line, sec.title or "（无标题）",
+                    "、".join(m[2] for m in dead[:3])))
+                continue
+            text = text.strip()
+            if dead:
+                text = dead_note(dead) + text
+            row = {"score": len(hits) * weight, "file": rel, "section_id": sec.id,
+                   "heading": sec.title, "line": sec.line,
+                   "text": text, "hits": hits, "role": role}
+            if dead:
+                row["deprecated"] = [{"id": m[2], "superseded_by": m[4]} for m in dead]
+            rows.append(row)
     rows.sort(key=lambda r: (-r["score"], r["file"], r["line"]))
-    return rows[:max_blocks]
+    return rows[:max_blocks], dropped
 
 
 def build(root: Path, files, task: str, line_spec, include_archive: bool,
-          counter, budget: int = 3000, loose: bool = False):
+          counter, budget: int = 3000, loose: bool = False,
+          include_superseded: bool = False):
     terms = parse_terms(task)
     blocks, gaps = [], []
     selected_lines, omitted_lines = [], []
@@ -209,7 +265,15 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
             gaps.append("缺少 kb:id: dashboard.constraints —— 硬约束未声明，建议补上")
 
     agents = root / "AGENTS.md"
-    if agents.is_file() and not any(b["priority"] == "P0" for b in blocks):
+    # 入口文件也可能是符号链接 / Junction：读之前必须核对真实路径。
+    # 否则库里放一个指向库外的 AGENTS.md，就能把别人的文件当成「本库硬约束」注入。
+    if agents.is_file() and not scope.is_within(root, agents):
+        gaps.append("AGENTS.md 指向工作区外，已跳过（%s）"
+                    % scope.escape_reason(root, agents))
+        agents = None
+    elif not agents.is_file():
+        agents = None
+    if agents is not None and not any(b["priority"] == "P0" for b in blocks):
         adoc = md.parse_file(agents)
         for s in adoc.sections:
             if "硬约束" in s.title:
@@ -335,7 +399,11 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
     # 事实 ID 不作为 P4 关键词：ID 的查找有专门路径（含状态判定），
     # 交给全文匹配只会在整个文件里乱捞。
     p4_terms = [t for t in terms if not TASK_ID_RE.fullmatch(t)]
-    p4 = p4_candidates(root, p4_terms, used_sources, used_keys, include_archive, loose)
+    p4, p4_dropped = p4_candidates(root, p4_terms, used_sources, used_keys,
+                                   include_archive, loose,
+                                   fact_defs=fact_defs,
+                                   allow_deprecated=(include_superseded
+                                                     or wants_history(task)))
     p4_cap = int(budget * P4_BUDGET_SHARE)
     picked, used_tokens = [], 0
     for row in p4:
@@ -345,10 +413,19 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
         used_tokens += n
         picked.append(row)
     for row in picked:
-        add("P4", "相关补充 · %s" % (row["heading"] or row["file"]), row["file"],
-            row["section_id"], row["text"],
-            "关键词命中 %s（%s，权重 %.1f）" % ("、".join(row["hits"][:3]),
-                                             row["role"], row["score"] / max(1, len(row["hits"]))))
+        title = "相关补充 · %s" % (row["heading"] or row["file"])
+        reason = ("关键词命中 %s（%s，权重 %.1f）"
+                  % ("、".join(row["hits"][:3]), row["role"],
+                     row["score"] / max(1, len(row["hits"]))))
+        if row.get("deprecated"):
+            title += "（含已作废事实）"
+            reason += "；含已作废事实 %s，已标注为历史参考" % "、".join(
+                d["id"] for d in row["deprecated"][:3])
+        add("P4", title, row["file"], row["section_id"], row["text"], reason)
+    if p4_dropped:
+        gaps.append("P4 排除了 %d 个只含已作废事实的章节（%s）；"
+                    "要查历史请在任务里说明「以前 / 历史 / 作废」"
+                    % (len(p4_dropped), "；".join(p4_dropped[:2])))
     if not picked and terms:
         gaps.append("没有足够的 P4 相关内容（阈值 ≥%d 个关键词）；0 块是正常结果"
                     % P4_MIN_TERMS)
@@ -357,7 +434,7 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
             "terms": terms, "fact_paths": fact_paths, "why": why,
             "selected_lines": [line_name(p) for p in fact_paths],
             "p4": {"count": len(picked), "tokens": used_tokens, "cap": p4_cap,
-                   "candidates": len(p4)},
+                   "candidates": len(p4), "deprecated_skipped": len(p4_dropped)},
             "asked_ids": asked, "dash": dash_p, "base": base_p}
 
 
@@ -493,6 +570,8 @@ def main() -> int:
     ap.add_argument("--budget", type=int, default=3000)
     ap.add_argument("--format", choices=["markdown", "json"], default="markdown")
     ap.add_argument("--include-archive", action="store_true")
+    ap.add_argument("--include-superseded", action="store_true",
+                    help="P4 允许带回已作废章节（仍会标注「已作废」，不会冒充当前配置）")
     ap.add_argument("--loose", action="store_true", help="按别名识别 05/06/90（自有命名项目）")
     ap.add_argument("--tokenizer", default="heuristic")
     ap.add_argument("--allow-tokenizer-fallback", action="store_true")
@@ -533,7 +612,7 @@ def main() -> int:
         line_spec = ",".join(parts) or None
 
     built = build(root, files, args.task, line_spec, args.include_archive,
-                  counter, args.budget, args.loose)
+                  counter, args.budget, args.loose, args.include_superseded)
     kept, skipped, rendered_tokens, over, text = assemble(
         args.task, line_spec, args.mode, args.budget, built["blocks"], built["gaps"],
         counter, args.explain)
