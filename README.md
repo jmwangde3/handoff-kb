@@ -394,8 +394,23 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 ### 17.2 CI（六个环境）
 
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
-本版修掉了六环境里两处必红（Linux 盘符判定、Windows 8.3 短名比对），但**合并前请以 CI 实跑结果为准**：
-本文档写作时分支尚未推送，CI 未运行，因此这里不写「六环境全绿」。
+每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
+
+**实跑结果**（run [43053794612](https://github.com/jmwangde3/handoff-kb/actions/runs/43053794612)，2026-11-11，`pull_request`）：
+
+| 环境 | 结果 | 用时 |
+|---|---|---|
+| py3.10 / ubuntu-latest | pass | 40s |
+| py3.12 / ubuntu-latest | pass | 43s |
+| py3.13 / ubuntu-latest | pass | 49s |
+| py3.10 / windows-latest | pass | 2m3s |
+| py3.12 / windows-latest | pass | 1m7s |
+| py3.13 / windows-latest | pass | 1m27s |
+
+六环境全部 `Ran 255 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
+此前的 main 上是**三连红**（`42865218867` / `42866356878` / `43041287159`），本版修的就是那两处。
+
+> 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
 
 ### 17.3 客户端 Hook
 
