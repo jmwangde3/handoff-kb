@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""kb-context.py — 按 Token 预算组装最小上下文
+"""kb-context.py — 按 Token 预算组装最小上下文（2.0.1）
 
 优先级固定（高 → 低）：
   P0 硬约束（dashboard.constraints / AGENTS 硬约束段）——任何预算都不裁
   P1 现状 + 下一手（dashboard.current / dashboard.next）
-  P2 本工作线相关事实章节（fact.current / fact.commands）
-  P3 基线命中行 + 证据指针（K-xx）
-  P4 其余按相关度补满预算（流水与归档降权/默认排除）
+  P2 相关工作线的事实章节（支持一次加载多条线：fact.current / commands / pitfalls）
+  P3 基线命中行 + 证据指针 + 交叉链
+  P4 其余按相关度补满（流水与归档降权/默认排除）
 
-预算不足时输出"摘要 + 指针"，并明确报超额；不虚构内容、不静默丢硬约束。
+2.0.1 的三处关键变化：
+  1. **多工作线**：`--line 固件,运行态` 或任务里出现多个线名时全部加载；
+     预算装不下时报告「已加载 / 未加载」与指针，绝不把部分加载说成完整接手。
+  2. **同一个 TokenCounter 贯穿**：块、包装、最终 Markdown 都用同一个计数器。
+  3. **预算按最终输出算**：包装（标题/来源/理由/缺口/指针/说明）都计入，
+     超预算先丢最低优先级的可选块，必需块超额则如实报告 over_budget。
 
 用法：
   py kb-context.py --target . --task "排查 NSS 网络问题" --budget 3000 --explain
-  py kb-context.py --target . --task "..." --line 固件 --format json
+  py kb-context.py --target . --task "..." --line 固件,运行态 --format json
 """
 from __future__ import annotations
 
@@ -27,6 +32,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope, terms as terms_lib, tokens  # noqa: E402
+
+PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "P4": 4}
+TASK_VERBS_VERIFY = ("排查", "命令", "怎么", "如何", "检查", "验证", "怎么跑", "复现")
+TASK_VERBS_TROUBLE = ("排查", "问题", "故障", "坑", "报错", "崩溃", "掉速")
+TASK_VERBS_CROSS = ("影响", "波及", "交叉", "同步", "同时", "依赖")
 
 
 def parse_terms(text: str):
@@ -45,7 +55,7 @@ def table_rows_matching(doc: md.Document, terms, limit=8):
         if line.strip().startswith("|"):
             if not header:
                 header = line
-            if re.match(r"^\s*\|?[\s:|-]+\|?\s*$", line):
+            if re.match(r"^\s*\|?[\s:| -]+\|?\s*$", line):
                 continue
             if any(t.lower() in line.lower() for t in terms):
                 if line != header:
@@ -58,13 +68,6 @@ def table_rows_matching(doc: md.Document, terms, limit=8):
     return header, out[:limit]
 
 
-def block(priority, title, source, section_id, text, reason, required=False):
-    toks, desc = tokens.estimate(text)
-    return {"priority": priority, "title": title, "source": source,
-            "section_id": section_id, "text": text, "tokens": toks,
-            "tokenizer": desc, "reason": reason, "required": required}
-
-
 def section_text(doc, sid, include_children=True):
     sec = md.find_by_id(doc, sid)
     if not sec:
@@ -73,23 +76,45 @@ def section_text(doc, sid, include_children=True):
     return sec, text
 
 
-def find_line_fact(files, line: str, terms, task: str = ""):
-    """按 --line、任务里出现的线名、或关键词命中挑一条事实分册。"""
+def line_name(path: Path) -> str:
+    stem = path.stem
+    return stem.split("_", 1)[1] if "_" in stem else stem
+
+
+def find_line_facts(files, line_spec, terms, task: str = ""):
+    """返回 ([fact_path...], reason)。
+
+    规则（依次）：
+      1. 显式 --line（逗号或重复参数都可）→ 命中的全部
+      2. 任务里出现多个线名 → 全部；出现一个 → 那一个
+      3. 只有关键词模糊命中 → 取最高分的一条（避免噪声）
+    """
     facts = [(protocol.number_of(p.name), p) for p in files.get("fact", [])]
+    facts = [p for _, p in sorted(facts, key=lambda x: (x[0] is None, x[0]))]
     if not facts:
-        return None
-    if line:
-        for _, p in facts:
-            if line.lower() in p.stem.lower():
-                return p
-        return None
-    # 线名直接出现在任务里最可靠（中文不做分词）
-    for _, p in facts:
-        name = p.stem.split("_", 1)[1] if "_" in p.stem else ""
-        if name and name in (task or ""):
-            return p
+        return [], "没有事实分册"
+
+    names = [line_name(p) for p in facts]
+    wanted = []
+    if line_spec:
+        for chunk in re.split(r"[,，;；\s]+", str(line_spec)):
+            chunk = chunk.strip().lower()
+            if not chunk:
+                continue
+            for p, n in zip(facts, names):
+                if chunk in p.stem.lower() or chunk in n.lower():
+                    if p not in wanted:
+                        wanted.append(p)
+        if wanted:
+            return wanted, "显式指定工作线"
+        return [], "指定的工作线不存在（可选：%s）" % "、".join(names)
+
+    hit = [p for p, n in zip(facts, names) if n and n in (task or "")]
+    if hit:
+        return hit, "任务里点名的 %d 条工作线" % len(hit)
+
     best, best_score = None, 0
-    for _, p in facts:
+    for p in facts:
         name = p.stem.lower()
         score = sum(1 for t in terms if t.lower() in name)
         try:
@@ -100,14 +125,25 @@ def find_line_fact(files, line: str, terms, task: str = ""):
             pass
         if score > best_score:
             best, best_score = p, score
-    return best if best_score else None
+    # 单个关键词命中线名也算命中（"10_NSS.md" + 任务含 NSS）；
+    # 只取最高分一条，同分不堆块，避免把噪声工作线一起装进来。
+    if best is not None and best_score >= 1:
+        return [best], "关键词最高分（%d）" % best_score
+    return [], "任务没有命中任何事实分册"
 
 
-def build(root: Path, files, task: str, line: str, include_archive: bool, budget: int = 3000):
+def build(root: Path, files, task: str, line_spec, include_archive: bool,
+          counter, budget: int = 3000):
     terms = parse_terms(task)
     blocks, gaps = [], []
+    selected_lines, omitted_lines = [], []
     dash_p = files.get("dashboard", [None])[0]
     dash = md.parse_file(dash_p) if dash_p else None
+
+    def add(priority, title, source, sid, text, reason, required=False, line=None):
+        blocks.append({"priority": priority, "title": title, "source": source,
+                       "section_id": sid, "text": text, "reason": reason,
+                       "required": required, "line": line})
 
     # P0 硬约束
     if dash:
@@ -115,20 +151,19 @@ def build(root: Path, files, task: str, line: str, include_archive: bool, budget
         if sec is None:
             sec, text = section_text(dash, "dashboard.safety", False)
         if text and text.strip():
-            blocks.append(block("P0", "硬约束（不裁剪）", dash_p.name, sec.id, text,
-                                "任何预算下必读；删掉会让后续会话失去操作边界", required=True))
+            add("P0", "硬约束（不裁剪）", dash_p.name, sec.id, text,
+                "任何预算下必读；删掉会让后续会话失去操作边界", required=True)
         else:
             gaps.append("缺少 kb:id: dashboard.constraints —— 硬约束未声明，建议补上")
 
-    # 入口硬约束兜底
     agents = root / "AGENTS.md"
     if agents.is_file() and not any(b["priority"] == "P0" for b in blocks):
         adoc = md.parse_file(agents)
         for s in adoc.sections:
             if "硬约束" in s.title:
                 text, _ = md.render(adoc, s, include_children=False)
-                blocks.append(block("P0", "硬约束（AGENTS.md）", agents.name, None, text,
-                                    "dashboard 没有约束段，退回入口文件", required=True))
+                add("P0", "硬约束（AGENTS.md）", agents.name, None, text,
+                    "dashboard 没有约束段，退回入口文件", required=True)
                 break
 
     # P1 现状 + 下一手
@@ -136,163 +171,218 @@ def build(root: Path, files, task: str, line: str, include_archive: bool, budget
         for sid, title in (("dashboard.current", "现状"), ("dashboard.next", "下一手")):
             sec, text = section_text(dash, sid, False)
             if text and text.strip():
-                blocks.append(block("P1", title, dash_p.name, sid, text,
-                                    "接手必读；决定本次任务从哪开始", required=True))
+                add("P1", title, dash_p.name, sid, text,
+                    "接手必读；决定本次任务从哪开始", required=True)
             else:
                 gaps.append("缺少 kb:id: %s" % sid)
-        # 未迁移的库（没有 kb:id）不能给空包：退回「05 前 40 行」，并提示迁移
         if not any(b["priority"] == "P1" for b in blocks):
             head = "\n".join(dash.lines[:40]).strip()
             if head:
-                blocks.append(block("P1", "现状（无 kb:id 兜底）", dash_p.name, None, head,
-                                    "05 尚未加 kb:id，取前 40 行；跑 kb-migrate.py 可精确到节",
-                                    required=True))
+                add("P1", "现状（无 kb:id 兜底）", dash_p.name, None, head,
+                    "05 尚未加 kb:id，取前 40 行；跑 kb-migrate.py 可精确到节",
+                    required=True)
 
-    # P2 本线事实
-    fact = find_line_fact(files, line, terms, task)
-    if fact is not None:
-        fdoc = md.parse_file(fact)
-        sec, text = section_text(fdoc, "fact.current")
+    # P2 工作线事实（可多条）
+    fact_paths, why = find_line_facts(files, line_spec, terms, task)
+    if not fact_paths and terms:
+        gaps.append(why if "不存在" in why or "没有" in why else
+                    "任务没有命中任何事实分册（用 kb-search.py 再定位）")
+    want_verify = any(k in (task or "") for k in TASK_VERBS_VERIFY)
+    want_trouble = any(k in (task or "") for k in TASK_VERBS_TROUBLE)
+    per_line_blocks = []
+    for p in fact_paths:
+        fdoc = md.parse_file(p)
+        name = line_name(p)
+        items = []
+        _, text = section_text(fdoc, "fact.current")
         if text and text.strip():
-            blocks.append(block("P2", "本线当前值", fact.name, "fact.current", text,
-                                "任务关键词命中这条工作线"))
-        if any(k in (task or "") for k in ("排查", "命令", "怎么", "如何", "检查", "验证", "怎么跑")):
-            sec2, text2 = section_text(fdoc, "fact.commands", False)
-            if text2 and text2.strip():
-                blocks.append(block("P2", "本线判据与命令", fact.name, "fact.commands", text2,
-                                    "任务涉及验证/操作，需要可执行判据"))
-        sec3, text3 = section_text(fdoc, "fact.pitfalls", False)
-        if sec3 and text3.strip() and any(k in (task or "") for k in ("排查", "问题", "故障", "坑", "报错")):
-            blocks.append(block("P2", "本线踩过的坑", fact.name, "fact.pitfalls", text3,
-                                "排障类任务优先给已知坑，避免重走旧路"))
-    elif terms:
-        gaps.append("任务没有命中任何事实分册（用 kb-search.py 再定位）")
+            items.append(("本线当前值 · %s" % name, p.name, "fact.current", text,
+                          "任务命中这条工作线（%s）" % why))
+        if want_verify:
+            _, t2 = section_text(fdoc, "fact.commands", False)
+            if t2 and t2.strip():
+                items.append(("本线判据与命令 · %s" % name, p.name, "fact.commands", t2,
+                              "任务涉及验证/操作，需要可执行判据"))
+        if want_trouble:
+            _, t3 = section_text(fdoc, "fact.pitfalls", False)
+            if t3 and t3.strip():
+                items.append(("本线踩过的坑 · %s" % name, p.name, "fact.pitfalls", t3,
+                              "排障类任务优先给已知坑，避免重走旧路"))
+        # P2 必须真正进入 blocks，否则装配器永远看不到工作线事实
+        for title, source, sid, text, reason in items:
+            add("P2", title, source, sid, text, reason, required=False, line=name)
+        per_line_blocks.append((name, items))
 
-    # P3 基线与证据
+    # P3 基线命中 + 证据 + 交叉链
     base_p = files.get("baseline", [None])[0]
     if base_p and terms:
         bdoc = md.parse_file(base_p)
         header, rows = table_rows_matching(bdoc, terms)
         if rows:
             text = "\n".join([header] + [r[1] for r in rows])
-            blocks.append(block("P3", "基线命中 %d 行" % len(rows), base_p.name,
-                                "baseline.facts", text,
-                                "任务关键词命中基线表：%s" % ", ".join(terms[:4])))
+            add("P3", "基线命中 %d 行" % len(rows), base_p.name, "baseline.facts", text,
+                "任务关键词命中基线表：%s" % ", ".join(terms[:4]))
             ev = []
             for _, row in rows:
                 cells = split_row(row)
                 if len(cells) >= 5 and cells[4] and cells[4] not in ("—", "-"):
                     ev.append("%s ← %s" % (cells[0], cells[4]))
             if ev:
-                blocks.append(block("P3", "证据指针", base_p.name, "baseline.facts",
-                                    "\n".join("- " + e for e in ev),
-                                    "完成项必须有可追溯证据，否则只能算待核"))
+                add("P3", "证据指针", base_p.name, "baseline.facts",
+                    "\n".join("- " + e for e in ev),
+                    "完成项必须有可追溯证据，否则只能算待核")
         else:
             gaps.append("基线表没有命中；结论可能需要新建 K-xx")
 
-        # 跨线问题：两条线同时出现，或问到影响/波及 → 交叉链必读
-        line_names = [p.stem.split("_", 1)[1] for p in files.get("fact", []) if "_" in p.stem]
-        hit_lines = [n for n in line_names if n and n in (task or "")]
-        cross_hint = any(k in (task or "") for k in ("影响", "波及", "交叉", "同步", "同时"))
-        if (len(hit_lines) >= 2 or cross_hint) and md.find_by_id(bdoc, "baseline.chains"):
-            sec, text = section_text(bdoc, "baseline.chains", False)
+        cross = (len(fact_paths) >= 2
+                 or any(k in (task or "") for k in TASK_VERBS_CROSS))
+        if cross and md.find_by_id(bdoc, "baseline.chains"):
+            _, text = section_text(bdoc, "baseline.chains", False)
             if text and text.strip():
-                blocks.append(block("P3", "交叉链（改 A 波及 B）", base_p.name,
-                                    "baseline.chains", text,
-                                    "任务涉及跨线影响：先看交叉链再动手"))
+                add("P3", "交叉链（改 A 波及 B）", base_p.name, "baseline.chains", text,
+                    "任务涉及跨线影响：先看交叉链再动手")
 
-    # P4 相关度补满：只占预算的 30%，最多 3 块，弱命中不进（防噪声淹没）
-    picked = {(b["source"], b["section_id"]) for b in blocks}
-    cands = []
-    for path, reason in scope.iter_text_files(root, include_archive=include_archive):
-        if reason:
-            continue
-        try:
-            doc = md.parse_file(path)
-        except Exception:
-            continue
-        for sec in doc.sections:
-            key = (path.name, sec.id)
-            if key in picked:
-                continue
-            body = "\n".join(doc.lines[sec.start:sec.stop])
-            text = sec.title + "\n" + body
-            score = sum(min(text.lower().count(t.lower()), 3) for t in terms) if terms else 0
-            if score >= 2:
-                role = protocol.role_of_name(path.name)
-                weight = 0.4 if role in ("log", "shard") else (0.3 if role == "archive" else 1.0)
-                cands.append((score * weight, path, sec, text))
-    cands.sort(key=lambda x: -x[0])
-    base_tokens = sum(b["tokens"] for b in blocks)
-    p4_cap = max(120, min(int(budget * 0.3), int(base_tokens * 0.6)))
-    p4_used, p4_count = 0, 0
-    for score, path, sec, text in cands:
-        if p4_count >= 3:
+    return {"blocks": blocks, "per_line": per_line_blocks, "gaps": gaps,
+            "terms": terms, "fact_paths": fact_paths, "why": why,
+            "selected_lines": [line_name(p) for p in fact_paths],
+            "dash": dash_p, "base": base_p}
+
+
+# --------------------------------------------------------------------------- #
+# 渲染与预算
+# --------------------------------------------------------------------------- #
+
+def render(task, line, mode, budget, kept, skipped, gaps, over, counter, explain,
+           used=None):
+    """渲染最终 Markdown。`used` 为 None 时先渲染再回填（最多两次迭代收敛）。"""
+    def body(actual_text):
+        out = ["# 上下文包 — %s" % (task or "（未给任务）"), ""]
+        head = ("预算 %s tokens / 实际 %s tokens（%s）｜模式 %s%s｜%d 块"
+                % (budget, actual_text, counter.desc, mode,
+                   "｜工作线 %s" % line if line else "", len(kept)))
+        out.append(head)
+        if over:
+            out.append("")
+            out.append("> **超额**：必读内容已超过预算。别删硬约束——拆任务或提高 --budget。")
+        for b in kept:
+            out.append("")
+            out.append("## [%s] %s%s" % (b["priority"], b["title"],
+                                         "  · %s" % b["section_id"] if b["section_id"] else ""))
+            out.append("<!-- source: %s -->" % b["source"])
+            if explain:
+                out.append("> 选择理由：%s（%d tokens）"
+                           % (b["reason"], count_block(b, counter)))
+            out.append("")
+            out.append(b["text"].rstrip())
+        out.append("")
+        out.append("---")
+        out.append("## 预算与取舍")
+        out.append("")
+        out.append("| 块 | 来源 | tokens | 状态 |")
+        out.append("|---|---|---|---|")
+        for b in kept:
+            out.append("| %s %s | %s | %d | 已选 |"
+                       % (b["priority"], b["title"], b["source"], count_block(b, counter)))
+        for s in skipped:
+            out.append("| %s %s | %s | %d | 跳过：%s |"
+                       % (s["priority"], s["title"], s["source"],
+                          count_block(s, counter), s["reason"]))
+        if gaps:
+            out.append("")
+            out.append("## 缺口 / 待核")
+            out.append("")
+            for g in gaps:
+                out.append("- %s" % g)
+        out.append("")
+        out.append("## 需要更多时")
+        out.append("")
+        out.append("- 精读某一节：`py kb-outline.py --file <文件> --section-id <ID>`")
+        out.append("- 找资料：`py kb-search.py --target . --query \"<关键词>\"`")
+        return "\n".join(out)
+
+    guess = used
+    if guess is None:
+        guess = counter.count(body("0"))
+    text = body(str(guess))
+    for _ in range(3):
+        size = counter.count(text)
+        if size == guess:
             break
-        b = block("P4", sec.title, path.name, sec.id, text,
-                  "相关度 %.1f（关键词计数，流水/归档已降权）" % score)
-        if p4_used + b["tokens"] > p4_cap:
-            continue
-        blocks.append(b)
-        p4_used += b["tokens"]
-        p4_count += 1
-    return blocks, gaps, terms
+        guess = size
+        text = body(str(guess))
+    return text, counter.count(text)
 
 
-def render_markdown(task, line, mode, budget, used, blocks, skipped, gaps, over, tok_desc, explain):
-    out = ["# 上下文包 — %s" % (task or "（未给任务）"), ""]
-    out.append("预算 %s tokens / 实际 %s tokens（%s）｜模式 %s%s｜%d 块"
-               % (budget, used, "估算" if not tok_desc.startswith("tiktoken:") else tok_desc,
-                  mode, "｜工作线 %s" % line if line else "", len(blocks)))
-    if over:
-        out.append("")
-        out.append("> **超额**：必读内容已超过预算 %d tokens。别删硬约束——拆任务或提高 --budget。"
-                   % (used - budget))
+def count_block(b, counter):
+    return counter.count("## [%s] %s  · %s\n<!-- source: %s -->\n> 选择理由：%s\n\n%s"
+                         % (b["priority"], b["title"], b["section_id"] or "",
+                            b["source"], b["reason"], b["text"]))
+
+
+def context_map(blocks):
+    """section_id → 正文。同一 section_id 可能来自多块（基线命中 + 证据指针），
+    早先直接用字典推导会让后一块覆盖前一块，JSON 消费方静默丢内容。"""
+    out = {}
     for b in blocks:
-        out.append("")
-        out.append("## [%s] %s%s" % (b["priority"], b["title"],
-                                     "  · %s" % b["section_id"] if b["section_id"] else ""))
-        out.append("<!-- source: %s -->" % b["source"])
-        if explain:
-            out.append("> 选择理由：%s（%d tokens）" % (b["reason"], b["tokens"]))
-        out.append("")
-        out.append(b["text"].rstrip())
-    out.append("")
-    out.append("---")
-    out.append("## 预算与取舍")
-    out.append("")
-    out.append("| 块 | 来源 | tokens | 状态 |")
-    out.append("|---|---|---|---|")
-    for b in blocks:
-        out.append("| %s %s | %s | %d | 已选 |" % (b["priority"], b["title"], b["source"], b["tokens"]))
-    for s in skipped:
-        out.append("| %s %s | %s | %d | 跳过：%s |"
-                   % (s["priority"], s["title"], s["source"], s["tokens"], s["reason"]))
-    if gaps:
-        out.append("")
-        out.append("## 缺口 / 待核")
-        out.append("")
-        for g in gaps:
-            out.append("- %s" % g)
-    out.append("")
-    out.append("## 需要更多时")
-    out.append("")
-    out.append("- 精读某一节：`py kb-outline.py --file <文件> --section-id <ID>`")
-    out.append("- 找资料：`py kb-search.py --target . --query \"<关键词>\"`")
-    return "\n".join(out)
+        key = b["section_id"] or b["title"]
+        if key in out:
+            key = "%s · %s" % (key, b["title"])
+        base, n = key, 2
+        while key in out:
+            key = "%s #%d" % (base, n)
+            n += 1
+        out[key] = b["text"]
+    return out
+
+
+def assemble(task, line, mode, budget, blocks, gaps, counter, explain):
+    """两轮装配：必需块先放，可选块按优先级装，超预算丢最低优先级并重算。"""
+    required = [b for b in blocks if b["required"]]
+    optional = sorted([b for b in blocks if not b["required"]],
+                      key=lambda b: PRIORITY_ORDER.get(b["priority"], 9))
+
+    kept, skipped = list(required), []
+    for b in optional:
+        trial = kept + [b]
+        _, size = render(task, line, mode, budget, trial, skipped, gaps, False,
+                         counter, explain)
+        if size <= budget:
+            kept = trial
+        else:
+            skipped.append({**b, "reason": "试探后超预算"})
+
+    over = False
+    for _ in range(len(optional) + 1):
+        text, size = render(task, line, mode, budget, kept, skipped, gaps, over,
+                            counter, explain)
+        if size <= budget:
+            return kept, skipped, size, False, text
+        droppable = [b for b in kept if not b["required"]]
+        if not droppable:
+            text, size = render(task, line, mode, budget, kept, skipped, gaps, True,
+                                counter, explain)
+            return kept, skipped, size, True, text
+        drop = droppable[-1]
+        kept = [b for b in kept if b is not drop]
+        skipped.insert(0, {**drop, "reason": "最终渲染超预算，已移除"})
+    text, size = render(task, line, mode, budget, kept, skipped, gaps, True,
+                        counter, explain)
+    return kept, skipped, size, True, text
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="按 Token 预算组装最小上下文")
     ap.add_argument("--target", default=".")
     ap.add_argument("--task", default="")
-    ap.add_argument("--line", default=None, help="限定工作线（事实分册名）")
+    ap.add_argument("--line", default=None,
+                    help="限定工作线；可逗号分隔多条，也可重复该参数")
     ap.add_argument("--mode", choices=["handoff", "task"], default="task")
     ap.add_argument("--budget", type=int, default=3000)
     ap.add_argument("--format", choices=["markdown", "json"], default="markdown")
     ap.add_argument("--include-archive", action="store_true")
     ap.add_argument("--loose", action="store_true", help="按别名识别 05/06/90（自有命名项目）")
     ap.add_argument("--tokenizer", default="heuristic")
+    ap.add_argument("--allow-tokenizer-fallback", action="store_true")
     ap.add_argument("--explain", action="store_true")
     args = ap.parse_args()
 
@@ -305,43 +395,77 @@ def main() -> int:
         print("ERR: --budget 必须为正", file=sys.stderr)
         return 2
 
+    try:
+        counter = tokens.TokenCounter(args.tokenizer, args.allow_tokenizer_fallback)
+    except tokens.TokenizerError as exc:
+        print("ERR: %s" % exc, file=sys.stderr)
+        return 2
+
     files = scope.role_files(root, loose=args.loose)
     if not files.get("dashboard") and not files.get("baseline"):
         print("ERR: 这里不像交接库（没有 00/05）；先 kb-init.py 或 kb-migrate.py",
               file=sys.stderr)
         return 2
 
-    blocks, gaps, terms = build(root, files, args.task, args.line,
-                                args.include_archive, args.budget)
-    # 预算装配：必读先放，其余按优先级放；放不下记 skipped
-    used, kept, skipped, over = 0, [], [], False
-    for b in blocks:
-        fit = used + b["tokens"] <= args.budget
-        if fit or b["required"]:
-            kept.append(b)
-            used += b["tokens"]
-            if not fit:
-                over = True
-        else:
-            skipped.append({**b, "reason": "超出预算 %d + %d > %d"
-                                          % (used, b["tokens"], args.budget)})
+    built = build(root, files, args.task, args.line, args.include_archive,
+                  counter, args.budget)
+    kept, skipped, rendered_tokens, over, text = assemble(
+        args.task, args.line, args.mode, args.budget, built["blocks"], built["gaps"],
+        counter, args.explain)
 
-    tok_desc = tokens.estimate("", args.tokenizer)[1]
+    # 工作线：装不下的如实报出来（不把部分加载说成完整接手）
+    def split_lines(kept_now):
+        loaded_now, omitted_now, empty_now = [], [], []
+        for name, items in built["per_line"]:
+            if not items:
+                empty_now.append(name)
+            elif any(b.get("line") == name for b in kept_now):
+                loaded_now.append(name)
+            else:
+                omitted_now.append(name)
+        return loaded_now, omitted_now, empty_now
+
+    loaded, omitted, empty = split_lines(kept)
+    if omitted or empty:
+        for name in omitted:
+            built["gaps"].append(
+                "工作线「%s」的相关事实未加载（预算 %d 已满）；用 --line %s 单独取，或提高 --budget"
+                % (name, args.budget, name))
+        for name in empty:
+            built["gaps"].append(
+                "工作线「%s」里没有 fact.current / commands / pitfalls 可加载的事实节" % name)
+        kept, skipped, rendered_tokens, over, text = assemble(
+            args.task, args.line, args.mode, args.budget, built["blocks"],
+            built["gaps"], counter, args.explain)
+        loaded, omitted, empty = split_lines(kept)
+
+    required_tokens = sum(count_block(b, counter) for b in kept if b["required"])
+    block_tokens = sum(count_block(b, counter) for b in kept)
+    payload = {
+        "task": args.task, "line": args.line, "mode": args.mode,
+        "budget": args.budget,
+        "tokenizer": counter.desc, "requested": args.tokenizer,
+        "exact": counter.exact,
+        "block_tokens": block_tokens, "rendered_tokens": rendered_tokens,
+        "required_tokens": required_tokens,
+        "optional_tokens": max(block_tokens - required_tokens, 0),
+        "used": rendered_tokens, "over_budget": over,
+        "selected_lines": loaded, "omitted_lines": omitted,
+        "terms": built["terms"],
+        "blocks": [{k: v for k, v in b.items() if k != "text"}
+                   | {"chars": len(b["text"]), "tokens": count_block(b, counter)}
+                   for b in kept],
+        "skipped": [{"priority": s["priority"], "title": s["title"],
+                     "source": s["source"], "reason": s["reason"],
+                     "tokens": count_block(s, counter)} for s in skipped],
+        "gaps": built["gaps"],
+        "context": context_map(kept),
+    }
     if args.format == "json":
-        print(json.dumps({
-            "task": args.task, "line": args.line, "mode": args.mode,
-            "budget": args.budget, "used": used, "over_budget": over,
-            "tokenizer": tok_desc, "terms": terms,
-            "blocks": [{k: v for k, v in b.items() if k != "text"} | {"chars": len(b["text"])}
-                       for b in kept],
-            "skipped": [{k: v for k, v in s.items() if k != "text"} for s in skipped],
-            "gaps": gaps,
-            "context": {b["section_id"] or b["title"]: b["text"] for b in kept},
-        }, ensure_ascii=False, indent=2))
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 1 if over else 0
 
-    print(render_markdown(args.task, args.line, args.mode, args.budget, used,
-                          kept, skipped, gaps, over, tok_desc, args.explain))
+    print(text)
     return 1 if over else 0
 
 

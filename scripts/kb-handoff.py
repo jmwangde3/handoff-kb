@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lib import facts  # noqa: E402
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope  # noqa: E402
 
@@ -101,19 +102,22 @@ def check(root: Path, loose: bool = False):
     else:
         add("constraints", "pending", "硬约束仍是占位", "8 哪些操作别重复")
 
-    # 证据：基线里"有效"却无证据的条目
-    base_p = files.get("baseline", [None])[0]
-    no_ev = []
-    if base_p:
-        bdoc = md.parse_file(base_p)
-        for raw in bdoc.lines:
-            if not raw.strip().startswith("|"):
-                continue
-            cells = [c.strip() for c in raw.strip().strip("|").split("|")]
-            if len(cells) >= 5 and protocol.FACT_ID_RE.fullmatch(cells[0]):
-                status, ev = cells[3], cells[4]
-                if any(s in status for s in ("有效", "valid")) and ev in ("", "—", "-", "无"):
-                    no_ev.append(cells[0])
+    # 证据：全库事实定义里「有效」却无证据的条目（三种定义形式统一）
+    no_ev, meta_bad = [], []
+    try:
+        defs, _problems = facts.parse_fact_definitions(
+            root, include_archive=False, loose=loose)
+        for fid, dlist in defs.items():
+            for d in dlist:
+                if d.meta_error:
+                    meta_bad.append("%s(%s)" % (fid, d.meta_error))
+                if d.status == "valid" and d.evidence in ("", "—", "-", "无"):
+                    no_ev.append(fid)
+    except Exception as exc:
+        meta_bad.append("事实解析失败：%s" % exc)
+    if meta_bad:
+        add("evidence", "pending", "事实元数据有问题：%s" % ", ".join(meta_bad[:3]),
+            "3 证据是什么")
     if no_ev:
         add("evidence", "pending", "%d 条「有效」事实没有证据：%s"
             % (len(no_ev), ", ".join(no_ev[:5])), "3 证据是什么")
@@ -132,7 +136,7 @@ def check(root: Path, loose: bool = False):
         add("todo", "pending", "待办表为空或只有占位", "2 确实完成了什么")
 
     # 流水
-    shards = scope.shards(root)
+    shards = scope.shards(root, loose=loose)
     written = []
     for p in shards:
         doc = md.parse_file(p)

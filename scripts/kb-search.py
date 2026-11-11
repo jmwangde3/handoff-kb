@@ -105,6 +105,8 @@ def main() -> int:
     ap.add_argument("--line", default=None, help="只看某条工作线（文件/分片名）")
     ap.add_argument("--include-archive", action="store_true")
     ap.add_argument("--include-superseded", action="store_true", help="包含已作废事实")
+    ap.add_argument("--loose", action="store_true",
+                    help="按别名识别固定层（自有命名项目，如 60_进度.md）")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
@@ -123,14 +125,18 @@ def main() -> int:
     for path, reason in scope.iter_text_files(root, include_archive=args.include_archive):
         if reason:
             continue
+        rel = path.relative_to(root).as_posix()
+        role = protocol.role_of_name(path.name, loose=args.loose)
+        # 根级归档（90_*.md / *归档*.md）默认不搜，与 归档/ 目录同策略；
+        # 必须在 scanned 之前判掉，否则「已扫描 N 个文件」会把跳过的也算进去
+        if role == "archive" and not args.include_archive:
+            continue
         scanned += 1
         try:
             doc = md.parse_file(path)
         except Exception as exc:
             errors.append((str(path), str(exc)))
             continue
-        rel = path.relative_to(root).as_posix()
-        role = protocol.role_of_name(path.name)
         line_name = (path.stem.split("_", 1)[1] if "_" in path.stem else path.stem) \
             if role in ("fact", "shard") else ""
         if args.line and args.line.lower() not in (rel + " " + line_name).lower():

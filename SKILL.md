@@ -3,7 +3,7 @@ name: handoff-kb
 description: 给「多会话并行 / 上下文容易满 / 需要长期维护」的项目搭分层交接库（00 基线 + 10–17 事实分册 + 05 现状 + 06 流水 + 90 归档 + AGENTS 入口 + git 机制），并提供按 Token 预算的上下文路由、带哈希校验的安全写入、证据驱动的交接检查、v1→v2 无损迁移、客户端 Hook 与评测。触发词：上下文满了、文档臃肿、多会话同步、进度仪表盘、按线分片、结论索引、别再建第 N 份文档、老项目改造、存量迁移、文档库分层、知识库改造、handoff 库、token 预算、safe write。**不适用**：单会话一次性交接、只要一份 handoff / 继续提示词、临时任务收尾、文档少于 3 份且只有一个会话——这类直接写一份 6 行 handoff 即可，不必展开本 skill、不要建库。
 ---
 
-# 分层交接库（handoff-kb 2.0）
+# 分层交接库（handoff-kb 2.0.1）
 
 ## 适用边界（加载后先读这段）
 
@@ -135,7 +135,7 @@ py "$KB/scripts/kb-check.py" --target . --mode template # 空模板：不报证�
 
 检查：必需文件（精确命名）、各层体积与接手成本（正文与归档分开算）、阈值、`K-xx` 重复/未定义/作废/循环引用、`kb:id` 重复与非法、事实证据与时效、表格列数、TODO、明文凭证、git 状态。
 
-「定义位」= 标题首 / 列表首 / 表格首列，跨文件都算；句子里提到只算引用。`--loose` 下未定义引用降 WARN。
+「定义位」= 标题首 / 列表首 / 表格首列，跨文件都算；句子里提到只算引用。列表写法 `- K-01：描述` 或 `- **K-01** 描述`（冒号可省），表格以首列为 ID，代码围栏里的不算。`--loose` 下未定义引用降 WARN；`60_流水/`、`90_归档/` 这类目录别名也被识别。
 
 ## 9. Hook（可选，默认不装）
 
@@ -145,7 +145,7 @@ py "$KB/scripts/kb-hooks.py" install --client claude --target . --write
 py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ```
 
-只写项目级配置；`run` 只读、永远退出 0；不联网、不自动提交、不阻断压缩。事件语义见 `references/hooks.md`，装之前先 `--plan`。
+只写项目级配置；不带 `--write` 一律**零写入**（只打印新增/移除/保留/SHA 前后），写前重校验 SHA，现有 JSON 不合法就拒绝改写。`run` 只读、永远退出 0、不用 `decision: block`、不联网、不自动提交。Codex 用官方三级结构 `{matcher, hooks:[{type, command}]}`。事件语义见 `references/hooks.md`。
 
 ## 10. 评测
 
@@ -153,7 +153,7 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 py "$KB/scripts/kb-benchmark.py" --target . --report markdown
 ```
 
-A 全量 / B `00+05` / C 路由，10 个固定任务，同时报 token、P4 噪声比与质量通过数。口径见 `references/benchmark.md`——**估算值不要当 API 账单**。
+A 全量 / B `00+05` / C 路由，10 个固定任务（1 个错误路径单列、不进均值），A/B/C 同一个 `TokenCounter`；报 8 项质量指标，其中「硬约束保留」「错误路径被拒绝」是硬门槛。**主看 C 相对 A**（全读成本）；小库上 C 可能大于 B，因为 C 含包装。未迁移库（无 `kb:id`）的章节类任务标「跳过」而非「答错」。口径见 `references/benchmark.md`——**估算值不要当 API 账单**。
 
 ## 11. 阈值表（写进 `05`，触线才动手）
 
@@ -204,11 +204,12 @@ A 全量 / B `00+05` / C 路由，10 个固定任务，同时报 token、P4 噪�
 | `scripts/kb-handoff.py` | 交接有效性检查（证据优先） |
 | `scripts/kb-hooks.py` | 客户端 Hook 适配（默认不安装） |
 | `scripts/kb-benchmark.py` | Token 与质量评测 |
-| `scripts/lib/` | 共享库：protocol / scope / markdown / safeio / security / tokens / terms |
+| `scripts/lib/` | 共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts |
 | `references/protocol-v2.md` | 2.0 协议（编号 / 章节 ID / changes.json / 并发恢复） |
 | `references/protocol.md` | v1 设计原理（历史） |
 | `references/migration.md` | 存量改造手册（含 v1 → v2） |
 | `references/hooks.md` | Hook 语义与安装 |
 | `references/benchmark.md` | 评测口径 |
 | `assets/` | 骨架模板 |
-| `tests/` | unittest + smoke |
+| `tests/` | 201 个 unittest + smoke + 依赖检查 |
+| `tests/fixtures/ffrs/` | 脱敏「自有命名」项目夹具（`--loose` 用，内容全部虚构） |

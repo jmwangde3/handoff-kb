@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lib import facts  # noqa: E402
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope, security, tokens  # noqa: E402
 
@@ -59,30 +60,13 @@ def sh(args, cwd):
 
 
 def role_files(root: Path, loose: bool):
-    """{role: [paths]}；固定文件优先精确命名，绝不用 `05_*.md` 这类通配。"""
-    roles = {}
-    if not root.is_dir():
-        return roles
-    for p in sorted(root.iterdir()):
-        if not p.is_file() or p.suffix.lower() not in protocol.TEXT_EXTS:
-            continue
-        role = protocol.role_of_name(p.name, loose=loose)
-        roles.setdefault(role, []).append(p)
-    pref = {"baseline": protocol.CANON_BASELINE, "dashboard": protocol.CANON_DASHBOARD,
-            "log": protocol.CANON_LOG, "archive": protocol.CANON_ARCHIVE}
-    for role, names in pref.items():
-        if role in roles and len(roles[role]) > 1:
-            for want in names:
-                for p in roles[role]:
-                    if p.name == want:
-                        roles[role] = [p]
-                        break
-    return roles
+    """统一走 scope，避免各脚本对文件名各判一套（2.0.1）。"""
+    return scope.role_files(root, loose=loose)
 
 
-def find_shards(root: Path):
-    d = root / protocol.SHARD_DIR
-    return sorted(p for p in d.glob("*.md") if p.is_file()) if d.is_dir() else []
+def find_shards(root: Path, loose: bool = False):
+    """统一走 scope：loose 模式也认 `60_流水/` 等自有命名。"""
+    return scope.shards(root, loose=loose)
 
 
 def find_facts(roles):
@@ -158,7 +142,9 @@ def check_sizes(root: Path, rep: Report, files):
             continue
         size = p.stat().st_size
         rel = p.relative_to(root).as_posix()
-        if any(part.lower() in ("归档", "archive") for part in rel.split("/")[:-1]):
+        parents = rel.split("/")[:-1]
+        if any(scope.is_archive_dir(part) for part in parents) \
+                or protocol.role_of_name(p.name, loose=True) == "archive":
             archive.append((p, size))
         else:
             main.append((p, size))
@@ -224,14 +210,14 @@ def check_dashboard(files, rep: Report):
                 "%d 条（阈值 ≤5）" % len(items), p, summ.line)
 
 
-def check_thresholds(root: Path, files, rep: Report):
+def check_thresholds(root: Path, files, rep: Report, loose: bool = False):
     for role, label, limit in (("baseline", "00 基线规模", 150), ("archive", "90 归档规模", 600)):
         if not files.get(role):
             continue
         p = files[role][0]
         n = len(p.read_text(encoding="utf-8", errors="replace").splitlines())
         rep.add(OK if n <= limit else WARN, label, "%d 行（阈值 ≤%d）" % (n, limit), p)
-    shards = find_shards(root)
+    shards = find_shards(root, loose)
     if shards:
         worst = ("", 0)
         for p in shards:
@@ -304,80 +290,52 @@ def iter_code_aware(doc):
         yield i, line, fence is not None
 
 
-def check_ids(files, shards, searchable, rep: Report, loose: bool = False):
-    defs, rows = {}, []
-    baseline = files.get("baseline", [None])[0]
-    if baseline:
-        doc = md.parse_file(baseline)
-        for header, block in table_blocks(doc):
-            id_col = next((i for i, h in enumerate(header)
-                           if h.strip().upper() in ("ID", "编号")), None)
-            if id_col is None:
-                continue
-            status_col = next((i for i, h in enumerate(header)
-                               if "状态" in h or h.lower() == "status"), None)
-            ev_col = next((i for i, h in enumerate(header)
-                           if "证据" in h or "核实" in h or "evidence" in h.lower()), None)
-            ver_col = next((i for i, h in enumerate(header)
-                            if "时间" in h or "verified" in h.lower()), None)
-            for lineno, cells in block:
-                if len(cells) <= id_col:
-                    continue
-                fid = cells[id_col].strip()
-                if not protocol.FACT_ID_RE.fullmatch(fid):
-                    continue
-                status = cells[status_col].strip() if status_col is not None and len(cells) > status_col else ""
-                evidence = cells[ev_col].strip() if ev_col is not None and len(cells) > ev_col else ""
-                verified = cells[ver_col].strip() if ver_col is not None and len(cells) > ver_col else ""
-                if fid in defs:
-                    rep.add(ERR, "编号契约", "ID 重复定义：%s（第 %d 与 %d 行）"
-                            % (fid, defs[fid]["line"], lineno), baseline, lineno)
-                defs[fid] = {"status": status, "evidence": evidence,
-                             "verified_at": verified, "line": lineno}
-                rows.append((fid, status, evidence, verified, lineno))
-
-    refs = {}
+def check_ids(root: Path, searchable, rep: Report, loose: bool = False):
+    """编号契约检查（统一走 lib/facts.py，三种定义形式一致）。"""
+    defs: dict[str, list] = {}
+    refs: dict[str, list] = {}
     for p, _ in searchable:
+        rel = p.relative_to(root).as_posix()
         try:
-            doc = md.parse_file(p)
+            dlist, rlist = facts.parse_document(p, rel)
         except Exception:
             continue
-        for i, line, in_fence in iter_code_aware(doc):
-            if in_fence:
-                continue
-            defined_here = def_id_at(line)
-            for mid in protocol.FACT_ID_RE.finditer(line):
-                fid = mid.group(1)
-                if fid == defined_here:
-                    # 定义位：标题首 / 列表首 / 表格首列，跨文件都算（自命名项目常见）
-                    prev = defs.get(fid)
-                    if prev and prev.get("line") and p == baseline:
-                        continue
-                    defs.setdefault(fid, {"status": "", "evidence": "",
-                                          "verified_at": "", "line": i, "path": p})
-                    continue
-                refs.setdefault(fid, []).append((p, i))
+        for d in dlist:
+            defs.setdefault(d.id, []).append(d)
+        for r in rlist:
+            refs.setdefault(r.id, []).append(r)
 
+    # 1) 重复定义：跨文件也报，列出全部位置
+    dup = {k: v for k, v in defs.items() if len(v) > 1}
+    for fid, items in sorted(dup.items())[:10]:
+        locs = ", ".join("%s:%d" % (d.path, d.line_start) for d in items[:4])
+        rep.add(ERR, "编号契约", "ID 重复定义：%s（%d 处：%s）"
+                % (fid, len(items), locs))
+    # 2) 未定义引用
     undefined = {k: v for k, v in refs.items() if k not in defs}
     for fid, where in sorted(undefined.items())[:10]:
-        p, i = where[0]
+        first = where[0]
         level = WARN if (loose or rep.mode == "template") else ERR
-        rep.add(level, "编号引用",
-                "引用未定义的 ID：%s（%d 处，首见 %s:%d）"
-                % (fid, len(where), p.name, i), p, i)
+        rep.add(level, "编号引用", "引用未定义的 ID：%s（%d 处，首见 %s:%d）"
+                % (fid, len(where), Path(first.path).name, first.line),
+                root / first.path, first.line)
 
+    # 3) 作废引用
     superseded = {k for k, v in defs.items()
-                  if any(s in v["status"] for s in ("作废", "superseded"))}
-    for fid, where in sorted({k: v for k, v in refs.items() if k in superseded}.items())[:10]:
-        p, i = where[0]
-        rep.add(WARN, "作废引用", "引用了已作废的 %s（改用替代 ID）" % fid, p, i)
+                  if any(d.status == "deprecated" for d in v)}
+    for fid, where in sorted({k: v for k, v in refs.items()
+                              if k in superseded}.items())[:10]:
+        first = where[0]
+        rep.add(WARN, "作废引用", "引用了已作废的 %s（改用替代 ID）" % fid,
+                root / first.path, first.line)
 
-    for fid in defs:
+    # 4) 作废链循环
+    for fid, items in defs.items():
         seen, cur = [], fid
         while cur in defs and len(seen) < 6:
             seen.append(cur)
-            m = re.search(r"→\s*([KG]-\d{2,3})", defs[cur]["status"])
-            cur = m.group(1) if m else None
+            nxt = next((d.superseded_by for d in defs[cur] if d.superseded_by), None)
+            cur = nxt
             if cur in seen:
                 rep.add(ERR, "作废链", "循环引用：%s" % " → ".join(seen + [cur]))
                 break
@@ -385,28 +343,48 @@ def check_ids(files, shards, searchable, rep: Report, loose: bool = False):
     rep.add(OK, "编号契约", "%d 个 K/G 编号定义、%d 处引用"
             % (len(defs), sum(len(v) for v in refs.values())))
 
-    missing_ev = [(fid, ln) for fid, st, ev, ver, ln in rows
-                  if any(s in st for s in ("有效", "valid")) and ev in ("", "—", "-", "无")]
+    # 5) 元数据问题（解析失败 / 状态无法识别 / 作废没写替代）
+    meta_bad = []
+    for fid, items in defs.items():
+        for d in items:
+            if d.meta_error or (d.status == "unknown" and d.definition_type == "table") \
+                    or (d.status == "deprecated" and not d.superseded_by):
+                meta_bad.append(d)
+    if meta_bad:
+        rep.add(WARN, "事实元数据", "%d 处事实元数据有问题：%s"
+                % (len(meta_bad), ", ".join("%s(%s)" % (d.id, d.definition_type)
+                                            for d in meta_bad[:5])),
+                root / meta_bad[0].path, meta_bad[0].line_start)
+
+    # 6) 证据：有效但没证据
+    missing_ev = [d for items in defs.values() for d in items
+                  if d.status == "valid" and d.evidence in ("", "—", "-", "无")]
     if rep.mode == "template":
         rep.add(OK, "事实证据", "模板未填写，跳过证据检查")
     elif missing_ev:
         rep.add(WARN, "事实证据", "%d 条「有效」事实没有证据：%s"
-                % (len(missing_ev), ", ".join("%s(L%d)" % (a, b) for a, b in missing_ev[:5])),
-                baseline)
+                % (len(missing_ev),
+                   ", ".join("%s(%s:%d)" % (d.id, Path(d.path).name, d.line_start)
+                             for d in missing_ev[:5])),
+                root / missing_ev[0].path, missing_ev[0].line_start)
     else:
         rep.add(OK, "事实证据", "有效事实均带证据或全为待核")
 
+    # 7) 时效
     stale, today = [], datetime.date.today()
-    for fid, st, ev, ver, ln in rows:
-        m = re.search(r"\d{4}-\d{2}-\d{2}", ver or "")
-        if not m:
-            continue
-        try:
-            d = datetime.date.fromisoformat(m.group(0))
-        except ValueError:
-            continue
-        if (today - d).days > rep.max_age_days:
-            stale.append((fid, m.group(0)))
+    for fid, items in defs.items():
+        for d in items:
+            m = re.search(r"\d{4}-\d{2}-\d{2}", d.verified_at or "")
+            if not m:
+                continue
+            try:
+                dt = datetime.date.fromisoformat(m.group(0))
+            except ValueError:
+                rep.add(WARN, "事实元数据", "%s 的核实时间不是合法日期：%s"
+                        % (fid, d.verified_at), root / d.path, d.line_start)
+                continue
+            if (today - dt).days > rep.max_age_days:
+                stale.append((fid, m.group(0)))
     if stale:
         rep.add(WARN, "事实过期", "%d 条事实核实时间超过 %d 天（仅告警）：%s"
                 % (len(stale), rep.max_age_days,
@@ -463,6 +441,18 @@ def check_git(root: Path, rep: Report):
     if not r or r.returncode != 0:
         rep.add(WARN, "版本控制", "不是 git 仓库（并发改动无法 diff / 回滚）")
         return
+    # 目标可能只是某个仓库的子目录：此时 `git status` 反映的是外层仓库，
+    # 直接拿来报「未提交改动」会把别人的改动算到本项目头上（2.0.1 修正）。
+    top = sh(["git", "rev-parse", "--show-toplevel"], root)
+    top_path = (top.stdout or "").strip() if top else ""
+    try:
+        is_top = bool(top_path) and Path(top_path).resolve() == Path(root).resolve()
+    except OSError:
+        is_top = False
+    if not is_top:
+        rep.add(WARN, "版本控制", "目标不是仓库根（外层仓库：%s）；改动/提交统计已跳过"
+                % (top_path or "未知"))
+        return
     st = sh(["git", "status", "--porcelain"], root)
     dirty = [x for x in (st.stdout or "").splitlines() if x.strip()] if st else []
     rep.add(OK if not dirty else WARN, "未提交改动",
@@ -510,10 +500,10 @@ def main() -> int:
     check_structure(files, rep, args.loose)
     main, archive = check_sizes(root, rep, files)
     check_dashboard(files, rep)
-    check_thresholds(root, files, rep)
+    check_thresholds(root, files, rep, args.loose)
     check_todo_and_secrets(main + archive, rep)
-    check_ids(files, find_shards(root), main, rep, args.loose)
-    check_section_ids(files, find_shards(root), rep)
+    check_ids(root, main, rep, args.loose)
+    check_section_ids(files, find_shards(root, args.loose), rep)
     check_tables(main, rep)
     check_git(root, rep)
 

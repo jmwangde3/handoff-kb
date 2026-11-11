@@ -236,9 +236,18 @@ py "$S/kb-migrate.py" --target "[项目目录]" --plan    # 写 .kb-migrate-plan
 py "$S/kb-migrate.py" --target "[项目目录]" --apply   # 校验哈希后执行
 ```
 
-- 计划文件绑定源文件 SHA-256：`--apply` 时先校验，**文件被别的会话改过就拒绝执行（退出码 1）**，绝不覆盖。
+- 计划文件 `.kb-migrate-plan.json` 是**契约**：`schema_version: 2`、`root_id`（目录指纹）、
+  每个文件的 `sha256_before` / `sha256_after`、`operations`（白名单：`prepend` /
+  `insert_before_heading`）、`operation_count`、`generated_at`、`git_dirty`。
+- `--apply` 会逐项校验：schema、`root_id`、路径合法性（不许 `..` / 绝对路径 / 越界）、
+  重复路径、64 位十六进制哈希、操作类型、插入位置、插入内容**必须是单行**、每文件 ≤200 个操作。
+  任何一条不过 → 退出 1，**一个字节都不写**。
+- 校验通过后：拿工作区锁 → 锁内**重算**一遍 `sha_after` 与磁盘现状比对 → 起事务写盘
+  （备份 + journal + 回滚）。所以「预览之后别人改了文件」会停在第一步，不会覆盖。
 - 有未提交改动时默认拒绝迁移；确认那些改动无关才加 `--force`。
 - 幂等：连跑两次，第二次报告「无需迁移」。
+- 中途崩溃：`kb-write.py recover --inspect` 看现场，`--apply` 回滚；
+  journal 校验和不符时只报告、保留现场，不自动清理。
 - 回滚：`git checkout -- 00_*.md 05_*.md`（迁移只碰这两份，且每份都在 git 里）。
 
 ### 8.3 编号兼容（最容易误判的一条）
