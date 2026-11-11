@@ -37,6 +37,21 @@ def no_identity_env(tmp: Path):
     return env
 
 
+def same_path(a, b) -> bool:
+    """两个路径是否指向同一个对象 —— 不做字面比较。
+
+    GitHub Windows runner 的临时目录是 8.3 短名（`C:\\Users\\RUNNER~1\\...`），
+    经 `Path.resolve()` 会展开成长名（`...\\runneradmin\\...`），
+    于是「我传进去的那个 Path」和「事务内部 resolve 后的 Path」字面不等 ——
+    这是夹具的判定缺陷，不是产品缺陷。优先用 inode/file-id 判定。
+    """
+    pa, pb = Path(a), Path(b)
+    try:
+        return os.path.samefile(pa, pb)
+    except OSError:
+        return os.path.normcase(os.path.realpath(pa)) == os.path.normcase(os.path.realpath(pb))
+
+
 def run(script, *args, cwd=None, env=None, input=None, timeout=None):
     """用当前解释器跑脚本，返回 CompletedProcess。"""
     e = dict(os.environ)

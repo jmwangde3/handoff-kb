@@ -11,9 +11,15 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from . import protocol
+
+# Windows 绝对路径的**可移植**判定：不能在 POSIX 上依赖 Path.drive
+# （PurePosixPath("C:/x").drive == ""，于是同一份输入在 Linux 上会被放行，
+#  CI 六环境里就出现「Linux 通过、Windows 拒绝」的分歧）。
+_WIN_ABS_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|[A-Za-z]:$|\\\\|//)")
 
 
 class ScopeError(Exception):
@@ -45,12 +51,13 @@ def is_within(root: Path, path: Path) -> bool:
 def check_rel_path(root: Path, rel: str, *, must_be_text: bool = True) -> Path:
     """校验一个相对路径，返回其真实路径。
 
-    拒绝：绝对路径、盘符、`..`、空路径、符号链接越界、非文本扩展名。
+    拒绝：绝对路径（含 Windows 盘符 / UNC，跨平台一致）、`..`、空路径、符号链接越界、非文本扩展名。
     """
     if not rel or rel.strip() != rel:
         raise ScopeError("路径为空或首尾有空白：%r" % rel)
     candidate = Path(rel)
-    if candidate.is_absolute() or candidate.drive or rel.startswith(("/", "\\")):
+    if (candidate.is_absolute() or candidate.drive or rel.startswith(("/", "\\"))
+            or _WIN_ABS_RE.match(rel)):
         raise ScopeError("拒绝绝对路径：%s" % rel)
     parts = [p for p in candidate.parts if p not in ("", ".")]
     if any(p == ".." for p in parts):
