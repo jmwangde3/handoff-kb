@@ -294,16 +294,26 @@ def check_ids(root: Path, searchable, rep: Report, loose: bool = False):
     """编号契约检查（统一走 lib/facts.py，三种定义形式一致）。"""
     defs: dict[str, list] = {}
     refs: dict[str, list] = {}
+    parsed, failed = 0, []
     for p, _ in searchable:
         rel = p.relative_to(root).as_posix()
         try:
             dlist, rlist = facts.parse_document(p, rel)
-        except Exception:
+        except Exception as exc:
+            # 解析失败必须可见：早先这里 continue 掉，于是「一个文件读坏了」
+            # 会表现成「那个文件里的事实全部合格」。
+            failed.append((rel, str(exc)))
             continue
+        parsed += 1
         for d in dlist:
             defs.setdefault(d.id, []).append(d)
         for r in rlist:
             refs.setdefault(r.id, []).append(r)
+
+    if failed:
+        rep.add(WARN if loose else ERR, "事实解析",
+                "%d 个文件解析失败，其中的事实**未被检查**：%s"
+                % (len(failed), "; ".join("%s（%s）" % (a, b[:60]) for a, b in failed[:3])))
 
     # 1) 重复定义：跨文件也报，列出全部位置
     dup = {k: v for k, v in defs.items() if len(v) > 1}
@@ -340,8 +350,29 @@ def check_ids(root: Path, searchable, rep: Report, loose: bool = False):
                 rep.add(ERR, "作废链", "循环引用：%s" % " → ".join(seen + [cur]))
                 break
 
-    rep.add(OK, "编号契约", "%d 个 K/G 编号定义、%d 处引用"
-            % (len(defs), sum(len(v) for v in refs.values())))
+    if defs:
+        rep.add(OK, "编号契约", "%d 个 K/G 编号定义、%d 处引用"
+                % (len(defs), sum(len(v) for v in refs.values())))
+    else:
+        # 「没有事实可查」不能报成「全部通过」——那是最容易被当成健康的假绿灯
+        rep.add(WARN, "编号契约",
+                "没有发现任何事实定义：%d 个文件已扫描、%d 个解析失败。"
+                "这不是「全部通过」，请先确认事实写法（标题首 / 列表首 / 表格首列）"
+                % (parsed, len(failed)))
+
+    # 统计口径：定义数 / 成功解析 / 有问题 / 待核 / 跳过，一眼看出「查了没有」
+    meta_problems = ["%s:%d %s" % (d.path, d.line_start, d.meta_error)
+                     for items in defs.values() for d in items if d.meta_error]
+    stat = facts.counts(defs, meta_problems)
+    stat["files_scanned"] = parsed
+    stat["files_failed"] = len(failed)
+    rep.add(OK if defs and not meta_problems else WARN, "事实统计",
+            "定义 %d（有效 %d / 待核 %d / 作废 %d / 未知 %d）｜ID %d｜重复 %d｜"
+            "文件 %d 解析成功 %d 失败｜元数据问题 %d"
+            % (stat["definitions"], stat["valid"], stat["pending"], stat["deprecated"],
+               stat["unknown"], stat["ids"], stat["duplicated_ids"],
+               stat["files_scanned"] + stat["files_failed"], stat["files_failed"],
+               stat["problems"]))
 
     # 5) 元数据问题（解析失败 / 状态无法识别 / 作废没写替代）
     meta_bad = []

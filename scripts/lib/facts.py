@@ -365,6 +365,10 @@ def update_fact_definition(text: str, fact_id: str, content: str, rel: str = "")
     - heading：只替换标题行，保留其下正文
     - list   ：替换该列表行
     - table  ：替换该表格行（content 必须是表格行）
+
+    **ID 不可变**：替换后的行必须仍然定义同一个 `fact_id`。
+    `update_fact(K-01, "## K-99 新事实")` 会被拒绝 —— 那不是「更新 K-01」，
+    而是「用一次更新悄悄把 K-01 换成了 K-99」，全库的 `§`/`K-01` 引用会指向空气。
     """
     if not protocol.FACT_ID_RE.fullmatch(fact_id or ""):
         raise FactError("fact_id 非法：%r（形如 K-01 / G-007）" % fact_id)
@@ -407,24 +411,95 @@ def update_fact_definition(text: str, fact_id: str, content: str, rel: str = "")
     kind, lineno = hits[0]
     lines = text.splitlines()
     idx = lineno - 1
+    body_lines = [ln for ln in content.splitlines() if ln.strip()]
+    if len(body_lines) > 1:
+        # 只替换定义行；多出来的行会被静默丢弃 —— 那等于替用户删内容
+        raise FactError("%s 定义是单行（%s），content 只允许一行；"
+                        "要改正文请用 replace_section 写整节" % (fact_id, kind))
     if kind == "heading":
         if not content.lstrip().startswith("#"):
             raise FactError("heading 定义要用标题行替换（content 应以 # 开头）")
-        lines[idx] = content.splitlines()[0]
+        lines[idx] = body_lines[0]
     elif kind == "list":
         if not content.lstrip().startswith(("-", "*", "+")):
             raise FactError("list 定义要用列表行替换（content 应以 - 开头）")
-        lines[idx] = content.splitlines()[0]
+        lines[idx] = body_lines[0]
     else:
         if not content.lstrip().startswith("|"):
             raise FactError("table 定义要用表格行替换（content 应以 | 开头）")
         old_cells = len(_cells(lines[idx]))
-        new_line = content.splitlines()[0]
+        new_line = body_lines[0]
         if len(_cells(new_line)) != old_cells:
             raise FactError("表格行必须保持 %d 列（收到 %d 列）"
                             % (old_cells, len(_cells(new_line))))
         lines[idx] = new_line
+
+    # ID 不可变：替换后的那一行必须仍然定义 fact_id，且定义形式一致
+    got = _definition_id_of(lines[idx], kind)
+    if got != fact_id:
+        raise FactError(
+            "替换内容不再定义 %s（这一行定义的是 %r）：事实 ID 不可变。\n"
+            "  要换 ID 请显式改名并同步全库引用，不要用 update_fact 顺手改。"
+            % (fact_id, got))
     out = "\n".join(lines)
     if text.endswith("\n"):
         out += "\n"
     return out
+
+
+def _definition_id_of(line: str, kind: str):
+    """某一行在指定定义形式下定义的是哪个 ID（不是定义位就返回 None）。"""
+    if kind == "heading":
+        m = HEADING_RE.match(line)
+        return m.group(2) if m else None
+    if kind == "list":
+        m = LIST_RE.match(line)
+        return m.group(2) if m else None
+    m = TABLE_RE.match(line)
+    return m.group(1) if m else None
+
+
+def definition_text(root, d: FactDefinition, *, max_chars: int = 4000) -> str:
+    """把一条事实定义渲染成可直接放进上下文的文本。
+
+    - heading：标题 + 该标题下的正文（到下一个同级标题前）
+    - list   ：这一行
+    - table  ：表头 + 这一行（否则只有一行数据，读不出列含义）
+    """
+    p = Path(root) / d.path
+    try:
+        doc = md.parse_file(p)
+    except Exception:
+        return ""
+    lines = [ln.rstrip("\r") for ln in doc.lines]
+    start = max(0, d.line_start - 1)
+    end = min(len(lines), max(d.line_end, d.line_start))
+    if d.definition_type == "table":
+        header = None
+        for i in range(start, -1, -1):
+            if lines[i].strip().startswith("|"):
+                header = lines[i]
+            else:
+                break
+        body = ([header] if header and header != lines[start] else []) + [lines[start]]
+    elif d.definition_type == "list":
+        body = [lines[start]]
+    else:
+        body = lines[start:end]
+    text = "\n".join(body).strip()
+    return text[:max_chars]
+
+
+def counts(defs_by_id, problems) -> dict:
+    """统计口径：让「一条事实都没解析出来」与「全都通过」在输出里分得开。"""
+    items = [d for v in defs_by_id.values() for d in v]
+    return {
+        "definitions": len(items),
+        "ids": len(defs_by_id),
+        "valid": sum(1 for d in items if d.status == "valid"),
+        "pending": sum(1 for d in items if d.status == "pending"),
+        "deprecated": sum(1 for d in items if d.status == "deprecated"),
+        "unknown": sum(1 for d in items if d.status == "unknown"),
+        "duplicated_ids": sum(1 for v in defs_by_id.values() if len(v) > 1),
+        "problems": len(problems),
+    }

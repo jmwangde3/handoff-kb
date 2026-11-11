@@ -176,6 +176,61 @@ class FactsTest(unittest.TestCase):
         self.assertIn(("05_进度仪表盘.md", "K-01"),
                       [(r.path, r.id) for r in refs])
 
+    # 19
+    def test_update_refuses_to_change_fact_id(self):
+        """update_fact 只能改内容，不能顺手换 ID —— 换了就等于删掉旧事实。"""
+        text = "## K-01 固件版本\n\n- 值：21.02\n- 证据：a.log\n"
+        for evil in ("## K-99 新事实", "### K-99 新事实", "## G-01 换个前缀"):
+            with self.assertRaises(facts.FactError) as ctx:
+                facts.update_fact_definition(text, "K-01", evil, "00.md")
+            self.assertIn("不可变", str(ctx.exception), evil)
+        self.assertEqual(text, "## K-01 固件版本\n\n- 值：21.02\n- 证据：a.log\n",
+                         "被拒绝时不得改动原文本")
+
+    def test_update_heading_keeps_following_body(self):
+        text = "## G-010 当前 NSS 配置\n\n证据：`nss.log`\n其余说明也保留\n"
+        out = facts.update_fact_definition(text, "G-010", "## G-010 当前 NSS 配置（已核实）")
+        self.assertIn("证据：`nss.log`", out)
+        self.assertIn("其余说明也保留", out)
+
+    def test_update_rejects_multiline_content(self):
+        """只替换定义行；多行 content 会被静默丢弃 → 必须拒绝而不是替用户删内容。"""
+        text = "## K-01 固件\n\n- 值：1\n"
+        with self.assertRaises(facts.FactError) as ctx:
+            facts.update_fact_definition(text, "K-01", "## K-01 新标题\n\n新正文")
+        self.assertIn("单行", str(ctx.exception))
+
+    # 20
+    def test_counts_separate_empty_from_all_good(self):
+        """一条事实都没有 ≠ 全部通过：统计口径必须能区分。"""
+        empty, problems = facts.parse_fact_definitions(self.root)
+        c = facts.counts(empty, problems)
+        self.assertEqual(c["definitions"], 0)
+        self.write("10_固件.md", "# 10\n\n- **K-01** 版本 21.02\n")
+        defs, problems = facts.parse_fact_definitions(self.root)
+        c = facts.counts(defs, problems)
+        self.assertEqual(c["definitions"], 1)
+        self.assertEqual(c["ids"], 1)
+
+    # 21
+    def test_definition_text_includes_table_header(self):
+        self.write("00_基线.md",
+                   "# 00\n\n| ID | 项 | 值 | 状态 | 证据 |\n|---|---|---|---|---|\n"
+                   "| K-01 | 版本 | 21.02 | 有效 | x |\n")
+        defs, _ = facts.parse_fact_definitions(self.root)
+        d = defs["K-01"][0]
+        text = facts.definition_text(self.root, d)
+        self.assertIn("| ID | 项 | 值 | 状态 | 证据 |", text)
+        self.assertIn("| K-01 | 版本 | 21.02 | 有效 | x |", text)
+
+    def test_definition_text_heading_returns_body(self):
+        self.write("10_固件.md", "# 10\n\n## G-010 当前 NSS 配置\n\n证据：nss.log\n")
+        defs, _ = facts.parse_fact_definitions(self.root)
+        d = defs["G-010"][0]
+        text = facts.definition_text(self.root, d)
+        self.assertIn("G-010 当前 NSS 配置", text)
+        self.assertIn("证据：nss.log", text)
+
 
 if __name__ == "__main__":
     unittest.main()

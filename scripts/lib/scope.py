@@ -126,6 +126,24 @@ def is_archive_dir(name: str) -> bool:
     return bool(protocol.ARCHIVE_DIR_RE.match(name))
 
 
+def role_of_path(root: Path, path, loose: bool = False) -> str:
+    """按**相对路径**判定角色，而不是只看 `path.name`。
+
+    `06_流水/固件.md` 是 shard、`归档/历史.md` 是 archive —— 只看文件名会把它们
+    当成普通事实文档，用同样的权重参与检索与装配，流水噪声就会盖过当前结论。
+    """
+    rel = real_rel(root, path)
+    if not rel:
+        return "other"
+    parts = rel.split("/")
+    for seg in reversed(parts[:-1]):
+        if is_archive_dir(seg):
+            return "archive"
+        if seg == protocol.SHARD_DIR or (loose and protocol.SHARD_DIR_RE.match(seg)):
+            return "shard"
+    return protocol.role_of_name(parts[-1], loose=loose)
+
+
 def iter_text_files(root: Path, *, include_archive: bool = False,
                     include_data: bool = False, max_bytes: int = protocol.MAX_TEXT_BYTES,
                     audit: list | None = None):

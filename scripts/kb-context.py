@@ -30,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lib import facts  # noqa: E402
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope, terms as terms_lib, tokens  # noqa: E402
 
@@ -37,6 +38,12 @@ PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "P4": 4}
 TASK_VERBS_VERIFY = ("排查", "命令", "怎么", "如何", "检查", "验证", "怎么跑", "复现")
 TASK_VERBS_TROUBLE = ("排查", "问题", "故障", "坑", "报错", "崩溃", "掉速")
 TASK_VERBS_CROSS = ("影响", "波及", "交叉", "同步", "同时", "依赖")
+
+# P4 的硬约束：数量、预算占比、相关性阈值，三者同时生效
+P4_MAX_BLOCKS = 3
+P4_BUDGET_SHARE = 0.30
+P4_MIN_TERMS = 2
+TASK_ID_RE = re.compile(r"\b([KG]-\d{2,3})\b")
 
 
 def parse_terms(text: str):
@@ -132,8 +139,53 @@ def find_line_facts(files, line_spec, terms, task: str = ""):
     return [], "任务没有命中任何事实分册"
 
 
+def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
+                  include_archive: bool, loose: bool, max_blocks=P4_MAX_BLOCKS):
+    """受控 P4：只补「确实相关」的少量章节。
+
+    约束（全部硬性）：
+      - 最多 max_blocks 块
+      - 至少命中 P4_MIN_TERMS 个不同关键词，否则不补（返回 0 块是正确结果）
+      - 归档默认不参与；流水/归档按权重降序靠后
+      - 已经被 P0–P3 用过的文件/章节不重复加入
+    """
+    if not terms:
+        return []
+    rows = []
+    for p, reason in scope.iter_text_files(root, include_archive=include_archive):
+        if reason:
+            continue
+        rel = p.relative_to(root).as_posix()
+        if rel in used_sources:
+            continue
+        role = scope.role_of_path(root, p, loose=loose)
+        weight = 0.4 if role in ("log", "shard") else (0.3 if role == "archive" else 1.0)
+        try:
+            doc = md.parse_file(p)
+        except Exception:
+            continue
+        for sec in doc.sections:
+            key = (rel, sec.id or sec.line)
+            if key in used_section_keys:
+                continue
+            body = "\n".join(doc.lines[sec.start:sec.stop])
+            text = (sec.title or "") + "\n" + body
+            low = text.lower()
+            hits = [t for t in terms if t.lower() in low]
+            # 单一关键词也能算「确实相关」，但只有它足够长（≥4 字符）才算：
+            # 「固件」这种两字词命中满库都是，不该拿来做 P4 的入场券。
+            distinctive = len(hits) == 1 and len(hits[0]) >= 4
+            if len(hits) < P4_MIN_TERMS and not distinctive:
+                continue
+            rows.append({"score": len(hits) * weight, "file": rel, "section_id": sec.id,
+                         "heading": sec.title, "line": sec.line,
+                         "text": text.strip(), "hits": hits, "role": role})
+    rows.sort(key=lambda r: (-r["score"], r["file"], r["line"]))
+    return rows[:max_blocks]
+
+
 def build(root: Path, files, task: str, line_spec, include_archive: bool,
-          counter, budget: int = 3000):
+          counter, budget: int = 3000, loose: bool = False):
     terms = parse_terms(task)
     blocks, gaps = [], []
     selected_lines, omitted_lines = [], []
@@ -213,7 +265,34 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
             add("P2", title, source, sid, text, reason, required=False, line=name)
         per_line_blocks.append((name, items))
 
-    # P3 基线命中 + 证据 + 交叉链
+    # P3 任务点名的事实（G/K）+ 基线命中 + 证据 + 交叉链
+    fact_defs, fact_problems = facts.parse_fact_definitions(
+        root, include_archive=include_archive, loose=loose)
+    if fact_problems:
+        gaps.append("事实解析有 %d 个问题（首条：%s）——这些事实的状况未知"
+                    % (len(fact_problems), fact_problems[0]))
+    asked = sorted({m.upper() for m in TASK_ID_RE.findall(task or "")})
+    for fid in asked:
+        items = fact_defs.get(fid) or []
+        if not items:
+            gaps.append("任务点名 %s，但库里没有这个事实定义（ID 写错？还是还没建？）" % fid)
+            continue
+        live = [d for d in items if d.status != "deprecated"]
+        if not live:
+            sup = next((d.superseded_by for d in items if d.superseded_by), "")
+            gaps.append("%s 只有已作废定义%s：不作为当前配置；需要时按替代事实查"
+                        % (fid, "（替代 %s）" % sup if sup else "（未写替代 ID）"))
+            continue
+        d = live[0]
+        text = facts.definition_text(root, d)
+        if text:
+            add("P3", "任务点名的事实 %s" % fid, d.path, None, text,
+                "%s 的定义位（%s，状态 %s）" % (fid, d.definition_type, d.status))
+        if len(live) > 1:
+            gaps.append("%s 有 %d 处定义（%s）：已取第一处，建议合并"
+                        % (fid, len(live),
+                           "、".join("%s:%d" % (x.path, x.line_start) for x in live[:3])))
+
     base_p = files.get("baseline", [None])[0]
     if base_p and terms:
         bdoc = md.parse_file(base_p)
@@ -242,10 +321,33 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
                 add("P3", "交叉链（改 A 波及 B）", base_p.name, "baseline.chains", text,
                     "任务涉及跨线影响：先看交叉链再动手")
 
+    # P4 受控补充：数量、预算占比、相关性阈值三者同时生效
+    used_sources = {b["source"] for b in blocks}
+    used_keys = {(b["source"], b["section_id"]) for b in blocks if b["section_id"]}
+    p4 = p4_candidates(root, terms, used_sources, used_keys, include_archive, loose)
+    p4_cap = int(budget * P4_BUDGET_SHARE)
+    picked, used_tokens = [], 0
+    for row in p4:
+        n = counter.count(row["text"])
+        if used_tokens + n > p4_cap:
+            continue
+        used_tokens += n
+        picked.append(row)
+    for row in picked:
+        add("P4", "相关补充 · %s" % (row["heading"] or row["file"]), row["file"],
+            row["section_id"], row["text"],
+            "关键词命中 %s（%s，权重 %.1f）" % ("、".join(row["hits"][:3]),
+                                             row["role"], row["score"] / max(1, len(row["hits"]))))
+    if not picked and terms:
+        gaps.append("没有足够的 P4 相关内容（阈值 ≥%d 个关键词）；0 块是正常结果"
+                    % P4_MIN_TERMS)
+
     return {"blocks": blocks, "per_line": per_line_blocks, "gaps": gaps,
             "terms": terms, "fact_paths": fact_paths, "why": why,
             "selected_lines": [line_name(p) for p in fact_paths],
-            "dash": dash_p, "base": base_p}
+            "p4": {"count": len(picked), "tokens": used_tokens, "cap": p4_cap,
+                   "candidates": len(p4)},
+            "asked_ids": asked, "dash": dash_p, "base": base_p}
 
 
 # --------------------------------------------------------------------------- #
@@ -374,8 +476,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="按 Token 预算组装最小上下文")
     ap.add_argument("--target", default=".")
     ap.add_argument("--task", default="")
-    ap.add_argument("--line", default=None,
-                    help="限定工作线；可逗号分隔多条，也可重复该参数")
+    ap.add_argument("--line", default=None, action="append",
+                    help="限定工作线；可逗号分隔多条，也可重复该参数（两种写法等价）")
     ap.add_argument("--mode", choices=["handoff", "task"], default="task")
     ap.add_argument("--budget", type=int, default=3000)
     ap.add_argument("--format", choices=["markdown", "json"], default="markdown")
@@ -407,10 +509,22 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    built = build(root, files, args.task, args.line, args.include_archive,
-                  counter, args.budget)
+    # --line 支持「逗号分隔」与「重复参数」两种写法，去重保序
+    line_spec = None
+    if args.line:
+        seen, parts = set(), []
+        for chunk in args.line:
+            for piece in re.split(r"[,，;；\s]+", str(chunk)):
+                piece = piece.strip()
+                if piece and piece.lower() not in seen:
+                    seen.add(piece.lower())
+                    parts.append(piece)
+        line_spec = ",".join(parts) or None
+
+    built = build(root, files, args.task, line_spec, args.include_archive,
+                  counter, args.budget, args.loose)
     kept, skipped, rendered_tokens, over, text = assemble(
-        args.task, args.line, args.mode, args.budget, built["blocks"], built["gaps"],
+        args.task, line_spec, args.mode, args.budget, built["blocks"], built["gaps"],
         counter, args.explain)
 
     # 工作线：装不下的如实报出来（不把部分加载说成完整接手）
@@ -435,14 +549,14 @@ def main() -> int:
             built["gaps"].append(
                 "工作线「%s」里没有 fact.current / commands / pitfalls 可加载的事实节" % name)
         kept, skipped, rendered_tokens, over, text = assemble(
-            args.task, args.line, args.mode, args.budget, built["blocks"],
+            args.task, line_spec, args.mode, args.budget, built["blocks"],
             built["gaps"], counter, args.explain)
         loaded, omitted, empty = split_lines(kept)
 
     required_tokens = sum(count_block(b, counter) for b in kept if b["required"])
     block_tokens = sum(count_block(b, counter) for b in kept)
     payload = {
-        "task": args.task, "line": args.line, "mode": args.mode,
+        "task": args.task, "line": line_spec, "mode": args.mode,
         "budget": args.budget,
         "tokenizer": counter.desc, "requested": args.tokenizer,
         "exact": counter.exact,
@@ -458,6 +572,7 @@ def main() -> int:
         "skipped": [{"priority": s["priority"], "title": s["title"],
                      "source": s["source"], "reason": s["reason"],
                      "tokens": count_block(s, counter)} for s in skipped],
+        "p4": built["p4"], "asked_ids": built["asked_ids"],
         "gaps": built["gaps"],
         "context": context_map(kept),
     }

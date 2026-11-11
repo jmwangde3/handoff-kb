@@ -103,10 +103,12 @@ def check(root: Path, loose: bool = False):
         add("constraints", "pending", "硬约束仍是占位", "8 哪些操作别重复")
 
     # 证据：全库事实定义里「有效」却无证据的条目（三种定义形式统一）
-    no_ev, meta_bad = [], []
+    no_ev, meta_bad, parse_problems, fact_total = [], [], [], 0
     try:
-        defs, _problems = facts.parse_fact_definitions(
+        defs, problems = facts.parse_fact_definitions(
             root, include_archive=False, loose=loose)
+        parse_problems = list(problems)
+        fact_total = sum(len(v) for v in defs.values())
         for fid, dlist in defs.items():
             for d in dlist:
                 if d.meta_error:
@@ -115,14 +117,22 @@ def check(root: Path, loose: bool = False):
                     no_ev.append(fid)
     except Exception as exc:
         meta_bad.append("事实解析失败：%s" % exc)
-    if meta_bad:
-        add("evidence", "pending", "事实元数据有问题：%s" % ", ".join(meta_bad[:3]),
+    if meta_bad or parse_problems:
+        detail = ", ".join(meta_bad[:3]) or parse_problems[0]
+        add("evidence", "pending",
+            "事实解析有问题（%d 处，首条：%s）——这些事实的状况未知"
+            % (len(meta_bad) + len(parse_problems), detail), "3 证据是什么")
+    if fact_total == 0:
+        # 「一条事实都没有」不能报成「都合格」：那是没查，不是查干净了
+        add("evidence", "pending",
+            "全库没有解析到任何事实定义：不是「有效事实都有证据」，是「没有可查的事实」",
             "3 证据是什么")
-    if no_ev:
+    elif no_ev:
         add("evidence", "pending", "%d 条「有效」事实没有证据：%s"
             % (len(no_ev), ", ".join(no_ev[:5])), "3 证据是什么")
     else:
-        add("evidence", "ok", "基线的有效事实都有证据或标了待核", "3 证据是什么")
+        add("evidence", "ok", "%d 条事实的有效项都有证据或标了待核" % fact_total,
+            "3 证据是什么")
 
     # 完成/待办
     sec, text = sec_text(dash, "dashboard.todo", children=True)
