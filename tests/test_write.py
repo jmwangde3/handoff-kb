@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import TempProject, run, run_json  # noqa: E402
+from common import TempProject, run, run_json, write_txn  # noqa: E402
 
 
 class WriteTest(TempProject):
@@ -151,30 +151,19 @@ class WriteTest(TempProject):
     def test_recover_cleans_completed_transaction(self):
         rel = "05_进度仪表盘.md"
         current = self.sha(rel)
-        txn = self.root / ".kb-txn" / "t1"
-        (txn / "backup").mkdir(parents=True)
-        (txn / "backup" / rel).write_text("旧内容", encoding="utf-8")
-        (txn / "journal.json").write_text(json.dumps({
-            "schema_version": 1, "id": "t1", "state": "prepared",
-            "entries": [{"path": rel, "op": "append", "sha_before": "a" * 64,
-                         "sha_after": current}],
-        }), encoding="utf-8")
+        txn = write_txn(self.root, "t1",
+                        [{"path": rel, "sha_before": "a" * 64, "sha_after": current}])
         p = run("kb-write.py", "recover", "--target", self.root, "--apply")
-        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
         self.assertFalse(txn.exists())
 
     def test_recover_reports_conflict(self):
         rel = "05_进度仪表盘.md"
-        txn = self.root / ".kb-txn" / "t2"
-        (txn / "backup").mkdir(parents=True)
-        (txn / "journal.json").write_text(json.dumps({
-            "schema_version": 1, "id": "t2", "state": "prepared",
-            "entries": [{"path": rel, "op": "append", "sha_before": "a" * 64,
-                         "sha_after": "b" * 64}],
-        }), encoding="utf-8")
+        txn = write_txn(self.root, "t2",
+                        [{"path": rel, "sha_before": "a" * 64, "sha_after": "b" * 64}])
         p = run("kb-write.py", "recover", "--target", self.root, "--apply")
-        self.assertEqual(p.returncode, 1)
-        self.assertTrue(txn.exists())
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertTrue(txn.exists(), "冲突事务不得被自动清理")
         self.assertIn("changed-by-others", p.stdout)
 
 

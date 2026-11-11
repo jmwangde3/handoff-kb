@@ -80,6 +80,10 @@ def is_data_path(path: Path, root: Path) -> bool:
     return any(p.lower() in skip for p in parts[:-1])
 
 
+def is_archive_dir(name: str) -> bool:
+    return bool(protocol.ARCHIVE_DIR_RE.match(name))
+
+
 def iter_text_files(root: Path, *, include_archive: bool = False,
                     include_data: bool = False, max_bytes: int = protocol.MAX_TEXT_BYTES):
     """遍历根下文本文件，产出 (Path, reason_or_None)。reason 非空表示被跳过。"""
@@ -91,7 +95,7 @@ def iter_text_files(root: Path, *, include_archive: bool = False,
             low = name.lower()
             if not include_data and low in excluded_dir_names():
                 continue
-            if not include_archive and low in ("归档", "archive"):
+            if not include_archive and is_archive_dir(name):
                 continue
             keep.append(name)
         dirnames[:] = keep
@@ -144,6 +148,27 @@ def role_files(root: Path, loose: bool = False):
     return roles
 
 
-def shards(root: Path):
-    d = Path(root) / protocol.SHARD_DIR
-    return sorted(p for p in d.glob("*.md") if p.is_file()) if d.is_dir() else []
+def shard_dirs(root: Path, loose: bool = False):
+    """分片目录列表：规范 `06_流水/`；loose 再认 `60_流水/` 等别名。"""
+    root = Path(root)
+    out = []
+    canon = root / protocol.SHARD_DIR
+    if canon.is_dir():
+        out.append(canon)
+    if loose:
+        skip = excluded_dir_names()
+        for p in sorted(root.iterdir()):
+            if not p.is_dir() or p in out:
+                continue
+            if p.name.lower() in skip:
+                continue
+            if protocol.SHARD_DIR_RE.match(p.name):
+                out.append(p)
+    return out
+
+
+def shards(root: Path, loose: bool = False):
+    files = []
+    for d in shard_dirs(root, loose):
+        files.extend(sorted(p for p in d.glob("*.md") if p.is_file()))
+    return files
