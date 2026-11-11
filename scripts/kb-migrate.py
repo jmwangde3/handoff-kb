@@ -17,8 +17,10 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -28,7 +30,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope  # noqa: E402
-from lib.safeio import atomic_write, read_text, sha256_file  # noqa: E402
+from lib.safeio import (Conflict, LockHeld, LockOwnershipError, SafeIOError,  # noqa: E402
+                        Transaction, WorkspaceLock, atomic_write, read_text_strict,
+                        sha256_file)
 
 PLAN_FILE = ".kb-migrate-plan.json"
 
@@ -116,7 +120,7 @@ def build_plan(root: Path, files):
         ops = plan_file(p, wanted)
         if not ops:
             continue
-        text = read_text(p)
+        text = read_text_strict(p)
         lines = text.splitlines()
         for op in sorted(ops, key=lambda o: (-o["at"],
                                              0 if o["type"] != "prepend" else 1)):
@@ -143,12 +147,77 @@ def git_dirty(root: Path):
     return [x for x in r.stdout.splitlines() if x.strip()]
 
 
+PLAN_SCHEMA = 2
+ALLOWED_OPS = {"prepend", "insert_before_heading"}
+
+
+def _apply_ops(text: str, operations) -> str:
+    lines = text.splitlines()
+    for op in sorted(operations, key=lambda o: (-o["at"],
+                                                0 if o["type"] != "prepend" else 1)):
+        lines.insert(op["at"], op["text"])
+    return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+
+
+def validate_plan(plan, root: Path):
+    """严格校验计划：非法就抛 SafeIOError，绝不在可疑计划上写盘。"""
+    if not isinstance(plan, dict):
+        raise SafeIOError("计划文件顶层不是对象")
+    if plan.get("schema_version") != PLAN_SCHEMA:
+        raise SafeIOError("计划 schema_version=%r 不受支持（本版只认 %d）"
+                          % (plan.get("schema_version"), PLAN_SCHEMA))
+    if plan.get("root_id") != safeio_root_id(root):
+        raise SafeIOError("计划不是为这个目录生成的（root_id 不符）："
+                          "计划=%s 目录=%s" % (plan.get("root_id"), safeio_root_id(root)))
+    entries = plan.get("entries")
+    if not isinstance(entries, list):
+        raise SafeIOError("计划 entries 不是数组")
+    seen = set()
+    for e in entries:
+        if not isinstance(e, dict):
+            raise SafeIOError("计划条目不是对象")
+        rel = e.get("path")
+        scope.check_rel_path(root, rel or "")
+        if rel in seen:
+            raise SafeIOError("计划里有重复路径：%s" % rel)
+        seen.add(rel)
+        for key in ("sha256_before", "sha256_after"):
+            v = e.get(key) or ""
+            if len(v) != 64 or any(c not in "0123456789abcdef" for c in v):
+                raise SafeIOError("%s 的 %s 不是 64 位十六进制" % (rel, key))
+        ops = e.get("operations")
+        if not isinstance(ops, list) or not ops:
+            raise SafeIOError("%s 没有操作" % rel)
+        if len(ops) > 200:
+            raise SafeIOError("%s 操作过多（%d），拒绝执行" % (rel, len(ops)))
+        for op in ops:
+            if not isinstance(op, dict):
+                raise SafeIOError("%s 的操作不是对象" % rel)
+            if op.get("type") not in ALLOWED_OPS:
+                raise SafeIOError("%s 含不支持的操作：%r" % (rel, op.get("type")))
+            at = op.get("at")
+            if not isinstance(at, int) or isinstance(at, bool) or at < 0:
+                raise SafeIOError("%s 的插入位置非法：%r" % (rel, at))
+            text = op.get("text")
+            if not isinstance(text, str) or not text.strip():
+                raise SafeIOError("%s 的插入内容为空" % rel)
+            if "\n" in text or "\r" in text:
+                raise SafeIOError("%s 的插入内容含换行（只允许单行注释）" % rel)
+    return entries
+
+
+def safeio_root_id(root: Path) -> str:
+    from lib.safeio import root_id as _rid
+    return _rid(root)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="v1 → v2 无损迁移")
     ap.add_argument("--target", default=".")
     ap.add_argument("--plan", action="store_true")
     ap.add_argument("--apply", action="store_true")
-    ap.add_argument("--force", action="store_true", help="有未提交改动时仍生成计划/执行")
+    ap.add_argument("--force", action="store_true",
+                    help="有未提交改动时仍生成计划/执行（不绕过任何哈希与路径校验）")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
@@ -169,34 +238,77 @@ def main() -> int:
         if not plan_path.is_file():
             print("ERR: 没有迁移计划（先跑 --plan）", file=sys.stderr)
             return 1
-        plan = json.loads(plan_path.read_text(encoding="utf-8"))
-        stale = [e["path"] for e in plan["entries"]
-                 if not (root / e["path"]).is_file()
-                 or sha256_file(root / e["path"]) != e["sha256_before"]]
-        if stale:
-            print("ERR: 计划已过期，这些文件被改过：%s" % ", ".join(stale), file=sys.stderr)
-            print("     重跑 --plan 生成新计划（不覆盖任何内容）", file=sys.stderr)
+        try:
+            plan = json.loads(read_text_strict(plan_path))
+        except Exception as exc:
+            print("ERR: 计划文件无法解析：%s" % exc, file=sys.stderr)
             return 1
+        try:
+            entries = validate_plan(plan, root)
+        except ScopeError as exc:
+            print("ERR: 计划含非法路径：%s" % exc, file=sys.stderr)
+            return 1
+        except SafeIOError as exc:
+            print("ERR: 计划不可信：%s" % exc, file=sys.stderr)
+            return 1
+
         dirty = git_dirty(root)
         if dirty and not args.force:
             print("ERR: 有 %d 个未提交改动，默认拒绝迁移（--force 可继续）：%s"
                   % (len(dirty), ", ".join(x.strip()[:40] for x in dirty[:3])), file=sys.stderr)
             return 1
+
+        # 锁内重算：所有冲突必须在写之前发现
         done = []
-        for e in plan["entries"]:
-            p = root / e["path"]
-            text = read_text(p)
-            lines = text.splitlines()
-            for op in sorted(e["operations"], key=lambda o: (-o["at"],
-                                                            0 if o["type"] != "prepend" else 1)):
-                lines.insert(op["at"], op["text"])
-            new = "\n".join(lines) + ("\n" if text.endswith("\n") else "")
-            if hashlib.sha256(new.encode("utf-8")).hexdigest() != e["sha256_after"]:
-                print("ERR: %s 计算结果与计划不符，已中止（未写入）" % e["path"], file=sys.stderr)
-                return 1
-            atomic_write(p, new)
-            done.append({"path": e["path"], "sha256": e["sha256_after"]})
+        try:
+            with WorkspaceLock(root, timeout=float(os.environ.get("KB_LOCK_TIMEOUT", "5"))) as lock:
+                if lock.reclaimed:
+                    print("-- 回收死进程遗留的锁：pid=%s" % lock.reclaimed.get("pid"),
+                          file=sys.stderr)
+                stale, computed = [], []
+                for e in entries:
+                    p = root / e["path"]
+                    if not p.is_file():
+                        stale.append("%s（文件不存在）" % e["path"])
+                        continue
+                    cur = sha256_file(p)
+                    if cur != e["sha256_before"]:
+                        stale.append(e["path"])
+                        continue
+                    text = read_text_strict(p)
+                    new = _apply_ops(text, e["operations"])
+                    got = hashlib.sha256(new.encode("utf-8")).hexdigest()
+                    if got != e["sha256_after"]:
+                        stale.append("%s（重算哈希与计划不符）" % e["path"])
+                        continue
+                    computed.append((e, cur, new))
+                if stale:
+                    print("ERR: 计划已过期或内容不符，未写入任何文件：%s"
+                          % ", ".join(stale), file=sys.stderr)
+                    print("     重跑 --plan 生成新计划", file=sys.stderr)
+                    return 1
+                txn = Transaction(root)
+                for e, cur, new in computed:
+                    txn.stage(e["path"], cur, new, "migrate")
+                try:
+                    result = txn.commit()
+                except Conflict as exc:
+                    print("CONFLICT: %s" % exc, file=sys.stderr)
+                    return 1
+                except SafeIOError as exc:
+                    print("ERR: 迁移事务失败：%s" % exc, file=sys.stderr)
+                    print("     现场已保留，可跑 kb-write.py recover --inspect 查看",
+                          file=sys.stderr)
+                    return 1
+        except LockHeld as exc:
+            print("ERR: %s" % exc, file=sys.stderr)
+            return 1
+        except LockOwnershipError as exc:
+            print("ERR: %s" % exc, file=sys.stderr)
+            return 1
+
         plan_path.unlink()
+        done = [{"path": r["path"], "sha256": r["sha_after"]} for r in result]
         payload = {"migrated": done, "schema": protocol.SCHEMA_VERSION}
         print(json.dumps(payload, ensure_ascii=False, indent=2) if args.json
               else "-- 迁移完成，%d 个文件：\n%s"
@@ -206,10 +318,15 @@ def main() -> int:
     # --plan
     entries = build_plan(root, files)
     dirty = git_dirty(root)
-    plan = {"schema_version": protocol.SCHEMA_VERSION, "target": str(root),
+    plan = {"schema_version": PLAN_SCHEMA, "kb_schema": protocol.SCHEMA_VERSION,
+            "root_id": safeio_root_id(root), "target": str(root),
+            "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "generated_by": "kb-migrate.py 2.0.1",
             "detected": state, "entries": entries,
-            "git_dirty": dirty or [], "generated_by": "kb-migrate.py"}
-    (root / PLAN_FILE).write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+            "operation_count": sum(len(e["operations"]) for e in entries),
+            "git_dirty": dirty or []}
+    atomic_write(root / PLAN_FILE,
+                 json.dumps(plan, ensure_ascii=False, indent=2) + "\n")
 
     if args.json:
         print(json.dumps(plan, ensure_ascii=False, indent=2))
@@ -225,7 +342,7 @@ def main() -> int:
             print("   + L%-4d %s" % (op["at"] + 1, op["text"]))
     if dirty:
         print("! 有 %d 个未提交改动；--apply 默认会拒绝（确认无并发会话后可 --force）" % len(dirty))
-    print("\n计划已写入 %s（绑定源文件哈希；变了就重跑）" % PLAN_FILE)
+    print("\n计划已写入 %s（绑定 root_id + 源文件哈希；变了就重跑）" % PLAN_FILE)
     print("执行：py kb-migrate.py --target \"%s\" --apply" % root)
     return 0
 

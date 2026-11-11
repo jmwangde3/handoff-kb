@@ -20,15 +20,20 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lib import protocol, scope  # noqa: E402
+from lib import facts, protocol, scope  # noqa: E402
 from lib import markdown as md  # noqa: E402
 from lib.scope import ScopeError  # noqa: E402
-from lib.safeio import (Conflict, LockHeld, SafeIOError, Transaction,  # noqa: E402
-                        WorkspaceLock, break_lock, read_text, recover, sha256_file)
+from lib.safeio import (read_text_strict,
+                        LOCK_DIR, Conflict, EncodingError, LockHeld,  # noqa: E402
+                        LockOwnershipError, SafeIOError, Transaction, WorkspaceLock,
+                        break_lock, read_text, recover, sha256_file)
+
+TXN_LABEL = ".kb-txn"
 
 
 def _print_json(obj):
@@ -41,7 +46,13 @@ def cmd_read(args) -> int:
     if not path.is_file():
         print("文件不存在：%s" % args.file, file=sys.stderr)
         return 2
-    text = read_text(path)
+    try:
+        text = read_text_strict(path)
+    except EncodingError as exc:
+        # 读也不能用替换字符糊过去：调用方会拿着「看起来正常」的文本去改，
+        # 写回时就变成不可逆的乱码。宁可这里就报错。
+        print("ENCODING: %s" % exc, file=sys.stderr)
+        return 1
     doc = md.parse(text, path)
     sha = sha256_file(path)
     if args.json:
@@ -99,29 +110,13 @@ def _apply_append(text: str, spec: dict) -> str:
 
 
 def _apply_update_fact(text: str, spec: dict) -> str:
-    fid = (spec.get("fact_id") or "").strip()
-    if not protocol.FACT_ID_RE.fullmatch(fid):
-        raise SafeIOError("fact_id 非法：%r（形如 K-01 / G-007）" % fid)
-    content = (spec.get("content") or "").rstrip("\n")
-    if not content:
-        raise SafeIOError("update_fact 的 content 为空")
-    lines = text.splitlines()
-    hit = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\s*\|\s*%s\s*\|" % re.escape(fid), line):
-            hit = i
-            break
-        if re.match(r"^\s*(?:[-*]\s*)?%s\s*[:：|\s]" % re.escape(fid), line):
-            hit = i
-            break
-    if hit is None:
-        raise SafeIOError("文件中找不到事实 ID %s（不做新增，请显式改基线表）" % fid)
-    out = lines[:hit] + content.splitlines() + lines[hit + 1:]
-    new = "\n".join(out)
-    if text.endswith("\n"):
-        new += "\n"
-    return new
-
+    """三种定义形式统一由 lib/facts.py 处理（标题 / 列表 / 表格）。"""
+    try:
+        return facts.update_fact_definition(
+            text, (spec.get("fact_id") or "").strip(),
+            spec.get("content") or "", spec.get("path") or "")
+    except facts.FactError as exc:
+        raise SafeIOError(str(exc))
 
 OPERATIONS = {
     "replace_section": _apply_replace_section,
@@ -182,9 +177,11 @@ def cmd_apply(args) -> int:
         if lock.reclaimed:
             print("-- 回收死进程遗留的锁：pid=%s" % lock.reclaimed.get("pid"), file=sys.stderr)
         txn = Transaction(root, session=args.session)
-        for p in prepared:
-            txn.stage(p["path"], p["expected"], p["new"], p["op"])
         try:
+            # stage 也会抛 Conflict（哈希不符）：必须走同一个分支，
+            # 否则真正的并发冲突被报成普通 ERR，调用方分不清该合并还是该修参数。
+            for p in prepared:
+                txn.stage(p["path"], p["expected"], p["new"], p["op"])
             result = txn.commit()
         except Conflict as exc:
             print("CONFLICT: %s" % exc, file=sys.stderr)
@@ -200,22 +197,63 @@ def cmd_apply(args) -> int:
 
 def cmd_recover(args) -> int:
     root = scope.resolve_root(args.target)
+
     if args.break_lock:
-        done = break_lock(root)
-        print("锁已清除" if done else "没有锁文件")
-        if not args.apply and not args.dry_run:
+        info = break_lock(root, plan=not args.force, force=args.force)
+        if args.json:
+            _print_json(info)
+        else:
+            print("== 锁：%s" % info.get("path", LOCK_DIR))
+            if not info.get("exists"):
+                print("   没有锁目录（%s）" % info.get("message", ""))
+            else:
+                meta = info.get("meta") or {}
+                print("   owner_token : %s…" % str(meta.get("owner_token"))[:8])
+                print("   pid         : %s（%s）"
+                      % (meta.get("pid"), "存活" if info.get("alive") else "已退出/未知"))
+                print("   host        : %s（%s）"
+                      % (meta.get("host") or "-",
+                         "本机" if info.get("same_host") else "非本机"))
+                print("   session     : %s" % (meta.get("session") or "-"))
+                if meta.get("created"):
+                    print("   created     : %s" % time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.localtime(meta["created"])))
+                if info.get("incomplete"):
+                    print("   状态        : 不完整锁（%s）" % info.get("meta_error"))
+                print("   -> %s" % info.get("message", ""))
+        if args.force:
             return 0
-    reports = recover(root, apply=bool(args.apply and not args.dry_run))
+        return 0
+
+    mode = "apply" if args.apply else ("dry-run" if args.dry_run else "inspect")
+    reports = recover(root, mode=mode)
     if args.json:
-        _print_json({"transactions": reports})
+        _print_json({"mode": mode, "transactions": reports})
     else:
         if not reports:
-            print("没有未完成的事务（%s/ 为空）" % ".kb-txn")
+            print("没有未完成的事务（%s/ 为空）" % TXN_LABEL)
         for r in reports:
-            print("== txn %s  state=%s  action=%s" % (r["id"], r["state"], r["action"]))
-            for e in r["entries"]:
-                print("   %-40s %s" % (e["path"], e["state"]))
-    return 1 if any(r["conflicts"] for r in reports) else 0
+            head = r.get("id") or os.path.basename(r["dir"])
+            print("== txn %s  state=%s  action=%s" % (head, r.get("state"), r.get("action")))
+            if r.get("error"):
+                print("   !! %s" % r["error"])
+            for e in r.get("entries", []):
+                print("   %-40s %-16s before=%s now=%s"
+                      % (e["path"], e["state"], (e.get("sha_before") or "")[:8],
+                         (e.get("sha_now") or "")[:8]))
+                if e.get("note"):
+                    print("        %s" % e["note"])
+            if r.get("message"):
+                print("   %s" % r["message"])
+        if mode == "apply":
+            print("\n（apply 已持锁执行；证据不足的事务保留现场，见上面 action）")
+    manual = [r for r in reports
+              if r.get("requires_manual")
+              or str(r.get("action", "")).startswith(("manual", "backup-corrupt"))]
+    if manual and mode != "apply":
+        print("\n!! %d 个事务需要人工处理（--apply 不会自动清理它们）" % len(manual),
+              file=sys.stderr)
+    return 1 if manual else 0
 
 
 def main() -> int:
@@ -235,11 +273,13 @@ def main() -> int:
     a.add_argument("--session", default="")
     a.set_defaults(func=cmd_apply)
 
-    c = sub.add_parser("recover", help="检查/恢复未完成事务")
+    c = sub.add_parser("recover", help="检查/恢复未完成事务（默认只读）")
     c.add_argument("--target", default=".")
-    c.add_argument("--dry-run", action="store_true")
-    c.add_argument("--apply", action="store_true")
-    c.add_argument("--break-lock", action="store_true")
+    c.add_argument("--inspect", action="store_true", help="只读查看（默认）")
+    c.add_argument("--dry-run", action="store_true", help="只读，给出将执行的动作")
+    c.add_argument("--apply", action="store_true", help="持锁执行恢复")
+    c.add_argument("--break-lock", action="store_true", help="查看/清理工作区锁")
+    c.add_argument("--force", action="store_true", help="配合 --break-lock：确认强制清理")
     c.add_argument("--json", action="store_true")
     c.set_defaults(func=cmd_recover)
 
@@ -249,6 +289,12 @@ def main() -> int:
     except ScopeError as exc:
         print("ERR: %s" % exc, file=sys.stderr)
         return 2
+    except LockOwnershipError as exc:
+        print("ERR: %s" % exc, file=sys.stderr)
+        return 1
+    except EncodingError as exc:
+        print("ENCODING: %s" % exc, file=sys.stderr)
+        return 1
     except SafeIOError as exc:
         print("ERR: %s" % exc, file=sys.stderr)
         return 1

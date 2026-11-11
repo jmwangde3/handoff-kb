@@ -4,13 +4,14 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import TempProject, run  # noqa: E402
+from common import TempProject, no_identity_env, run  # noqa: E402
 
 
 class InitTest(TempProject):
@@ -82,6 +83,21 @@ class InitTest(TempProject):
         st = subprocess.run(["git", "status", "--porcelain"], cwd=self.root,
                             capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(st.stdout.strip(), "")
+
+    def test_git_never_invents_identity(self):
+        """没有本机身份时：不代填 handoff-kb@localhost，也不把初始化判失败。"""
+        env = no_identity_env(self.tmp)
+        p = self.init(lines="甲", git=True, env=env)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("身份", p.stdout)
+        for key in ("user.name", "user.email"):
+            got = subprocess.run(["git", "config", key], cwd=self.root,
+                                 capture_output=True, text=True, encoding="utf-8",
+                                 env={**os.environ, **env})
+            self.assertEqual(got.stdout.strip(), "", "不得写入虚构身份：%s" % key)
+        st = subprocess.run(["git", "status", "--porcelain"], cwd=self.root,
+                            capture_output=True, text=True, encoding="utf-8")
+        self.assertTrue(st.stdout.strip(), "文件应已暂存，等用户配置身份后再提交")
 
     def test_nested_git_refused(self):
         parent = self.tmp / "outer"

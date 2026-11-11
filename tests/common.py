@@ -17,7 +17,27 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 
 
-def run(script, *args, cwd=None, env=None):
+def git_identity_env(name="Handoff Test", email="test@example.invalid"):
+    """给 git 子进程一个确定的身份，不依赖也不修改本机全局配置。"""
+    return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email,
+            "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email,
+            "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+def no_identity_env(tmp: Path):
+    """刻意制造「本机没有提交身份」的环境，用于验证不代填虚构身份。"""
+    env = dict(git_identity_env())
+    for k in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
+              "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"):
+        env.pop(k, None)
+    empty = Path(tmp) / "empty-gitconfig"
+    empty.write_text("", encoding="utf-8")
+    env["GIT_CONFIG_GLOBAL"] = str(empty)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    return env
+
+
+def run(script, *args, cwd=None, env=None, input=None, timeout=None):
     """用当前解释器跑脚本，返回 CompletedProcess。"""
     e = dict(os.environ)
     e.setdefault("PYTHONIOENCODING", "utf-8")
@@ -25,7 +45,8 @@ def run(script, *args, cwd=None, env=None):
         e.update(env)
     return subprocess.run([sys.executable, str(SCRIPTS / script)] + [str(a) for a in args],
                           capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", cwd=str(cwd) if cwd else None, env=e)
+                          errors="replace", cwd=str(cwd) if cwd else None, env=e,
+                          input=input, timeout=timeout)
 
 
 def run_json(script, *args, cwd=None, env=None):
@@ -46,12 +67,15 @@ class TempProject(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.root = self.tmp / "proj"
 
-    def init(self, *extra, lines=None, git=False):
+    def init(self, *extra, lines=None, git=False, env=None):
         args = ["--target", self.root, "--project", "Demo",
                 "--lines", lines or self.lines]
         if not git:
             args.append("--no-git")
-        p = run("kb-init.py", *args, *extra)
+        elif env is None:
+            # kb-init 不再代填虚构身份；测试自己提供，避免依赖本机 git 配置
+            env = git_identity_env()
+        p = run("kb-init.py", *args, *extra, env=env)
         return p
 
     def write(self, rel, text, newline="\n"):
@@ -174,3 +198,40 @@ ssh r1 'cat /etc/version'
 
 - [2026-11-10 22:00] 甲 刷机完成，`cat /etc/version` 已核 → 采信号
 """)
+
+
+def write_txn(root, name, entries, state="prepared", schema=2):
+    """在 root/.kb-txn/<name> 写一个 v2 journal（带 checksum 与真实备份）。
+
+    entries: [{"path","sha_before","sha_after","op","backup_bytes"}]
+    schema=1 用于构造「旧/不支持 schema」的损坏现场。
+    """
+    import json
+    import os
+    import time
+    sys.path.insert(0, str(SCRIPTS))
+    from lib import safeio
+
+    d = Path(root) / ".kb-txn" / name
+    (d / "backup").mkdir(parents=True, exist_ok=True)
+    jentries = []
+    for e in entries:
+        bp = d / "backup" / e["path"]
+        bp.parent.mkdir(parents=True, exist_ok=True)
+        bp.write_bytes(e.get("backup_bytes", b"OLD\n"))
+        jentries.append({
+            "path": e["path"], "op": e.get("op", "append"),
+            "sha_before": e["sha_before"], "sha_after": e["sha_after"],
+            "backup": (Path("backup") / e["path"]).as_posix(),
+            "backup_sha256": safeio.sha256_bytes(bp.read_bytes()),
+            "state": "staged",
+        })
+    journal = {"schema_version": schema, "transaction_id": name, "root_id": "test",
+               "pid": os.getpid(), "host": safeio.host_name(), "session": "t",
+               "created": time.time(), "updated": time.time(), "state": state,
+               "entry_count": len(jentries), "entries": jentries}
+    journal["checksum"] = safeio.journal_checksum(journal)
+    (d / "journal.json").write_text(
+        json.dumps(journal, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return d
+

@@ -28,6 +28,10 @@ CANON_ARCHIVE = ("90_过程档案.md", "90_archive.md")
 SHARD_DIR = "06_流水"
 ENTRY_FILES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")
 
+# 宽松模式下的目录别名（作用在目录名上）：`60_流水/`、`90_归档/` 等自有命名
+SHARD_DIR_RE = re.compile(r"^(?:\d{2,3}[_\- ]?)?(?:流水|会话流水|shards?|sessions?)$", re.I)
+ARCHIVE_DIR_RE = re.compile(r"^(?:\d{2,3}[_\- ]?)?(?:归档|旧档|历史|archive|archived)$", re.I)
+
 # 宽松模式的别名（正则，作用在文件名上）
 ALIASES = {
     "dashboard": re.compile(r"(进度|现状|dashboard|status)", re.I),

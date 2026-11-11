@@ -353,10 +353,21 @@ def main() -> int:
                 return 1
         for k, v in (("core.autocrlf", "false"), ("core.quotepath", "false")):
             sh(["git", "config", k, v], cwd=target)
-        if not sh(["git", "config", "user.name"], cwd=target).stdout.strip():
-            sh(["git", "config", "user.name", "handoff-kb"], cwd=target)
-        if not sh(["git", "config", "user.email"], cwd=target).stdout.strip():
-            sh(["git", "config", "user.email", "handoff-kb@localhost"], cwd=target)
+        # 2.0.1：不再写 handoff-kb@localhost 这类虚构身份。
+        # 提交署名属于用户决定，自动填假身份会污染历史，还会把「本机没配身份」
+        # 这个真问题掩盖成「一切正常」。
+        ident = {}
+        for key in ("user.name", "user.email"):
+            probe = sh(["git", "config", "--get", key], cwd=target)
+            ident[key] = (probe.stdout or "").strip() if probe.returncode == 0 else ""
+        missing = [k for k, v in ident.items() if not v]
+        if missing:
+            print("-- git 已初始化，但缺少提交身份：%s（本工具不会代填）" % "、".join(missing))
+            print("   首次提交前请自行配置：")
+            print('     git -C "%s" config user.name "你的名字"' % target)
+            print('     git -C "%s" config user.email "you@example.com"' % target)
+        else:
+            print("-- git 身份：%s <%s>" % (ident["user.name"], ident["user.email"]))
 
         stage = [p for p in (buckets["create"] + buckets["modify"] + ["归档/.gitkeep"])
                  if (target / p).is_file()]
@@ -385,9 +396,21 @@ def main() -> int:
                 "初始基线：分层交接库骨架 v%d（00 基线 / %s 事实层 / 05 现状 / 06 流水 / 90 归档）"
                 % (protocol.SCHEMA_VERSION, protocol.fact_shard_range_text())], cwd=target)
         if r.returncode != 0:
-            print("!! commit 失败：%s" % (r.stderr or r.stdout).strip()[:200], file=sys.stderr)
-            return 1
-        print("-- git init + 首次 commit 完成（main），仅暂存本次生成的 %d 个文件" % len(staged))
+            detail = (r.stderr or r.stdout).strip()
+            # 没有提交身份不是库的问题：文件已生成、已暂存，只是这一步没完成。
+            # 不代填虚构身份，也不假装成功。
+            if "identity" in detail.lower() or "who you are" in detail.lower():
+                print("-- git 已初始化并暂存 %d 个文件，但首次 commit 未完成：本机没配提交身份"
+                      % len(staged))
+                print("   配置后自行提交：")
+                print('     git -C "%s" config user.name "你的名字"' % target)
+                print('     git -C "%s" config user.email "you@example.com"' % target)
+                print('     git -C "%s" commit -m "初始基线"' % target)
+            else:
+                print("!! commit 失败：%s" % detail[:200], file=sys.stderr)
+                return 1
+        else:
+            print("-- git init + 首次 commit 完成（main），仅暂存本次生成的 %d 个文件" % len(staged))
 
     core = [target / f for f in ("00_基线.md", "05_进度仪表盘.md")]
     b = sum(p.stat().st_size for p in core if p.exists())
