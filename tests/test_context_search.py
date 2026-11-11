@@ -306,8 +306,7 @@ class ContextFactsTest(TempProject):
         self.assertIn("缓存令牌ZZZ9377", text)
         self.assertIn("已作废：G-012", text)
 
-    def test_p4_marks_mixed_section_instead_of_dropping_it(self):
-        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+    MIXED = """<!-- kb:schema: 2 -->
 # 12 · 历史记录
 
 ## 1. 缓存区
@@ -319,13 +318,25 @@ class ContextFactsTest(TempProject):
 ### G-014 旧缓存策略
 <!-- kb:fact-meta: {"status":"deprecated","superseded_by":"G-013"} -->
 - 缓存令牌ZZZ9377 = 3600s
-""")
+"""
+
+    def test_mixed_section_keeps_valid_part_and_omits_deprecated(self):
+        self.write("12_旧.md", self.MIXED)
         data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
                            "--budget", "3000")
         text = " ".join(data["context"].values())
         self.assertIn("60s", text, "同一节里的有效内容不能因为邻居作废而被丢掉")
-        self.assertIn("已作废：G-014", text, "混合节要标出哪条已作废")
-        self.assertIn("G-013", text, "作废条目的替代 ID 要写在标注里")
+        self.assertNotIn("3600s", text, "作废的那几行必须置空，不能冒充当前配置")
+        self.assertIn("已省略 1 条已作废事实：G-014", text, "省略了就要说，别让读者以为没这条")
+
+    def test_mixed_section_kept_in_full_when_history_is_asked(self):
+        self.write("12_旧.md", self.MIXED)
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000", "--include-superseded")
+        text = " ".join(data["context"].values())
+        self.assertIn("60s", text)
+        self.assertIn("3600s", text, "问历史时作废值也要给出来")
+        self.assertIn("已作废：G-014", text, "给出来时必须标注，并指出替代 G-013")
 
 
 class EntryFileSafetyTest(TempProject):

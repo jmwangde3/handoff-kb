@@ -167,9 +167,20 @@ def section_marks(marks, sec):
     return [m for m in marks if sec.line <= m[0] <= sec.end]
 
 
-def dead_note(dead) -> str:
+def dead_note(dead, omitted: bool = False) -> str:
     ids = "、".join("%s%s" % (m[2], "（替代 %s）" % m[4] if m[4] else "") for m in dead[:3])
+    if omitted:
+        return "> 已省略 %d 条已作废事实：%s —— 要查历史请说明「以前 / 历史 / 作废」\n\n" % (
+            len(dead), ids)
     return "> 已作废：%s —— 以下内容仅作历史参考，不是当前配置。\n\n" % ids
+
+
+def relevant(hits) -> bool:
+    """P4 入场券：≥2 个关键词，或 1 个足够长的独特词。
+
+    「固件」这种两字词命中满库都是，不该拿来做 P4 的相关性证据。
+    """
+    return len(hits) >= P4_MIN_TERMS or (len(hits) == 1 and len(hits[0]) >= 4)
 
 
 def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
@@ -182,10 +193,13 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
       - 至少命中 P4_MIN_TERMS 个不同关键词，否则不补（返回 0 块是正确结果）
       - 归档默认不参与；流水/归档按权重降序靠后
       - 已经被 P0–P3 用过的文件/章节不重复加入
-      - **整节只有已作废事实**的章节默认不补；任务在问「历史/以前/作废」时
-        才带回，并在正文前标注「已作废」。混合有效/作废的章节保留并标注。
+      - **含已作废事实的章节**：默认把作废定义占的行置空（与 kb-search 同一口径），
+        同节仍然有效的内容保留并注明「已省略 N 条」；整节相关性全来自作废内容
+        （或标题行本身就是那条作废定义）时整节跳过并记进 dropped。
+        任务在问「历史/以前/作废」或显式 --include-superseded 时才原样带回，
+        并在正文前标注「已作废」。
 
-    返回 (rows, dropped)：dropped 是被过滤掉的「整节已作废」章节说明。
+    返回 (rows, dropped)：dropped 是被整节过滤掉的章节说明（只收「因作废而丢」的）。
     """
     dropped = []
     if not terms:
@@ -209,26 +223,40 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
             key = (rel, sec.id or sec.line)
             if key in used_section_keys:
                 continue
-            body = "\n".join(doc.lines[sec.start:sec.stop])
-            text = (sec.title or "") + "\n" + body
-            low = text.lower()
-            hits = [t for t in terms if t.lower() in low]
-            # 单一关键词也能算「确实相关」，但只有它足够长（≥4 字符）才算：
-            # 「固件」这种两字词命中满库都是，不该拿来做 P4 的入场券。
-            distinctive = len(hits) == 1 and len(hits[0]) >= 4
-            if len(hits) < P4_MIN_TERMS and not distinctive:
+            raw_body = "\n".join(doc.lines[sec.start:sec.stop])
+            raw_text = (sec.title or "") + "\n" + raw_body
+            # 相关性先按「原样内容」判：本节确实在讲任务问的东西，
+            # 才有资格进 dropped 报告；否则只是无关章节，不该拿来充数。
+            if not relevant([t for t in terms if t.lower() in raw_text.lower()]):
                 continue
             found = section_marks(marks, sec)
             dead = [m for m in found if m[3] == "deprecated"]
-            live = [m for m in found if m[3] != "deprecated"]
-            if dead and not live and not allow_deprecated:
-                dropped.append("%s:%d %s（%s）" % (
-                    rel, sec.line, sec.title or "（无标题）",
-                    "、".join(m[2] for m in dead[:3])))
-                continue
-            text = text.strip()
-            if dead:
-                text = dead_note(dead) + text
+            body_lines = list(doc.lines[sec.start:sec.stop])
+            if dead and not allow_deprecated:
+                # 置空作废定义占的行（保留行号），而不是整节丢弃：
+                # 同一节里往往还夹着仍然有效的当前值。
+                for m in dead:
+                    for ln in range(max(sec.start + 1, m[0]), min(sec.stop, m[1]) + 1):
+                        body_lines[ln - 1 - sec.start] = ""
+            body = "\n".join(body_lines)
+            text = (sec.title or "") + "\n" + body
+            hits = [t for t in terms if t.lower() in text.lower()]
+            if dead and not allow_deprecated:
+                # 标题行即那条作废定义、置空后什么都不剩、或者剩下的内容
+                # 已经和任务无关 —— 三种情况都不该把这一节塞进上下文。
+                own_dead = [m for m in dead if m[0] == sec.line]
+                if own_dead or not body.strip() or not relevant(hits):
+                    dropped.append("%s:%d %s（%s）" % (
+                        rel, sec.line, sec.title or "（无标题）",
+                        "、".join(m[2] for m in dead[:3])))
+                    continue
+                text = dead_note(dead, omitted=True) + text.strip()
+            else:
+                if not relevant(hits):
+                    continue
+                text = text.strip()
+                if dead:
+                    text = dead_note(dead) + text
             row = {"score": len(hits) * weight, "file": rel, "section_id": sec.id,
                    "heading": sec.title, "line": sec.line,
                    "text": text, "hits": hits, "role": role}
