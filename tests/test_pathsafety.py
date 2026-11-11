@@ -43,9 +43,10 @@ def link_dir(target, link) -> str:
     except OSError:
         pass
     r = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
-                       capture_output=True, text=True)
+                       capture_output=True)
     if r.returncode != 0:
-        raise OSError("无法创建目录链接：%s" % (r.stdout + r.stderr).strip())
+        raise OSError("无法创建目录链接：%s"
+                      % (r.stdout + r.stderr).decode("utf-8", "replace").strip())
     return "junction"
 
 

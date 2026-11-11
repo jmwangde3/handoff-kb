@@ -41,10 +41,15 @@ SCRIPT = Path(__file__).resolve()
 MARK = "kb-hooks.py"
 
 # 各客户端支持的事件与 matcher（以各自当前官方文档为准；不同客户端语义不通用）
+# 官方依据（2026-11 核对）：
+#   Codex  https://developers.openai.com/codex/hooks  （现跳转 learn.chatgpt.com/docs/hooks）
+#          SessionStart 的 source：startup / resume / clear / compact / fork
+#   Claude https://code.claude.com/docs/en/hooks
+#          SessionStart 的 matcher：startup / resume / clear / compact / fork
 CLIENT_SPEC = {
     "claude": {
         "events": {
-            "SessionStart": "startup|resume|clear|compact",
+            "SessionStart": "startup|resume|clear|compact|fork",
             "PreCompact": None,
             "Stop": None,
             "SessionEnd": None,
@@ -53,7 +58,8 @@ CLIENT_SPEC = {
     },
     "codex": {
         "events": {
-            "SessionStart": "startup|resume|compact|fork",
+            # 漏掉 clear 会导致「清空会话后重新开始」拿不到接手上下文 —— 2.0.1-hotfix 修。
+            "SessionStart": "startup|resume|clear|compact|fork",
             "PreCompact": None,
             "Stop": None,
         },
@@ -322,7 +328,8 @@ def plan_install(args, root: Path) -> list[dict]:
     rows = []
     for path, kind in target_paths(args.client, root):
         row = {"path": path.relative_to(root).as_posix(), "kind": kind,
-               "exists": path.exists(), "added": [], "removed": [], "kept": 0,
+               "exists": path.is_file(), "original_exists": path.is_file(),
+               "added": [], "removed": [], "kept": 0,
                "sha_before": None, "sha_after": None, "changed": False, "error": None}
         if kind == "json":
             before = ""
@@ -365,7 +372,8 @@ def plan_uninstall(args, root: Path) -> list[dict]:
     rows = []
     for path, kind in target_paths(args.client, root):
         row = {"path": path.relative_to(root).as_posix(), "kind": kind,
-               "exists": path.exists(), "added": [], "removed": [], "kept": 0,
+               "exists": path.is_file(), "original_exists": path.is_file(),
+               "added": [], "removed": [], "kept": 0,
                "sha_before": None, "sha_after": None, "changed": False, "error": None}
         if not path.is_file():
             rows.append(row)          # 不存在 → 零写入、幂等
@@ -424,32 +432,134 @@ def print_plan(rows, action: str, client: str):
 # 执行（唯一写盘处）
 # --------------------------------------------------------------------------- #
 
-def apply_rows(root: Path, rows, action: str) -> int:
-    bad = 0
+def _dir_problem(root: Path, path: Path) -> str:
+    """目标目录是否可安全写入：不能是越界链接，也不能是文件。"""
+    d = Path(path).parent
+    probe = d
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    if not scope.is_within(root, probe):
+        return scope.escape_reason(root, probe)
+    if d.exists() and not d.is_dir():
+        return "目标目录位置已被一个文件占用：%s" % d
+    return ""
+
+
+def _same_text(text: str, want: str) -> bool:
+    """比较时忽略 BOM 与换行风格（atomic_write 会沿用原文件风格）。"""
+    return (text or "").replace("\r\n", "\n") == (want or "").replace("\r\n", "\n")
+
+
+def preflight(root: Path, rows) -> list[str]:
+    """统一预检。任何一条不满足就整体不写 —— 多文件安装不能写一半。
+
+    同时记录 `original_exists` 与 `sha_before`：
+    只看哈希无法区分「文件本来不存在」和「文件已存在但内容相同」，
+    于是预览之后新建的用户文件会被当成自己该建的文件覆盖掉。
+    """
+    errs = []
     for r in rows:
         if r.get("error"):
-            print("ERR: %s：%s" % (r["path"], r["error"]), file=sys.stderr)
-            bad += 1
-            continue
-        if not r["changed"]:
-            print("= %s（无需改动）" % r["path"])
+            errs.append("%s：%s" % (r["path"], r["error"]))
             continue
         path = root / r["path"]
-        if r["sha_before"] is not None and path.is_file():
+        now_exists = path.is_file()
+        if bool(r["original_exists"]) != now_exists:
+            errs.append("%s 的存在状态在预览后变了（预览时 %s，现在 %s）"
+                        % (r["path"], "存在" if r["original_exists"] else "不存在",
+                           "存在" if now_exists else "不存在"))
+            continue
+        if now_exists:
             now = sha256_file(path)
             if now != r["sha_before"]:
-                print("ERR: %s 在预览后被改动（%s… → %s…），已放弃写入"
-                      % (r["path"], r["sha_before"][:8], now[:8]), file=sys.stderr)
-                bad += 1
+                errs.append("%s 在预览后被改动（%s… → %s…）"
+                            % (r["path"], (r["sha_before"] or "")[:8], now[:8]))
                 continue
-        if r.get("_delete") or not str(r.get("_text") or "").strip():
-            if path.is_file():
-                path.unlink()
-                print("- %s（已删除空配置）" % r["path"])
+        problem = _dir_problem(root, path)
+        if problem:
+            errs.append("%s 的目录不可用：%s" % (r["path"], problem))
+    return errs
+
+
+def _apply_all(root: Path, rows) -> tuple[bool, str]:
+    """真正的写盘处：全部通过预检后逐个写入，失败时尽力回滚本轮写入。"""
+    pending = [r for r in rows if r["changed"]]
+    if not pending:
+        for r in rows:
+            print("= %s（无需改动）" % r["path"])
+        return True, ""
+
+    snapshots = []
+    for r in pending:
+        p = root / r["path"]
+        snapshots.append({"path": p, "row": r, "existed": p.is_file(),
+                          "data": p.read_bytes() if p.is_file() else None})
+
+    done = []
+    try:
+        for r in pending:
+            path = root / r["path"]
+            if r.get("_delete") or not str(r.get("_text") or "").strip():
+                if path.is_file():
+                    path.unlink()
+                    print("- %s（已删除空配置）" % r["path"])
+            else:
+                atomic_write(path, r["_text"])
+                print("~ %s" % r["path"])
+            done.append(r)
+    except Exception as exc:
+        current = done[-1]["path"] if done else pending[0]["path"]
+        print("ERR: 写入 %s 失败：%s" % (current, exc), file=sys.stderr)
+        conflicts = _rollback(done, snapshots)
+        if conflicts:
+            print("ERR: 回滚时发现这些文件已被第三方改动，保留现场未覆盖：%s"
+                  % ", ".join(conflicts), file=sys.stderr)
+            return False, "回滚冲突"
+        print("-- 已回滚本轮全部写入（内容恢复为预览前）", file=sys.stderr)
+        return False, "已回滚"
+
+    for r in rows:
+        if not r["changed"] and not r.get("error"):
+            print("= %s（无需改动）" % r["path"])
+    return True, ""
+
+
+def _rollback(done, snapshots) -> list:
+    """只回滚「内容仍是我们写的那份」的文件；被改过的保留，交由人工处理。"""
+    by_path = {s["row"]["path"]: s for s in snapshots}
+    conflicts = []
+    for r in done:
+        snap = by_path[r["path"]]
+        p = snap["path"]
+        want = str(r.get("_text") or "")
+        if r.get("_delete") or not want.strip():
+            if p.exists():
+                conflicts.append(r["path"])
+                continue
+            if snap["existed"]:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_bytes(snap["data"])
             continue
-        atomic_write(path, r["_text"])
-        print("~ %s" % r["path"])
-    return bad
+        now = read_text_strict(p) if p.is_file() else ""
+        if not p.is_file() or not _same_text(now, want):
+            conflicts.append(r["path"])
+            continue
+        if snap["existed"]:
+            p.write_bytes(snap["data"])
+        else:
+            p.unlink()
+    return conflicts
+
+
+def apply_rows(root: Path, rows, action: str) -> int:
+    errs = preflight(root, rows)
+    if errs:
+        for e in errs:
+            print("ERR: %s" % e, file=sys.stderr)
+        print("ERR: 预检未通过，本次一个文件都没有写入。", file=sys.stderr)
+        return 2
+    ok, why = _apply_all(root, rows)
+    return 0 if ok else 2
 
 
 def cmd_install(args, root: Path) -> int:
@@ -634,15 +744,13 @@ def cmd_run(args, root: Path) -> int:
         loose = bool(getattr(args, "loose", False))
 
         if event == "SessionStart":
+            # startup / resume / clear / compact / fork 一视同仁：
+            # 都是「需要接手上下文」的时刻，注入同一份按预算裁过的上下文。
             text = _context_text(root, args.budget, loose)
             if not text:
                 return 0
-            if client == "codex":
-                _emit({"hookSpecificOutput": {"hookEventName": "SessionStart",
-                                              "additionalContext": text}})
-            else:
-                _emit({"hookSpecificOutput": {"hookEventName": "SessionStart",
-                                              "additionalContext": text}})
+            _emit({"hookSpecificOutput": {"hookEventName": "SessionStart",
+                                          "additionalContext": text}})
             return 0
 
         if event == "PreCompact":

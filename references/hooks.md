@@ -25,7 +25,18 @@
 
 - 除 `Stop` 外不主动「教育」模型；`Stop` 只在交接真缺内容时提示一次，**不阻断**结束。
 - 未知事件 / 目标不是交接库 / 项目根不可用 → 输出空对象、退出 0，会话不受影响。
-- Codex 的 `SessionStart` 额外带官方 matcher `startup|resume|compact|fork`，四种启动方式都注入。
+- 两家的 `SessionStart` 来源都是 `startup|resume|clear|compact|fork`，生成器对两家都写全五个
+  （2.0.1 漏了 `clear`，导致「清空会话后重新开始」拿不到接手上下文）。
+- 触发来源不影响运行时行为：五种来源都注入同一份按预算裁过的上下文。
+
+## 2.1 官方依据（2026-11 核对）
+
+| 客户端 | 文档 | 本仓库依赖的事实 |
+|---|---|---|
+| Codex | `developers.openai.com/codex/hooks`（现跳 `learn.chatgpt.com/docs/hooks`） | 三级结构 `事件 → [{matcher, hooks:[{type,command}]}]`；`SessionStart` 的 `source` 五值；`hookSpecificOutput.additionalContext`；`systemMessage` 属公共字段；`additionalContext` 默认约 2500 token 上限（超限写临时文件、只给头尾预览） |
+| Claude Code | `code.claude.com/docs/en/hooks` | 同三级结构；项目级 `.claude/settings.json` 生效但受 workspace trust 约束；`SessionStart` 的 matcher 五值；`additionalContext` 上限约 10,000 字符 |
+
+`--budget 1200` 是刻意压在两家的注入上限之内的：宁可少给一点，也不要被客户端截成头尾预览。
 
 ## 3. 安装位置与结构
 
@@ -64,7 +75,13 @@ py "$KB/scripts/kb-hooks.py" run --client claude --event SessionStart --target .
 ```
 
 - `--plan` 与不带 `--write` 都只打印，不落盘。
-- 写盘前**重校验 SHA**：预览之后文件被别人改过就放弃写入并报错，不覆盖。
+- 写盘前**双重预检**：`original_exists` + `sha_before` 都要与预览时一致。
+  只看哈希分不清「本来不存在」和「已存在但内容相同」，于是预览之后新建的用户文件
+  会被当成自己该建的文件覆盖掉——现在这种情形报 CONFLICT，不写。
+- **多文件安装是一个整体**：先对全部目标做预检，全部通过才逐个写；中途失败就把本轮
+  已写的文件恢复到预览前内容；若回滚时发现某文件被第三方改过，**保留现场**并报冲突，
+  不强行覆盖。（这是「预检 + 逐写 + 尽力回滚」，不是跨文件原子事务。）
+- 目标目录若是符号链接/Junction 指向库外，直接拒绝写入（`ERR … 目录不可用`）。
 - 现有 JSON 不合法时**拒绝改写**（退出码 2），不猜测、不吞掉你的配置。
 - 重复 `install` 幂等（同一事件只保留一条本工具的命令）；`uninstall` 幂等。
 
@@ -72,7 +89,12 @@ py "$KB/scripts/kb-hooks.py" run --client claude --event SessionStart --target .
 
 - Claude Code 的 `Stop` / `SessionEnd` 是否支持阻断、stdout 是否作为上下文注入，版本间有差异。
 - Codex 的 `hooks.json` 与 `config.toml` 两种来源**只启用一种**，别同时开；键名以其文档为准。
-- 某些客户端对 Hook 有信任/沙箱限制（未信任工作区不执行）。此时降级为手动跑 CLI，功能不缺。
+- **信任机制**：非托管 Hook 需审阅并按当前 hash 信任；改配置后重新进入待审阅状态，未信任前跳过。
+  没被信任不是故障，降级为手动跑 CLI，功能不缺。
+- 上述文档结论只覆盖到 2026-11；客户端升级后以官方文档为准，本仓库不承诺字节级兼容。
+
+> 本仓库做过的验证边界：**结构测试通过、模拟事件通过、真实客户端启动未验证。**
+> 六环境 CI 只跑 Python 单测与冒烟，不启动 Claude/Codex 客户端。
 
 ## 7. 出问题怎么退
 

@@ -4,18 +4,38 @@
 
 from __future__ import annotations
 
+import argparse
+import importlib.util
+import io
 import json
+import os
+import subprocess
 import sys
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import TempProject, run  # noqa: E402
+from common import SCRIPTS, TempProject, run  # noqa: E402
 
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
     tomllib = None
+
+
+def load_hooks_module():
+    """kb-hooks.py 带连字符，不能 import —— 按文件路径加载，才能测函数级竞态。"""
+    path = SCRIPTS / "kb-hooks.py"
+    spec = importlib.util.spec_from_file_location("kb_hooks_under_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def ns(**kw):
+    return argparse.Namespace(**kw)
 
 
 class HookPlanTest(TempProject):
@@ -186,6 +206,116 @@ class HookTomlStripTest(TempProject):
         text = path.read_text(encoding="utf-8") if path.is_file() else ""
         self.assertNotIn("kb-hooks.py", text)
         self.assertNotIn("[[hooks.", text)
+
+
+class HookLifecycleTest(TempProject):
+    """安装/卸载的竞态与多文件安全 —— 函数级测试，能精确制造「预览之后被改」。"""
+
+    def setUp(self):
+        super().setUp()
+        self.make_filled()
+        self.mod = load_hooks_module()
+
+    def _plan(self, action="install", client="claude"):
+        args = ns(client=client, target=str(self.root), loose=False, python=None,
+                  plan=True, write=True)
+        fn = self.mod.plan_install if action == "install" else self.mod.plan_uninstall
+        return fn(args, self.root)
+
+    def _apply(self, rows):
+        out, err = io.StringIO(), io.StringIO()
+        from contextlib import redirect_stderr
+        with redirect_stdout(out), redirect_stderr(err):
+            code = self.mod.apply_rows(self.root, rows, "install")
+        return code, out.getvalue() + err.getvalue()
+
+    def test_session_start_covers_all_official_sources(self):
+        """两家官方文档的 SessionStart 来源都是这五个：漏一个就少一次接手机会。"""
+        want = ("startup", "resume", "clear", "compact", "fork")
+        for client in ("codex", "claude"):
+            payload = self.mod.build_payload(client, self.root, False, None)
+            matcher = payload["hooks"]["SessionStart"][0]["matcher"]
+            for token in want:
+                self.assertIn(token, matcher, "%s 的 SessionStart 缺 %s" % (client, token))
+
+    def test_file_created_after_preview_is_not_clobbered(self):
+        rows = self._plan()
+        target = self.root / ".claude" / "settings.json"
+        self.assertFalse(rows[0]["original_exists"])
+        target.parent.mkdir()
+        target.write_text('{"mine": true}\n', encoding="utf-8")
+        code, out = self._apply(rows)
+        self.assertEqual(code, 2, out)
+        self.assertEqual(target.read_text(encoding="utf-8"), '{"mine": true}\n',
+                         "预览后新建的用户文件不得被覆盖")
+
+    def test_file_changed_after_preview_is_not_clobbered(self):
+        target = self.root / ".claude" / "settings.json"
+        target.parent.mkdir()
+        target.write_text('{"hooks": {}}\n', encoding="utf-8")
+        rows = self._plan()
+        target.write_text('{"hooks": {}, "edited": 1}\n', encoding="utf-8")
+        code, out = self._apply(rows)
+        self.assertEqual(code, 2, out)
+        self.assertIn("预览后被改动", out)
+        self.assertEqual(target.read_text(encoding="utf-8"), '{"hooks": {}, "edited": 1}\n')
+
+    def test_multi_file_failure_rolls_back(self):
+        """codex 装两个文件：第二个写失败时，第一个必须回滚掉。"""
+        rows = self._plan(client="codex")
+        self.assertEqual(len(rows), 2)
+        real = self.mod.atomic_write
+
+        def boom(path, text):
+            if str(path).endswith(".toml.txt"):
+                raise OSError("磁盘满了（模拟）")
+            return real(path, text)
+
+        err = io.StringIO()
+        buf = io.StringIO()
+        with mock.patch.object(self.mod, "atomic_write", boom), redirect_stdout(buf):
+            from contextlib import redirect_stderr
+            with redirect_stderr(err):
+                code = self.mod.apply_rows(self.root, rows, "install")
+        self.assertEqual(code, 2, buf.getvalue())
+        self.assertIn("已回滚", err.getvalue())
+        self.assertFalse((self.root / ".codex" / "hooks.json").exists(),
+                         "第一个文件本来不存在，回滚后必须仍不存在")
+
+    def test_dir_symlink_outside_is_refused(self):
+        outside = self.tmp / "outside"
+        outside.mkdir()
+        if os.name == "nt":
+            r = subprocess.run(["cmd", "/c", "mklink", "/J",
+                                str(self.root / ".codex"), str(outside)],
+                               capture_output=True)
+            if r.returncode != 0:
+                self.skipTest("本机无法创建目录链接：%s"
+                              % (r.stdout + r.stderr).decode("utf-8", "replace").strip())
+        else:
+            os.symlink(str(outside), str(self.root / ".codex"), target_is_directory=True)
+        p = run("kb-hooks.py", "install", "--client", "codex", "--target", self.root,
+                "--write")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("目录不可用", p.stderr)
+        self.assertEqual(list(outside.iterdir()), [], "库外目录里一个文件都不能写")
+
+    def test_uninstall_is_idempotent_without_files(self):
+        p = run("kb-hooks.py", "uninstall", "--client", "codex", "--target", self.root,
+                "--write")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertFalse((self.root / ".codex").exists())
+
+    def test_uninstall_refuses_when_json_edited_after_preview(self):
+        run("kb-hooks.py", "install", "--client", "claude", "--target", self.root, "--write")
+        rows = self._plan("uninstall")
+        target = self.root / ".claude" / "settings.json"
+        target.write_text(json.dumps({"hooks": {}, "edited": 1}), encoding="utf-8")
+        code, out = self._apply(rows)
+        self.assertEqual(code, 2, out)
+        self.assertIn("预览后被改动", out)
+        self.assertIn("edited", target.read_text(encoding="utf-8"),
+                      "拒绝写入时不得改动用户文件")
 
 
 if __name__ == "__main__":
