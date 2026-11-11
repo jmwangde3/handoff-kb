@@ -527,6 +527,20 @@ def root_id(root) -> str:
     return sha256_text(str(Path(root).resolve()).replace("\\", "/"))[:16]
 
 
+def inside(root, path, label: str) -> Path:
+    """事务相关路径（.kb-txn / backup / journal）必须在工作区内。
+
+    符号链接与 Windows Junction 都会被 resolve() 展开，
+    所以「看起来在 .kb-txn 下」不等于「真的是 .kb-txn 下的目录」。
+    """
+    from . import scope
+    p = Path(path)
+    if not scope.is_within(root, p):
+        raise SafeIOError("%s 指向工作区外：%s → 真实路径 %s"
+                          % (label, p, os.path.realpath(str(p))))
+    return p
+
+
 def _canonical(obj: dict) -> bytes:
     body = {k: v for k, v in obj.items() if k != "checksum"}
     return json.dumps(body, ensure_ascii=False, sort_keys=True,
@@ -606,12 +620,17 @@ class Transaction:
 
     def _prepare(self):
         self.dir.mkdir(parents=True, exist_ok=True)
-        (self.dir / "backup").mkdir(parents=True, exist_ok=True)
+        inside(self.root, self.dir, "事务目录")
+        bdir = self.dir / "backup"
+        bdir.mkdir(parents=True, exist_ok=True)
+        inside(self.root, bdir, "事务备份目录")
         entries = []
         for e in self.entries:
             src = self.root / e["path"]
             raw = src.read_bytes()
-            dst = self.dir / "backup" / e["path"]
+            dst = bdir / e["path"]
+            # 备份不得逃出事务目录（e["path"] 已过 check_rel_path，这里是第二道）
+            inside(bdir, dst, "备份目标")
             dst.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_bytes(dst, raw)
             bsha = sha256_bytes(raw)
@@ -626,6 +645,7 @@ class Transaction:
             "transaction_id": self.id,
             "root_id": root_id(self.root),
             "pid": os.getpid(),
+            "root": str(self.root),
             "host": host_name(),
             "session": self.session,
             "created": time.time(),
@@ -735,16 +755,31 @@ def pending_transactions(root):
       `.kb-txn/journal.json`          —— Transaction 正在/曾经进行中的现场
       `.kb-txn/<id>/journal.json`     —— 归档/测试构造的独立事务目录
     早先只扫子目录，导致真正崩溃留下的 `.kb-txn/journal.json` 对 recover 不可见。
+
+    安全：`.kb-txn` 本身或其中的子目录若是越界链接，**不进去读**，
+    但仍然返回一条 readable=False 的记录，让 recover 明确拒绝并保留现场。
     """
-    d = Path(root) / TXN_DIR
+    from . import scope
+    root = Path(root)
+    d = root / TXN_DIR
     out = []
     if not d.is_dir():
+        return out
+    if not scope.is_within(root, d):
+        out.append({"dir": str(d), "journal": None, "readable": False,
+                    "error": "事务目录指向工作区外（真实路径 %s）：拒绝读取与清理"
+                             % os.path.realpath(str(d))})
         return out
     dirs = []
     if (d / "journal.json").is_file():
         dirs.append(d)
     for sub in sorted(x for x in d.iterdir() if x.is_dir()):
         if sub.name == "backup" and not (sub / "journal.json").is_file():
+            continue
+        if not scope.is_within(root, sub):
+            out.append({"dir": str(sub), "journal": None, "readable": False,
+                        "error": "事务子目录指向工作区外（真实路径 %s）：拒绝读取与清理"
+                                 % os.path.realpath(str(sub))})
             continue
         dirs.append(sub)
     for sub in dirs:
@@ -797,6 +832,12 @@ def _classify(root: Path, journal: dict):
             row["backup_ok"] = False
             row["note"] = (row["note"] + " 备份路径非法").strip()
             problems.append(row)
+        elif not scope.is_within(journal.get("_dir") or ".", bpath):
+            # 备份可以是符号链接：'backup/x.md → /etc/passwd' 这种必须在读之前拒掉
+            row["backup_ok"] = False
+            row["state"] = "backup-outside"
+            row["note"] = (row["note"] + " 备份路径越界").strip()
+            problems.append(row)
         elif not bpath.is_file():
             row["backup_ok"] = False
             row["note"] = (row["note"] + " 备份缺失").strip()
@@ -823,6 +864,19 @@ def _report(root: Path, txn: dict, apply: bool) -> dict:
         return report
     journal = dict(txn["journal"])
     journal["_dir"] = txn["dir"]
+    # 事务身份：同一个 journal 换到别的目录（库被移动/复制/挂载点变了）时，
+    # 逐文件哈希可能「看起来都对」，但恢复会把内容写到不是原来那个库上。
+    want = root_id(root)
+    if journal.get("root_id") != want:
+        report["manual"] = True
+        report["action"] = "manual-recovery-required"
+        report["message"] = (
+            "root_id 不匹配（journal=%r，当前目录=%s）：这个事务不是在当前目录生成的"
+            "（库被移动/复制过？）。按设计拒绝自动恢复，journal 与备份原样保留。"
+            "确认无误后由人工迁移备份，或用 `kb-write.py recover` 的只读模式核对。"
+            % (journal.get("root_id"), want))
+        report["root_id"] = {"journal": journal.get("root_id"), "current": want}
+        return report
     rows, problems = _classify(root, journal)
     counts = {}
     for r in rows:
@@ -834,6 +888,10 @@ def _report(root: Path, txn: dict, apply: bool) -> dict:
                        S_ROLLBACK_CONFLICT, S_MANUAL)})
     if apply:
         report["action"] = _apply_one(root, report, journal, rows, problems)
+        # manual 必须反映**结论**：拒绝恢复的三种结局都算「要人工介入」，
+        # 否则 JSON 消费方会看到 manual=false + 一条拒绝动作，误判成已处理。
+        report["manual"] = report["action"].startswith(
+            ("manual-recovery-required", "backup-corrupt", "conflict"))
     elif report["requires_manual"]:
         report["action"] = "manual-recovery-required"
     else:
@@ -873,6 +931,11 @@ def _apply_one(root: Path, report: dict, journal: dict, rows, problems) -> str:
     if problems:
         return ("manual-recovery-required（%d 个文件有问题：%s）；保留事务目录与备份"
                 % (len(problems), ", ".join(sorted({p["state"] for p in problems}))))
+    # 清理/写回前重新确认事务目录身份：预览与执行之间它可能被换成越界链接
+    try:
+        inside(root, tdir, "事务目录")
+    except SafeIOError as exc:
+        return "manual-recovery-required（%s）" % exc
 
     states = [r["state"] for r in rows]
     if journal.get("state") == S_COMMITTED or all(s == "written" for s in states):
@@ -891,10 +954,19 @@ def _apply_one(root: Path, report: dict, journal: dict, rows, problems) -> str:
         backup = tdir / entry["backup"]
         if not backup.is_file():
             return "manual-recovery-required（备份缺失：%s）" % r["path"]
+        inside(tdir, backup, "备份文件")
         raw = backup.read_bytes()
         if sha256_bytes(raw) != entry["backup_sha256"]:
             return "backup-corrupt（%s 的备份哈希不匹配，拒绝写回）" % r["path"]
         target = root / r["path"]
+        # 替换前**再**校验一次：分类与写回之间可能有编辑器落盘。
+        # 这不是跨进程 CAS（外部编辑器不受锁约束），但把竞争窗口压到最小，
+        # 且一旦发现变化就停下，绝不覆盖别人刚写的内容。
+        now = sha256_bytes(target.read_bytes()) if target.is_file() else ""
+        if now != r["sha_after"]:
+            return ("conflict（%s 在恢复过程中被改动：期望 %s，实际 %s）；"
+                    "未覆盖，保留事务目录与备份" % (r["path"], (r["sha_after"] or "")[:8],
+                                                (now or "缺失")[:8]))
         atomic_write_bytes(target, raw, mode_from=target)
         restored.append(r["path"])
     shutil.rmtree(tdir, ignore_errors=True)

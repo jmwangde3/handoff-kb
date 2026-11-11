@@ -40,12 +40,47 @@ def rel_posix(path: Path, root: Path) -> str:
 
 
 def is_within(root: Path, path: Path) -> bool:
+    """真实路径是否落在 root 内。
+
+    用 `resolve()` 规范化后再比较路径组成，**不做字符串前缀判断**：
+    `C:\\project-backup` 的前缀是 `C:\\project`，但它是另一个目录。
+    """
     root = Path(root).resolve()
     try:
         Path(path).resolve().relative_to(root)
         return True
     except ValueError:
         return False
+
+
+def real_rel(root: Path, path: Path) -> str:
+    """真实路径相对根的 posix 形式；越界返回空串（调用方据此拒绝）。"""
+    try:
+        return Path(path).resolve().relative_to(Path(root).resolve()).as_posix()
+    except ValueError:
+        return ""
+
+
+def escape_reason(root: Path, path: Path) -> str:
+    """越界诊断：同时给出原始路径与真实路径，避免「看起来在库里」。"""
+    return "%s → 真实路径 %s 不在 %s 内" % (path, os.path.realpath(str(path)),
+                                            Path(root).resolve())
+
+
+def check_dir(root: Path, path, *, label: str = "目录") -> Path:
+    """目录级校验：必须存在、是目录、真实路径仍在根内。
+
+    符号链接与 Windows Junction 都会被 `resolve()` 展开，
+    所以「指向库外的目录」在这里一律拒绝，而不是靠 `is_dir()` 放行。
+    """
+    p = Path(path)
+    if not p.exists():
+        raise ScopeError("%s不存在：%s" % (label, p))
+    if not p.is_dir():
+        raise ScopeError("%s不是目录：%s" % (label, p))
+    if not is_within(root, p):
+        raise ScopeError("%s越界：%s" % (label, escape_reason(root, p)))
+    return p
 
 
 def check_rel_path(root: Path, rel: str, *, must_be_text: bool = True) -> Path:
@@ -92,11 +127,25 @@ def is_archive_dir(name: str) -> bool:
 
 
 def iter_text_files(root: Path, *, include_archive: bool = False,
-                    include_data: bool = False, max_bytes: int = protocol.MAX_TEXT_BYTES):
-    """遍历根下文本文件，产出 (Path, reason_or_None)。reason 非空表示被跳过。"""
+                    include_data: bool = False, max_bytes: int = protocol.MAX_TEXT_BYTES,
+                    audit: list | None = None):
+    """遍历根下文本文件，产出 (Path, reason_or_None)。reason 非空表示被跳过。
+
+    目录级安全：每个目录都用 `os.path.realpath` 解析后核对是否仍在根内，
+    越界的符号链接 / Windows Junction 会被**剪枝**（不下降、不读取），
+    并以 `dir-outside` 产出一次诊断，交给调用方决定报 WARN 还是 ERR。
+    """
     root = Path(root).resolve()
     for dirpath, dirnames, filenames in os.walk(root):
         d = Path(dirpath)
+        # os.walk 默认不跟随符号链接，但 Junction 在 Windows 上不是 islink，
+        # 所以这里逐个用 realpath 核对，不能只信任 walk 的行为。
+        if d != root and not is_within(root, d):
+            yield d, "dir-outside"
+            if audit is not None:
+                audit.append((str(d), "dir-outside", escape_reason(root, d)))
+            dirnames[:] = []
+            continue
         keep = []
         for name in sorted(dirnames):
             low = name.lower()
@@ -104,14 +153,22 @@ def iter_text_files(root: Path, *, include_archive: bool = False,
                 continue
             if not include_archive and is_archive_dir(name):
                 continue
+            sub = d / name
+            if not is_within(root, sub):
+                yield sub, "dir-outside"
+                if audit is not None:
+                    audit.append((str(sub), "dir-outside", escape_reason(root, sub)))
+                continue
             keep.append(name)
         dirnames[:] = keep
         for name in sorted(filenames):
             p = d / name
             if p.suffix.lower() not in protocol.TEXT_EXTS:
                 continue
-            if p.is_symlink() and not is_within(root, p):
+            if not is_within(root, p):
                 yield p, "symlink-outside"
+                if audit is not None:
+                    audit.append((str(p), "symlink-outside", escape_reason(root, p)))
                 continue
             try:
                 size = p.stat().st_size
@@ -132,14 +189,22 @@ def load_text(path: Path) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def role_files(root: Path, loose: bool = False):
-    """{role: [paths]}；固定文件优先精确命名，绝不用 `05_*.md` 这类通配。"""
+def role_files(root: Path, loose: bool = False, audit: list | None = None):
+    """{role: [paths]}；固定文件优先精确命名，绝不用 `05_*.md` 这类通配。
+
+    只收真实路径仍在根内的文件：根层的符号链接指向库外时跳过并记诊断，
+    不能让「库外文件」冒充 00/05 参与装配。
+    """
     root = Path(root)
     roles = {}
     if not root.is_dir():
         return roles
     for p in sorted(root.iterdir()):
         if not p.is_file() or p.suffix.lower() not in protocol.TEXT_EXTS:
+            continue
+        if not is_within(root, p):
+            if audit is not None:
+                audit.append((str(p), "file-outside", escape_reason(root, p)))
             continue
         role = protocol.role_of_name(p.name, loose=loose)
         roles.setdefault(role, []).append(p)
@@ -155,13 +220,19 @@ def role_files(root: Path, loose: bool = False):
     return roles
 
 
-def shard_dirs(root: Path, loose: bool = False):
-    """分片目录列表：规范 `06_流水/`；loose 再认 `60_流水/` 等别名。"""
+def shard_dirs(root: Path, loose: bool = False, audit: list | None = None):
+    """分片目录列表：规范 `06_流水/`；loose 再认 `60_流水/` 等别名。
+
+    越界的目录（符号链接 / Junction 指向库外）**不进入结果**，只记诊断。
+    """
     root = Path(root)
     out = []
     canon = root / protocol.SHARD_DIR
     if canon.is_dir():
-        out.append(canon)
+        if is_within(root, canon):
+            out.append(canon)
+        elif audit is not None:
+            audit.append((str(canon), "dir-outside", escape_reason(root, canon)))
     if loose:
         skip = excluded_dir_names()
         for p in sorted(root.iterdir()):
@@ -170,12 +241,23 @@ def shard_dirs(root: Path, loose: bool = False):
             if p.name.lower() in skip:
                 continue
             if protocol.SHARD_DIR_RE.match(p.name):
-                out.append(p)
+                if is_within(root, p):
+                    out.append(p)
+                elif audit is not None:
+                    audit.append((str(p), "dir-outside", escape_reason(root, p)))
     return out
 
 
-def shards(root: Path, loose: bool = False):
+def shards(root: Path, loose: bool = False, audit: list | None = None):
+    """分片文件。目录已由 shard_dirs 把关，这里再核一次文件级真实路径。"""
     files = []
-    for d in shard_dirs(root, loose):
-        files.extend(sorted(p for p in d.glob("*.md") if p.is_file()))
+    for d in shard_dirs(root, loose, audit=audit):
+        for p in sorted(d.glob("*.md")):
+            if not p.is_file():
+                continue
+            if not is_within(root, p):
+                if audit is not None:
+                    audit.append((str(p), "file-outside", escape_reason(root, p)))
+                continue
+            files.append(p)
     return files

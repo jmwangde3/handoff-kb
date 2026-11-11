@@ -215,11 +215,12 @@ ssh r1 'cat /etc/version'
 """)
 
 
-def write_txn(root, name, entries, state="prepared", schema=2):
+def write_txn(root, name, entries, state="prepared", schema=2, root_id=None):
     """在 root/.kb-txn/<name> 写一个 v2 journal（带 checksum 与真实备份）。
 
     entries: [{"path","sha_before","sha_after","op","backup_bytes"}]
     schema=1 用于构造「旧/不支持 schema」的损坏现场。
+    root_id 默认写**真实**的 root_id；要构造「库被移动过」的现场就显式传别的值。
     """
     import json
     import os
@@ -241,7 +242,8 @@ def write_txn(root, name, entries, state="prepared", schema=2):
             "backup_sha256": safeio.sha256_bytes(bp.read_bytes()),
             "state": "staged",
         })
-    journal = {"schema_version": schema, "transaction_id": name, "root_id": "test",
+    journal = {"schema_version": schema, "transaction_id": name,
+               "root_id": root_id if root_id is not None else safeio.root_id(root),
                "pid": os.getpid(), "host": safeio.host_name(), "session": "t",
                "created": time.time(), "updated": time.time(), "state": state,
                "entry_count": len(jentries), "entries": jentries}
