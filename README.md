@@ -1,6 +1,6 @@
-# handoff-kb 2.0.1-hotfix
+# handoff-kb 2.0.2
 
-> **工具版本** `2.0.1-hotfix`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
+> **工具版本** `2.0.2`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
 > 两者独立：换工具版本不改协议，也不要求现有库迁移。
 
 **给多会话并行项目的分层交接库。** 一套 Markdown 协议 + 十个零依赖 Python 脚本：让「上下文快满、几条线同时推、文档越堆越多」的项目，新会话接手时只读固定的一小份，而不是全库重读。
@@ -214,7 +214,7 @@ py "$KB/scripts/kb-check.py" --target . --mode template  # 刚初始化的空模
 
 体积统计**分两层报**：正文（不含 `归档/`）与归档各自计数，接手成本只对正文算；跳过 `AI_files/` / `assets/` / `data/` / `output/` / `evidence/` / `unpack/` / `_tmp/` / `node_modules/` / `build/` 等资料目录与 >2 MB 文本。归档长期大于正文 3 倍会报 WARN——备份该折叠了。
 
-编号检查认「定义位」：标题首、列表首、表格首列，**跨文件**都算（`## G-010 …` 就是定义）；只在句子里提到的算引用。`--loose` 下未定义引用降为 WARN，避免自有命名项目一上来就 10 条 ERR。
+编号检查认「定义位」：标题首、列表首、表格首列，**跨文件**都算（`## G-010 …` 就是定义）；只在句子里提到的算引用。`--loose` 下未定义引用降为 WARN，避免自有命名项目一上来就 10 条 ERR。`--loose` 还把 `20_数据` / `30_mod开发` / `50_死路与坑` 这类数字分册当事实线（别名先判，`60_进度` 等仍按各自角色走）。
 
 ---
 
@@ -237,16 +237,16 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 269 个用例
+python -m unittest discover -s tests        # 277 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
 ```
 
-- 测试覆盖（269 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
+- 测试覆盖（277 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底）、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
 - `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价。
 - CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
-- benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平。
+- benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平；任务通过率门槛 80% **向上取整**（8 个任务要 7 个过，`round()` 会把 6.4 抹成 6）。
 - 每项测试/CI/客户端集成**实际到什么程度**，写在 §17 而不是这里；本节只保证命令能跑。
 
 ---
@@ -299,7 +299,7 @@ scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
 scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
-tests/                      269 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+tests/                      277 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
 tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
@@ -405,6 +405,23 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 1) 先把 P2 真正装配进去，2) 按**最终渲染**收敛预算，3) 把装不下的线写进 `omitted_lines` 与缺口。
 宁可数字变大，也不把「漏给」记成「省了」。
 
+### 16.8 2.0.2：门槛取整、记录计数、自有命名分册
+
+三处都是「规则写了，实际没生效」，在真实库（FFRS）上各踩到一次：
+
+1. **质量门 80% 被 `round()` 抹成 75%**：`need = int(round(len(graded) * 0.8))`，
+   8 个可评任务时 `round(6.4) = 6`，6/8 = 75% 也能过，报告照样打印「≥80%」。
+   现在改用整数运算向上取整 `max(1, (total*4 + 4) // 5)`——不用 `math.ceil(total*0.8)`，
+   因为 `15 * 0.8 = 12.000000000000002` 会被 ceil 成 13。8 个任务现在需要 7 个通过。
+2. **`05 最近记录` 只数 `-` / `*` 行**：全用 `[2026-11-12 09:20] …` 记流水的库恒报「0 条」，
+   ≤5 条的阈值形同虚设（真实库明明有 5 条，一直显示 0 条假绿）。
+   现在列表项、编号项、时间戳开头三种形态都算，表格行 / 引用行 / 代码围栏跳过。
+3. **`--loose` 只把 10–17 当事实分册**：自有命名项目的事实线常是 `20_数据与解包.md` /
+   `30_mod开发.md` / `50_死路与坑.md`，此前全被判成 `other`，P2 永远只有第一条线，
+   「单工作线排障」任务也就永远命中不了 `fact.pitfalls`。
+   现在 loose 下数字分册兜底算 fact——别名先判，`60_进度` / `61_流水` / `00_INDEX` / `90_归档`
+   仍按各自角色走，不会被吞成 fact。标准命名（无 `--loose`）行为不变。
+
 ---
 
 ## 17. 测试与验证状态（诚实版）
@@ -415,7 +432,7 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **269 passed**（起点 201，本版新增 68；无 skip） |
+| `python -m unittest discover -s tests` | **277 passed**（起点 201，累计新增 76；无 skip） |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
 | `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |
