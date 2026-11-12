@@ -14,11 +14,20 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.12", "3.13"]
+    # 中文输出与中文路径在 Windows 控制台上默认走 cp1252/cp936，
+    # 断言里带中文时容易出现「本地过、CI 红」的假失败。这里固定 UTF-8。
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+
+      - name: 环境信息（失败时先看这一段）
+        run: |
+          python -c "import sys, platform, os; print('python', sys.version); print('platform', platform.platform()); print('fsencoding', sys.getfilesystemencoding()); print('cwd', os.getcwd())"
 
       - name: 单元测试
         run: python -m unittest discover -s tests -v

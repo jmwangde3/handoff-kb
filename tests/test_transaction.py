@@ -15,7 +15,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from common import write_txn  # noqa: E402
+from common import same_path, write_txn  # noqa: E402
 from lib import safeio  # noqa: E402
 
 
@@ -104,7 +104,7 @@ class TxnTest(unittest.TestCase):
 
         def tamper(path, data, mode_from=None):
             real(path, data, mode_from)
-            if Path(path) == self.root / "a.md":      # 只对正文生效，不干扰备份写入
+            if same_path(path, self.root / "a.md"):   # 只对正文生效，不干扰备份写入
                 (self.root / "b.md").write_bytes(b"B-third\n")
 
         with mock.patch.object(safeio, "atomic_write_bytes", tamper):

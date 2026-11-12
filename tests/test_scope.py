@@ -97,7 +97,11 @@ class FilesTest(unittest.TestCase):
 
     def test_check_rel_path_rejects_unsafe(self):
         self.touch("05_进度仪表盘.md")
-        for bad in ("../x.md", "/etc/passwd", "C:/Windows/x.md", "a.exe", "", " x.md"):
+        bad_paths = ("../x.md", "/etc/passwd", "C:/Windows/x.md", "a.exe", "", " x.md",
+                     # Windows 绝对路径的各类写法必须在**所有平台**都拒绝：
+                     # 不能因为 POSIX 上 PurePath.drive 为空就放行（CI 六环境分歧的根因）
+                     "C:\\Windows\\x.md", "\\\\server\\share\\x.md", "C:")
+        for bad in bad_paths:
             with self.assertRaises(scope.ScopeError, msg=bad):
                 scope.check_rel_path(self.root, bad)
         ok = scope.check_rel_path(self.root, "06_流水/新.md")
@@ -106,6 +110,8 @@ class FilesTest(unittest.TestCase):
         sub.mkdir(exist_ok=True)
         ok = scope.check_rel_path(self.root, "06_流水/新.md")
         self.assertTrue(scope.is_within(self.root, ok))
+        # 单字母+冒号但不是盘符形态的文件名不应被误杀
+        self.assertTrue(scope.check_rel_path(self.root, "ab:笔记.md"))
 
     def test_is_data_path(self):
         p = self.touch("data/产物.md")

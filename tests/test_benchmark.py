@@ -40,9 +40,9 @@ class BenchmarkTest(TempProject):
 
     def test_error_path_is_listed_separately(self):
         data, _ = self.bench()
-        err = [r for r in data["rows"] if not r["counted"]]
+        err = [r for r in data["rows"] if not r["counted"] and r["graded"]]
         self.assertEqual(len(err), 1)
-        self.assertEqual(err[0]["id"], 10)
+        self.assertEqual(err[0]["title"], "错误项目路径")
         self.assertEqual(err[0]["c"], 0)
         self.assertIn("拒绝", err[0]["quality"])
 
@@ -53,14 +53,54 @@ class BenchmarkTest(TempProject):
         mean = sum(r["c"] for r in counted) / len(counted)
         self.assertEqual(data["tokens"]["C_mean"], round(mean, 1))
 
-    def test_eight_quality_metrics_present(self):
+    def test_quality_metrics_present(self):
         data, _ = self.bench()
-        self.assertEqual(len(data["metrics"]), 8)
+        want = {"section_hit", "fact_hit", "constraint_kept", "gap_honest",
+                "budget_honest", "tokenizer_consistent", "error_rejected",
+                "lines_honest", "archive_excluded", "p4_bounded"}
+        self.assertEqual(set(data["metrics"]), want)
         for key, m in data["metrics"].items():
             self.assertLessEqual(m["passed"], m["total"], key)
             self.assertTrue(m["label"])
         self.assertEqual(data["metrics"]["error_rejected"]["passed"], 1)
         self.assertEqual(data["metrics"]["constraint_kept"]["total"], 9)
+
+    def test_must_pass_set_is_declared_and_hard(self):
+        data, _ = self.bench()
+        must = set(data["gate"]["must_pass"])
+        self.assertEqual(must, {"constraint_kept", "error_rejected", "budget_honest",
+                               "lines_honest", "tokenizer_consistent"})
+        self.assertTrue(must <= set(data["metrics"]))
+        self.assertTrue(data["gate"]["hard_ok"], "正常夹具上关键项应全部通过")
+
+    def test_word_in_constraints_does_not_grant_fact_pass(self):
+        """P0 里有「作废」两个字不算命中：作废任务必须真的找到那个事实 ID 和状态。"""
+        dash = self.read("05_进度仪表盘.md").replace(
+            "- 不擅自重启 r1；凭证不入库。",
+            "- 不擅自重启 r1；作废与待核都要标明。")
+        self.write("05_进度仪表盘.md", dash)
+        # 把唯一的作废事实整行删掉，再看作废任务是被判「跳过」还是「通过」
+        base = self.read("00_基线.md")
+        lines = [ln for ln in base.splitlines()
+                 if not ln.strip().startswith("| K-03 |")]
+        self.write("00_基线.md", "\n".join(lines) + "\n")
+        data, _ = self.bench()
+        row = next(r for r in data["rows"] if r["id"] == 5)
+        self.assertIn("跳过", row["quality"],
+                      "库里没有作废事实时必须跳过，不能用 P0 里的词冒充命中：%s" % row)
+
+    def test_multi_line_recall_is_classified(self):
+        data, _ = self.bench()
+        recall = data["recall"]
+        self.assertEqual(sum(recall.values()), 1, "多工作线任务只有一条")
+        self.assertIn(recall["full"] + recall["partial"] + recall["silent"], (0, 1))
+        self.assertEqual(data["metrics"]["lines_honest"]["total"], 9)
+
+    def test_p4_bounded_is_reported(self):
+        data, _ = self.bench()
+        m = data["metrics"]["p4_bounded"]
+        self.assertEqual(m["total"], 9)
+        self.assertEqual(m["passed"], m["total"], "正常任务上 P4 都应在 3 块 / 30% 之内")
 
     def test_gate_fails_when_quality_drops(self):
         """把 05 的硬约束段删掉：约束保留率下降，工具必须报失败而不是照样打勾。"""

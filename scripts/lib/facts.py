@@ -21,6 +21,13 @@
   - 只有「定义位」才算定义：标题首 / 列表首 / 表格首列。句中提到一律算引用。
   - 重复定义不静默覆盖：全部保留在列表里，由调用方报 ERR。
   - 元数据解析失败不默认「有效」，标 unknown + meta_error。
+
+索引页（文件名形如 `00_INDEX.md` / `00_索引.md` / `目录.md`）里的条目算**指针**：
+它们写着同一批 ID，但只有「见某文件」的导航作用，不带状态与证据。指针条目会让
+「重复定义」在健康的库上天天报 ERR（真实库实测 4 条），所以：
+  - 指针定义仍被解析（不丢事实），但标 `pointer=True`；
+  - 重复检查只看非指针定义；只有**全库只剩指针**时才退回按指针算（避免整库事实消失）；
+  - 读取「这条事实现在是什么」时优先取非指针定义（`canonical()`）。
 """
 
 from __future__ import annotations
@@ -38,6 +45,9 @@ META_RE = re.compile(r"^\s*<!--\s*kb:fact-meta:\s*(\{.*\})\s*-->\s*$")
 HEADING_RE = re.compile(r"^(#{1,6})\s*[`*\s]*([KG]-\d{2,3})\b\s*[`*]?\s*(.*)$")
 LIST_RE = re.compile(r"^(\s*[-*+]\s*)[`*]*([KG]-\d{2,3})[`*]*\s*(?:[:：]\s*)?(.*)$")
 TABLE_RE = re.compile(r"^\|\s*[`*\s]*([KG]-\d{2,3})\s*\|")
+
+# 索引页文件名：00_INDEX.md / 00_索引.md / 索引目录.md / index.md / TOC.md
+INDEX_NAME_RE = re.compile(r"(?:^|[_\-\s.])(?:index|索引|目录|toc)(?:$|[_\-\s.]|\d)", re.I)
 
 STATUS_MAP = {
     "有效": "valid", "valid": "valid", "ok": "valid", "✅": "valid",
@@ -73,6 +83,7 @@ class FactDefinition:
     volatility: str = "unknown"
     superseded_by: str = ""
     meta_error: str = ""
+    pointer: bool = False           # 出现在索引页里：是指针，不是规范定义
     meta: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
@@ -81,7 +92,8 @@ class FactDefinition:
                 "title": self.title, "status": self.status,
                 "evidence": self.evidence, "verified_at": self.verified_at,
                 "owner": self.owner, "volatility": self.volatility,
-                "superseded_by": self.superseded_by, "meta_error": self.meta_error}
+                "superseded_by": self.superseded_by, "meta_error": self.meta_error,
+                "pointer": self.pointer}
 
 
 @dataclass
@@ -228,10 +240,36 @@ def _meta_after(doc, lineno: int, kind: str) -> dict:
     return {}
 
 
+def is_index_page(rel: str) -> bool:
+    """这个文件是不是「索引页」（按文件名判定，不看内容）。
+
+    只认 `INDEX` / `索引` / `目录` / `TOC` 这类**整词**命名，例如
+    `00_INDEX.md`、`00_索引.md`、`索引目录.md`。`00_共享页.md` 不算。
+    """
+    stem = Path(rel).name
+    if stem.lower().endswith(".md"):
+        stem = stem[:-3]
+    return bool(INDEX_NAME_RE.search(stem))
+
+
+def canonical(items) -> list:
+    """同一 ID 的多处定义里，规范定义排在前面（索引页指针排最后）。
+
+    指针条目没有状态与证据，用它当「这条事实现在是什么」的答案是错的。
+    全是指针时按原顺序返回——那是这个库唯一的事实来源，不能丢。
+    """
+    items = list(items or [])
+    real = [d for d in items if not d.pointer]
+    if not real:
+        return items
+    return real + [d for d in items if d.pointer]
+
+
 def _mk(fid, rel, kind, start, end, title, meta, doc, lineno,
         haystack: str = "") -> FactDefinition:
     d = FactDefinition(id=fid, path=rel, definition_type=kind,
-                       line_start=start, line_end=end, title=title)
+                       line_start=start, line_end=end, title=title,
+                       pointer=is_index_page(rel))
     if meta.get("_raw"):
         try:
             data = json.loads(meta["_raw"])
@@ -305,7 +343,26 @@ def find_fact_references(root, include_archive: bool = False) -> list[FactRefere
 
 
 def duplicates(defs_by_id) -> dict[str, list[FactDefinition]]:
-    return {k: v for k, v in defs_by_id.items() if len(v) > 1}
+    """真正需要报的重复定义：同一 ID 在**非指针**定义里有 2 处以上。
+
+    索引页 + 分册各一条不是重复，是「导航页指向事实页」，不该拦人。
+    """
+    out = {}
+    for k, v in defs_by_id.items():
+        real = [d for d in v if not d.pointer] or list(v)
+        if len(real) > 1:
+            out[k] = v
+    return out
+
+
+def pointer_only(defs_by_id) -> dict[str, list[FactDefinition]]:
+    """有规范定义、但索引页里也写了同一个 ID 的情况（只报提示，不算重复）。"""
+    out = {}
+    for k, v in defs_by_id.items():
+        ptr = [d for d in v if d.pointer]
+        if ptr and len(ptr) < len(v):
+            out[k] = ptr
+    return out
 
 
 def validate_fact_metadata(root, include_archive: bool = False):
@@ -314,11 +371,12 @@ def validate_fact_metadata(root, include_archive: bool = False):
     defs, problems = parse_fact_definitions(root, include_archive=include_archive)
     issues = []
     for fid, items in defs.items():
-        if len(items) > 1:
+        real = [d for d in items if not d.pointer] or list(items)
+        if len(real) > 1:
             issues.append({"kind": "duplicate", "id": fid, "locations":
-                           ["%s:%d" % (d.path, d.line_start) for d in items],
-                           "message": "%s 重复定义 %d 次" % (fid, len(items))})
-        for d in items:
+                           ["%s:%d" % (d.path, d.line_start) for d in real],
+                           "message": "%s 重复定义 %d 次" % (fid, len(real))})
+        for d in real:
             if d.meta_error:
                 issues.append({"kind": "meta", "id": fid, "path": d.path,
                                "line": d.line_start, "message": d.meta_error})
@@ -365,6 +423,10 @@ def update_fact_definition(text: str, fact_id: str, content: str, rel: str = "")
     - heading：只替换标题行，保留其下正文
     - list   ：替换该列表行
     - table  ：替换该表格行（content 必须是表格行）
+
+    **ID 不可变**：替换后的行必须仍然定义同一个 `fact_id`。
+    `update_fact(K-01, "## K-99 新事实")` 会被拒绝 —— 那不是「更新 K-01」，
+    而是「用一次更新悄悄把 K-01 换成了 K-99」，全库的 `§`/`K-01` 引用会指向空气。
     """
     if not protocol.FACT_ID_RE.fullmatch(fact_id or ""):
         raise FactError("fact_id 非法：%r（形如 K-01 / G-007）" % fact_id)
@@ -407,24 +469,98 @@ def update_fact_definition(text: str, fact_id: str, content: str, rel: str = "")
     kind, lineno = hits[0]
     lines = text.splitlines()
     idx = lineno - 1
+    body_lines = [ln for ln in content.splitlines() if ln.strip()]
+    if len(body_lines) > 1:
+        # 只替换定义行；多出来的行会被静默丢弃 —— 那等于替用户删内容
+        raise FactError("%s 定义是单行（%s），content 只允许一行；"
+                        "要改正文请用 replace_section 写整节" % (fact_id, kind))
     if kind == "heading":
         if not content.lstrip().startswith("#"):
             raise FactError("heading 定义要用标题行替换（content 应以 # 开头）")
-        lines[idx] = content.splitlines()[0]
+        lines[idx] = body_lines[0]
     elif kind == "list":
         if not content.lstrip().startswith(("-", "*", "+")):
             raise FactError("list 定义要用列表行替换（content 应以 - 开头）")
-        lines[idx] = content.splitlines()[0]
+        lines[idx] = body_lines[0]
     else:
         if not content.lstrip().startswith("|"):
             raise FactError("table 定义要用表格行替换（content 应以 | 开头）")
         old_cells = len(_cells(lines[idx]))
-        new_line = content.splitlines()[0]
+        new_line = body_lines[0]
         if len(_cells(new_line)) != old_cells:
             raise FactError("表格行必须保持 %d 列（收到 %d 列）"
                             % (old_cells, len(_cells(new_line))))
         lines[idx] = new_line
+
+    # ID 不可变：替换后的那一行必须仍然定义 fact_id，且定义形式一致
+    got = _definition_id_of(lines[idx], kind)
+    if got != fact_id:
+        raise FactError(
+            "替换内容不再定义 %s（这一行定义的是 %r）：事实 ID 不可变。\n"
+            "  要换 ID 请显式改名并同步全库引用，不要用 update_fact 顺手改。"
+            % (fact_id, got))
     out = "\n".join(lines)
     if text.endswith("\n"):
         out += "\n"
     return out
+
+
+def _definition_id_of(line: str, kind: str):
+    """某一行在指定定义形式下定义的是哪个 ID（不是定义位就返回 None）。"""
+    if kind == "heading":
+        m = HEADING_RE.match(line)
+        return m.group(2) if m else None
+    if kind == "list":
+        m = LIST_RE.match(line)
+        return m.group(2) if m else None
+    m = TABLE_RE.match(line)
+    return m.group(1) if m else None
+
+
+def definition_text(root, d: FactDefinition, *, max_chars: int = 4000) -> str:
+    """把一条事实定义渲染成可直接放进上下文的文本。
+
+    - heading：标题 + 该标题下的正文（到下一个同级标题前）
+    - list   ：这一行
+    - table  ：表头 + 这一行（否则只有一行数据，读不出列含义）
+    """
+    p = Path(root) / d.path
+    try:
+        doc = md.parse_file(p)
+    except Exception:
+        return ""
+    lines = [ln.rstrip("\r") for ln in doc.lines]
+    start = max(0, d.line_start - 1)
+    end = min(len(lines), max(d.line_end, d.line_start))
+    if d.definition_type == "table":
+        header = None
+        for i in range(start, -1, -1):
+            if lines[i].strip().startswith("|"):
+                header = lines[i]
+            else:
+                break
+        body = ([header] if header and header != lines[start] else []) + [lines[start]]
+    elif d.definition_type == "list":
+        body = [lines[start]]
+    else:
+        body = lines[start:end]
+    text = "\n".join(body).strip()
+    return text[:max_chars]
+
+
+def counts(defs_by_id, problems) -> dict:
+    """统计口径：让「一条事实都没解析出来」与「全都通过」在输出里分得开。"""
+    items = [d for v in defs_by_id.values() for d in v]
+    pointers = [d for d in items if d.pointer and any(not x.pointer for x in defs_by_id[d.id])]
+    return {
+        "definitions": len(items),
+        "canonical": len(items) - len(pointers),
+        "pointers": len(pointers),
+        "ids": len(defs_by_id),
+        "valid": sum(1 for d in items if d.status == "valid"),
+        "pending": sum(1 for d in items if d.status == "pending"),
+        "deprecated": sum(1 for d in items if d.status == "deprecated"),
+        "unknown": sum(1 for d in items if d.status == "unknown"),
+        "duplicated_ids": len(duplicates(defs_by_id)),
+        "problems": len(problems),
+    }

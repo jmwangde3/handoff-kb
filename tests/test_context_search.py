@@ -60,6 +60,356 @@ class SearchTest(TempProject):
                 self.assertIn(key, h)
 
 
+class SearchFactsTest(TempProject):
+    """三种定义位同权、作废按 status 过滤、流水按相对路径降权。"""
+
+    def setUp(self):
+        super().setUp()
+        self.write("00_基线.md", """# 00 基线
+
+## 0. 基线表
+
+| ID | 项 | 值 | 状态 | 证据 |
+|---|---|---|---|---|
+| K-02 | 信道 | 149 | 有效 | `iwinfo` |
+
+## 1. 说明
+
+这里只是正文里提到 K-01（引用，不是定义）。
+""")
+        self.write("10_固件.md", """# 10 固件
+
+## G-010 当前 NSS 配置
+
+- 加速：qca-nss-ecm 已启用
+
+- **K-01** 固件版本 21.02.3
+- **K-03** 旧 DNS 192.0.2.1
+<!-- kb:fact-meta: {"status":"deprecated","evidence":"旧","superseded_by":"K-04"} -->
+""")
+        self.write("06_流水/固件.md", "# 06 流水\n\n## 固件 流水\n\n固件版本 21.02.3 已刷。\n")
+        self.write("60_流水/运行态.md", "# 60 流水\n\n## 运行态 流水\n\n固件版本 21.02.3 正常。\n")
+        self.write("90_归档.md", "# 90\n\n## 旧结论\n\n固件版本 21.02.3 曾出问题。\n")
+
+    def search(self, *args):
+        return run_json("kb-search.py", "--target", self.root, *args, "--json")
+
+    def test_heading_list_table_definitions_are_equal(self):
+        """标题 / 列表 / 表格三种定义位，精确搜 ID 时都必须排第一。"""
+        cases = {"G-010": "10_固件.md", "K-01": "10_固件.md", "K-02": "00_基线.md"}
+        for fid, want in cases.items():
+            data, p = self.search("--query", fid)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            top = data["hits"][0]
+            self.assertEqual(top["file"], want, "%s 的命中文件不对：%s" % (fid, top))
+            self.assertIn("事实定义位命中 %s" % fid, " ".join(top["reasons"]))
+
+    def test_reference_does_not_masquerade_as_definition(self):
+        """正文里提到 K-01 算引用，不能拿到定义位的高分。"""
+        data, _ = self.search("--query", "K-01")
+        by_file = {h["file"]: h for h in data["hits"]}
+        self.assertIn("00_基线.md", by_file, "引用仍然应该能被搜到")
+        self.assertLess(by_file["00_基线.md"]["score"], by_file["10_固件.md"]["score"])
+        self.assertNotIn("事实定义位命中", " ".join(by_file["00_基线.md"]["reasons"]))
+
+    def test_deprecated_definition_is_filtered_by_status(self):
+        data, p = self.search("--query", "192.0.2.1")
+        self.assertEqual(p.returncode, 1, "作废定义默认不返回内容：%s" % data.get("hits"))
+        self.assertTrue(any(s["fact_id"] == "K-03" for s in data["superseded"]),
+                        data.get("superseded"))
+        data2, p2 = self.search("--query", "192.0.2.1", "--include-superseded")
+        self.assertEqual(p2.returncode, 0, p2.stderr)
+        self.assertTrue(any("192.0.2.1" in h["snippet"] for h in data2["hits"]))
+
+    def test_superseded_points_to_replacement(self):
+        data, _ = self.search("--query", "K-03")
+        row = next(s for s in data["superseded"] if s["fact_id"] == "K-03")
+        self.assertEqual(row["superseded_by"], "K-04")
+        self.assertIn("K-04", row["message"])
+
+    def test_valid_rows_in_same_section_still_searchable(self):
+        """同节里有作废行，不能把整节都判死。"""
+        data, p = self.search("--query", "qca-nss-ecm")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(data["hits"][0]["file"], "10_固件.md")
+
+    def test_shard_weighted_lower_by_relative_path(self):
+        data, _ = self.search("--query", "21.02.3", "--limit", "10")
+        by_file = {h["file"]: h for h in data["hits"]}
+        fact = by_file["10_固件.md"]["score"]
+        shard = by_file["06_流水/固件.md"]["score"]
+        self.assertEqual(by_file["06_流水/固件.md"]["role"], "shard")
+        self.assertLess(shard, fact, "流水不能用事实文档的权重")
+
+    def test_loose_shard_alias_weighted_lower(self):
+        data, _ = self.search("--query", "21.02.3", "--limit", "10", "--loose")
+        row = next(h for h in data["hits"] if h["file"] == "60_流水/运行态.md")
+        self.assertEqual(row["role"], "shard")
+
+    def test_root_archive_excluded_by_default(self):
+        data, p = self.search("--query", "曾出问题")
+        self.assertEqual(p.returncode, 1, data.get("hits"))
+        data2, p2 = self.search("--query", "曾出问题", "--include-archive")
+        self.assertEqual(p2.returncode, 0, p2.stderr)
+        self.assertEqual(data2["hits"][0]["role"], "archive")
+
+
+class ContextFactsTest(TempProject):
+    """P3 走统一事实解析、P4 受控、归档开关、--line 两种写法等价。"""
+
+    def setUp(self):
+        super().setUp()
+        self.make_filled()
+        self.write("11_乙.md", """<!-- kb:schema: 2 -->
+# 11 · 乙 — 事实分册
+
+<!-- kb:id: fact.current -->
+## 1. 当前值
+
+| 项 | 值 | 状态 | 证据 |
+|---|---|---|---|
+| 端口 | 8443 | 有效 | `ss -lntp` |
+""")
+        with open(self.root / "10_甲.md", "a", encoding="utf-8", newline="\n") as f:
+            f.write("\n### G-010 当前 NSS 配置\n"
+                    '<!-- kb:fact-meta: {"status":"valid","evidence":"lsmod",'
+                    '"verified_at":"2026-11-10","owner":"固件"} -->\n'
+                    "- 加速：`qca-nss-ecm` 已启用\n"
+                    "\n### G-011 旧 DNS 处理\n"
+                    '<!-- kb:fact-meta: {"status":"deprecated","evidence":"改用 DoH",'
+                    '"superseded_by":"K-04"} -->\n'
+                    "- 192.0.2.1 已废弃\n")
+
+    def ctx(self, *args):
+        data, p = run_json("kb-context.py", "--target", self.root, "--format", "json", *args)
+        return data, p
+
+    def titles(self, data, priority="P3"):
+        return [b["title"] for b in data["blocks"] if b["priority"] == priority]
+
+    def test_p3_locates_heading_fact(self):
+        data, p = self.ctx("--task", "G-010 现在是什么", "--budget", "3000")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertTrue(any("G-010" in t for t in self.titles(data)), self.titles(data))
+        text = " ".join(data["context"].values())
+        self.assertIn("qca-nss-ecm", text, "标题定义的正文必须进来")
+
+    def test_p3_locates_table_fact(self):
+        data, _ = self.ctx("--task", "K-01 的当前值是什么", "--budget", "3000")
+        self.assertTrue(any("K-01" in t for t in self.titles(data)), self.titles(data))
+        text = " ".join(data["context"].values())
+        self.assertIn("21.02.3", text)
+        self.assertIn("| ID |", text, "表格事实要带表头，否则读不出列含义")
+
+    def test_deprecated_fact_becomes_gap_not_context(self):
+        data, _ = self.ctx("--task", "G-011 还能用吗", "--budget", "3000")
+        self.assertFalse(any("G-011" in t for t in self.titles(data)))
+        joined = " ".join(data["gaps"])
+        self.assertIn("已作废", joined)
+        self.assertIn("K-04", joined, "作废事实必须指出替代 ID")
+
+    def test_missing_fact_is_reported_not_invented(self):
+        data, _ = self.ctx("--task", "K-77 是什么", "--budget", "3000")
+        self.assertTrue(any("K-77" in g for g in data["gaps"]), data["gaps"])
+        self.assertFalse(any("K-77" in t for t in self.titles(data)))
+
+    def test_p4_capped_by_count_and_budget(self):
+        data, _ = self.ctx("--task", "NSS 加速 固件 版本 端口 信道 掉速 升级",
+                           "--budget", "3000")
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertLessEqual(len(p4), 3, "P4 最多 3 块")
+        self.assertLessEqual(data["p4"]["tokens"], int(3000 * 0.30), "P4 不得超过预算 30%")
+        self.assertLessEqual(data["used"], 3000, "最终渲染必须仍在预算内")
+
+    def test_zero_p4_is_acceptable(self):
+        data, _ = self.ctx("--task", "查看当前项目状态", "--budget", "3000")
+        self.assertEqual(data["p4"]["count"], 0)
+        self.assertTrue(any("P4" in g for g in data["gaps"]), data["gaps"])
+
+    def test_include_archive_really_works(self):
+        self.write("归档/旧闻.md", "# 旧闻\n\n## 秘辛\n\n绝密口令ZYX 在旧闻里\n")
+        data, _ = self.ctx("--task", "绝密口令ZYX", "--budget", "3000")
+        self.assertNotIn("绝密口令ZYX", " ".join(data["context"].values()),
+                         "默认不装配归档")
+        data2, _ = self.ctx("--task", "绝密口令ZYX", "--budget", "3000",
+                            "--include-archive")
+        self.assertIn("绝密口令ZYX", " ".join(data2["context"].values()),
+                      "给了 --include-archive 就必须真的检索归档")
+
+    def test_line_repeat_equals_comma(self):
+        a, _ = self.ctx("--task", "查看现状", "--line", "甲,乙")
+        b, _ = self.ctx("--task", "查看现状", "--line", "甲", "--line", "乙")
+        self.assertEqual(sorted(a["selected_lines"]), sorted(b["selected_lines"]))
+        self.assertEqual(sorted(a["selected_lines"]), ["乙", "甲"])
+
+    def test_line_dedup_and_order(self):
+        data, _ = self.ctx("--task", "查看现状", "--line", "乙", "--line", "乙,甲")
+        self.assertEqual(data["selected_lines"], ["乙", "甲"], "去重且保留顺序")
+
+    def test_unknown_line_is_reported(self):
+        data, _ = self.ctx("--task", "查看现状", "--line", "不存在")
+        self.assertEqual(data["selected_lines"], [])
+        self.assertTrue(any("不存在" in g for g in data["gaps"]), data["gaps"])
+
+    # -- P4 不能把「已作废」当普通当前上下文 ----------------------------- #
+    def test_p4_skips_deprecated_only_section(self):
+        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 归档备注
+
+### G-012 旧 DNS 缓存
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"K-04"} -->
+- 缓存令牌ZZZ9377，TTL 3600
+""")
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000")
+        text = " ".join(data["context"].values())
+        self.assertNotIn("缓存令牌ZZZ9377", text, "整节已作废的内容默认不得进入上下文")
+        self.assertGreaterEqual(data["p4"]["deprecated_skipped"], 1)
+        self.assertTrue(any("已作废" in g and "历史" in g for g in data["gaps"]),
+                        data["gaps"])
+
+    def test_p4_brings_deprecated_back_when_task_asks_history(self):
+        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 归档备注
+
+### G-012 旧 DNS 缓存
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"K-04"} -->
+- 缓存令牌ZZZ9377，TTL 3600
+""")
+        data, _ = self.ctx("--task", "以前 DNS 缓存 TTL 缓存令牌ZZZ9377 是什么",
+                           "--line", "甲", "--budget", "3000")
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertTrue(any("含已作废" in b["title"] for b in p4), p4)
+        text = " ".join(data["context"].values())
+        self.assertIn("缓存令牌ZZZ9377", text, "问历史时必须能查到作废内容")
+        self.assertIn("已作废：G-012", text, "作废内容必须自带标注，不能冒充当前配置")
+        self.assertIn("K-04", text)
+
+    def test_p4_include_superseded_flag_is_explicit(self):
+        """不靠中文关键词猜：显式 --include-superseded 也能带回历史。"""
+        self.write("12_旧.md", """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 归档备注
+
+### G-012 旧 DNS 缓存
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"K-04"} -->
+- 缓存令牌ZZZ9377，TTL 3600
+""")
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000", "--include-superseded")
+        text = " ".join(data["context"].values())
+        self.assertIn("缓存令牌ZZZ9377", text)
+        self.assertIn("已作废：G-012", text)
+
+    MIXED = """<!-- kb:schema: 2 -->
+# 12 · 历史记录
+
+## 1. 缓存区
+
+### G-013 现行缓存策略
+<!-- kb:fact-meta: {"status":"valid","evidence":"cat cfg"} -->
+- 缓存令牌ZZZ9377 = 60s
+
+### G-014 旧缓存策略
+<!-- kb:fact-meta: {"status":"deprecated","superseded_by":"G-013"} -->
+- 缓存令牌ZZZ9377 = 3600s
+"""
+
+    def test_mixed_section_keeps_valid_part_and_omits_deprecated(self):
+        self.write("12_旧.md", self.MIXED)
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000")
+        text = " ".join(data["context"].values())
+        self.assertIn("60s", text, "同一节里的有效内容不能因为邻居作废而被丢掉")
+        self.assertNotIn("3600s", text, "作废的那几行必须置空，不能冒充当前配置")
+        self.assertIn("已省略 1 条已作废事实：G-014", text, "省略了就要说，别让读者以为没这条")
+
+    def test_mixed_section_kept_in_full_when_history_is_asked(self):
+        self.write("12_旧.md", self.MIXED)
+        data, _ = self.ctx("--task", "DNS 缓存 TTL 缓存令牌ZZZ9377", "--line", "甲",
+                           "--budget", "3000", "--include-superseded")
+        text = " ".join(data["context"].values())
+        self.assertIn("60s", text)
+        self.assertIn("3600s", text, "问历史时作废值也要给出来")
+        self.assertIn("已作废：G-014", text, "给出来时必须标注，并指出替代 G-013")
+
+
+class EntryFileSafetyTest(TempProject):
+    """AGENTS.md 是入口文件，也可能是符号链接：读之前必须核对真实路径。"""
+
+    def setUp(self):
+        super().setUp()
+        self.make_filled()
+
+    def ctx(self, *args):
+        return run_json("kb-context.py", "--target", self.root, "--format", "json", *args)
+
+    def strip_constraints(self):
+        """拿掉 dashboard 的硬约束段，逼 kb-context 走 AGENTS.md 兜底。"""
+        p = self.root / "05_进度仪表盘.md"
+        text = p.read_text(encoding="utf-8")
+        head = text.split("<!-- kb:id: dashboard.constraints -->")[0]
+        p.write_text(head, encoding="utf-8", newline="\n")
+
+    def test_agents_fallback_still_works(self):
+        self.strip_constraints()
+        self.write("AGENTS.md", "# AGENTS\n\n## 硬约束\n\n- 不许动 r1\n")
+        data, _ = self.ctx("--task", "查看现状", "--budget", "3000")
+        titles = [b["title"] for b in data["blocks"] if b["priority"] == "P0"]
+        self.assertIn("硬约束（AGENTS.md）", titles)
+        self.assertIn("不许动 r1", " ".join(data["context"].values()))
+
+    def test_agents_symlink_outside_is_refused(self):
+        import os
+        self.strip_constraints()
+        outside = self.tmp / "outside"
+        outside.mkdir(exist_ok=True)
+        secret = outside / "AGENTS.md"
+        secret.write_text("# 别人的 AGENTS\n\n## 硬约束\n\n- 库外机密约束ZZZ\n",
+                          encoding="utf-8")
+        link = self.root / "AGENTS.md"
+        if link.exists():
+            link.unlink()          # kb-init 默认会建一份，先挪开才能放链接
+        try:
+            os.symlink(str(secret), str(link))
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest("本机无法创建文件符号链接：%s" % exc)
+        data, _ = self.ctx("--task", "查看现状", "--budget", "3000")
+        text = " ".join(data["context"].values())
+        self.assertNotIn("库外机密约束ZZZ", text, "库外文件不能冒充本库硬约束")
+        self.assertFalse(any(b["priority"] == "P0" and "AGENTS" in b["title"]
+                             for b in data["blocks"]))
+        self.assertTrue(any("工作区外" in g for g in data["gaps"]), data["gaps"])
+
+    def test_agents_junction_dir_named_agents_is_ignored(self):
+        """AGENTS.md 若是个目录链接（Junction），不是文件，不该被当成入口。"""
+        import os
+        import subprocess
+        self.strip_constraints()
+        outside = self.tmp / "outside2"
+        outside.mkdir(exist_ok=True)
+        (outside / "x.md").write_text("# 库外\n", encoding="utf-8")
+        link = self.root / "AGENTS.md"
+        if link.exists():
+            link.unlink()
+        try:
+            os.symlink(str(outside), str(link), target_is_directory=True)
+        except (OSError, NotImplementedError):
+            r = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                               capture_output=True)
+            if r.returncode != 0:
+                self.skipTest("本机无法创建目录链接：%s"
+                              % (r.stdout + r.stderr).decode("utf-8", "replace").strip())
+        data, p = self.ctx("--task", "查看现状", "--budget", "3000")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertFalse(any("AGENTS" in b["title"] for b in data["blocks"]))
+
+
 class ContextTest(TempProject):
     def setUp(self):
         super().setUp()

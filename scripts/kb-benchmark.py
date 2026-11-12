@@ -7,11 +7,17 @@
   B 旧法：只读 00 + 05
   C 新版：kb-context.py 按预算路由
 
-2.0.1 的统计修正（此前的数字不可复现，已重写）：
+质量门分两级（2.0.1-hotfix）：
+  **必须 100% 通过** —— 硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、
+  计数器口径一致。任何一项掉一条就是硬失败，不接受「被平均值抹平」。
+  **只报告不设 100%** —— 目标章节/事实命中率、证据覆盖、P4 噪声比、归档隔离。
+  找不到事实时「明确报缺口」是正确结果，不能为了命中率返回不相关内容。
+
+统计口径：
   - 均值只统计**正常任务**，错误路径单列，不拉低 token 均值
-  - 所有 token 都走同一个 TokenCounter（A/B/C 同口径），不再混用 estimate
-  - 质量判定改为 `(命中 或 报缺口) 且 硬约束在`，不再「只要约束在就算过」
-  - 8 项质量指标逐项计数，避免用一个布尔值掩盖退化
+  - 所有 token 都走同一个 TokenCounter（A/B/C 同口径）
+  - 多工作线召回分三类：完整召回 / 部分召回并报告 / 静默遗漏
+  - 命中判定按**事实 ID / 章节 ID**，不做「全文含某个词」的宽泛包含
 
 用法：
   py kb-benchmark.py --target . --report markdown
@@ -28,22 +34,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lib import facts  # noqa: E402
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope, tokens  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 
-GATE_MUST_PASS = ("constraint_kept", "error_rejected")
+# 硬门槛：这些项必须 100% 通过
+GATE_MUST_PASS = ("constraint_kept", "error_rejected", "budget_honest",
+                  "lines_honest", "tokenizer_consistent")
 
 METRIC_KEYS = (
     ("section_hit", "目标章节命中"),
+    ("fact_hit", "目标事实命中（含状态判定）"),
     ("constraint_kept", "硬约束保留"),
     ("gap_honest", "缺口如实报告"),
-    ("budget_respected", "预算被遵守"),
+    ("budget_honest", "预算如实（不谎报）"),
     ("tokenizer_consistent", "计数器口径一致"),
     ("error_rejected", "错误路径被拒绝"),
-    ("lines_honest", "多工作线加载如实"),
+    ("lines_honest", "工作线无静默遗漏"),
     ("archive_excluded", "归档未混入默认上下文"),
+    ("p4_bounded", "P4 受数量与预算约束"),
 )
 
 
@@ -72,35 +83,53 @@ def corpus_tokens(root: Path, counter):
     return total, files
 
 
-def build_tasks(root: Path, files, loose: bool = False):
-    facts = list(files.get("fact", []))
+def pick_facts(root: Path, loose: bool) -> dict:
+    """按状态挑出可用于评测的事实 ID。没有对应状态的任务会被标为「跳过」。"""
+    defs, _ = facts.parse_fact_definitions(root, loose=loose)
+    out = {"valid": [], "pending": [], "deprecated": [], "total": len(defs)}
+    for fid in sorted(defs):
+        items = defs[fid]
+        for bucket in ("valid", "pending", "deprecated"):
+            if any(d.status == bucket for d in items):
+                out[bucket].append(fid)
+    return out
+
+
+def build_tasks(files, picked: dict):
     names = []
-    for p in facts:
+    for p in files.get("fact", []):
         names.append(p.stem.split("_", 1)[1] if "_" in p.stem else p.stem)
     l1 = names[0] if names else "线A"
     l2 = names[1] if len(names) > 1 else l1
-    return [
+    valid = picked["valid"][0] if picked["valid"] else None
+    pending = picked["pending"][0] if picked["pending"] else None
+    dead = picked["deprecated"][0] if picked["deprecated"] else None
+    tasks = [
         {"id": 1, "title": "查看当前项目状态", "task": "查看当前项目状态",
          "expect": ("section_id", "dashboard.current")},
         {"id": 2, "title": "单工作线排障", "task": "排查%s的问题" % l1,
          "expect": ("section_id", "fact.pitfalls"), "line": l1},
         {"id": 3, "title": "跨工作线依赖", "task": "改%s会影响%s吗" % (l1, l2),
          "expect": ("section_id", "baseline.chains")},
-        {"id": 4, "title": "查找某项事实", "task": "K-01 的当前值是什么",
-         "expect": ("section_id", "baseline.facts")},
-        {"id": 5, "title": "追踪证据", "task": "K-01 的证据在哪",
-         "expect": ("section_id", "baseline.facts")},
-        {"id": 6, "title": "处理已作废事实", "task": "%s 有没有已作废的配置" % l1,
-         "expect": ("gap_or_hit", "作废"), "line": l1},
-        {"id": 7, "title": "冲突知识判断", "task": "%s 哪些结论待核" % l1,
-         "expect": ("gap_or_hit", "待核"), "line": l1},
-        {"id": 8, "title": "模糊任务要如实报缺口", "task": "哪些事实需要重新核实",
+        {"id": 4, "title": "按 ID 定位事实", "task": "%s 的当前值是什么" % (valid or "K-01"),
+         "expect": ("fact", valid), "skip": None if valid else "库里没有「有效」事实"},
+        {"id": 5, "title": "作废事实要指向替代",
+         "task": "%s 现在还算数吗" % (dead or "K-03"),
+         "expect": ("fact_status", (dead, ("已作废", "作废", "deprecated"))),
+         "skip": None if dead else "库里没有「已作废」事实"},
+        {"id": 6, "title": "待核事实要标待核",
+         "task": "%s 核实过了吗" % (pending or "K-02"),
+         "expect": ("fact_status", (pending, ("待核", "pending"))),
+         "skip": None if pending else "库里没有「待核」事实"},
+        {"id": 7, "title": "模糊任务要如实报缺口", "task": "哪些事实需要重新核实",
          "expect": ("gap", "")},
-        {"id": 9, "title": "无检索命中", "task": "zzz-nonexistent-topic-qqq",
-         "expect": ("gap", "缺口")},
-        {"id": 10, "title": "错误项目路径", "task": "查看现状",
-         "expect": ("exit2", "")},
+        {"id": 8, "title": "无检索命中", "task": "zzz-nonexistent-topic-qqq",
+         "expect": ("gap", "")},
+        {"id": 9, "title": "错误项目路径", "task": "查看现状", "expect": ("exit2", "")},
+        {"id": 10, "title": "多工作线召回", "task": "改%s会影响%s吗" % (l1, l2),
+         "expect": ("lines", [l1, l2]), "skip": None if len(names) >= 2 else "只有一条工作线"},
     ]
+    return tasks
 
 
 def archive_relpaths(root: Path, loose: bool, files) -> set:
@@ -110,9 +139,6 @@ def archive_relpaths(root: Path, loose: bool, files) -> set:
     早先按「任意深层的父目录名像归档」统计，会把备份目录里的同名文件也算进来，
     于是正常块被误判成「归档混入」（真实项目上直接误报 5/9）。
     """
-    # 只认根层归档角色的文件：kb-context 的块来源只有根层固定层 + 事实分册，
-    # 归档目录里的东西不可能成为来源。之前把归档目录下的全部文件按**文件名**
-    # 加进来，真实项目「归档/ 下有一份整库备份」时会与正常文件撞名 → 误报。
     return {p.name for p in files.get("archive", [])}
 
 
@@ -172,7 +198,9 @@ def main() -> int:
 
     archive_names = archive_relpaths(root, args.loose, files)
     unmigrated = is_unmigrated(files)
+    picked = pick_facts(root, args.loose)
     rows, metrics = [], {k: {"passed": 0, "total": 0} for k, _ in METRIC_KEYS}
+    recall = {"full": 0, "partial": 0, "silent": 0}
 
     def mark(key, ok, counted=True):
         if not counted:
@@ -180,7 +208,7 @@ def main() -> int:
         metrics[key]["total"] += 1
         metrics[key]["passed"] += 1 if ok else 0
 
-    tasks = build_tasks(root, files, args.loose)
+    tasks = build_tasks(files, picked)
     for t in tasks:
         kind, want = t["expect"]
         started = time.time()
@@ -196,6 +224,13 @@ def main() -> int:
                          "pass": ok, "ms": int((time.time() - started) * 1000)})
             continue
 
+        if t.get("skip"):
+            rows.append({"id": t["id"], "title": t["title"], "a": a_tokens,
+                         "b": b_tokens, "c": 0, "noise": 0.0, "counted": False,
+                         "graded": False, "quality": "跳过：%s" % t["skip"],
+                         "pass": False, "ms": 0})
+            continue
+
         if kind == "section_id" and unmigrated:
             rows.append({"id": t["id"], "title": t["title"], "a": a_tokens,
                          "b": b_tokens, "c": 0, "noise": 0.0, "counted": False,
@@ -209,28 +244,52 @@ def main() -> int:
                               "--budget", str(args.budget), "--format", "json"] + ctx_args)
         blocks = payload.get("blocks", [])
         ids = [b.get("section_id") for b in blocks]
+        titles = " ".join(b.get("title") or "" for b in blocks)
         gaps = " ".join(payload.get("gaps", []))
-        text_all = json.dumps(payload.get("context", {}), ensure_ascii=False)
+        text_all = json.dumps(payload.get("context", {}), ensure_ascii=False) + " " + gaps
         sources = [b.get("source") for b in blocks]
         constraint = any(b.get("priority") == "P0" for b in blocks)
         used = payload.get("used", 0)
+        selected = payload.get("selected_lines") or []
+        omitted = payload.get("omitted_lines") or []
 
-        hit = (want in ids) or (want in text_all) or (want in gaps)
+        lines_marked = False
         if kind == "section_id":
             ok = want in ids and constraint
             label = "命中 %s" % want if ok else "未命中 %s" % want
             mark("section_hit", want in ids)
-        elif kind == "gap_or_hit":
-            # 2.0.1：命中或报缺口都必须成立，且约束仍在（此前只要约束在就算过）
+        elif kind == "fact":
+            hit = want in titles or want in text_all
+            ok = hit and constraint
+            label = "命中事实 %s" % want if ok else "未命中事实 %s" % want
+            mark("fact_hit", hit)
+        elif kind == "fact_status":
+            fid, words = want
+            hit = fid in text_all and any(w in text_all for w in words)
             ok = hit and constraint
             if ok:
-                label = ("命中 %s" % want if (want in ids or want in text_all)
-                         else "如实报缺口")
-            elif not constraint:
-                label = "命中/缺口都在，但硬约束丢失"
+                label = "按状态报告 %s" % fid
+            elif fid not in text_all:
+                label = "完全没提到 %s" % fid
             else:
-                label = "未命中 %s" % want
-            mark("gap_honest", bool(gaps) or hit)
+                label = "提到 %s 但没给出状态" % fid
+            mark("fact_hit", hit)
+        elif kind == "lines":
+            missing = [n for n in want if n not in selected]
+            silent = [n for n in missing if ("工作线「%s」" % n) not in gaps]
+            partial = [n for n in missing if n not in silent]
+            if not missing:
+                recall["full"] += 1
+                label = "两条线都加载"
+            elif silent:
+                recall["silent"] += 1
+                label = "静默遗漏：%s" % "、".join(silent)
+            else:
+                recall["partial"] += 1
+                label = "部分召回并如实报告（%s）" % "、".join(partial)
+            ok = not silent and constraint
+            mark("lines_honest", not silent)
+            lines_marked = True
         else:  # gap：这类任务本来就该「没有命中但如实报缺口」
             ok = bool(gaps) and constraint
             if ok:
@@ -242,26 +301,29 @@ def main() -> int:
             mark("gap_honest", bool(gaps))
 
         mark("constraint_kept", constraint)
-        budget_ok = used <= args.budget and payload.get("over_budget") == (used > args.budget)
-        mark("budget_respected", budget_ok)
+        # 预算如实：数值不超预算，或超了就必须自己说「超了」（不能悄悄截断还是报成功）
+        actual_over = used > args.budget
+        budget_ok = bool(payload.get("over_budget")) == actual_over
+        mark("budget_honest", budget_ok)
         mark("tokenizer_consistent",
              payload.get("requested") == args.tokenizer
              and payload.get("exact") == counter.exact)
-        selected = payload.get("selected_lines") or []
-        omitted = payload.get("omitted_lines") or []
         lines_ok = not (set(selected) & set(omitted))
         if omitted:
             lines_ok = lines_ok and all(("工作线「%s」" % n) in gaps for n in omitted)
-        mark("lines_honest", lines_ok)
+        if not lines_marked:
+            mark("lines_honest", lines_ok)
         mark("archive_excluded", not (set(sources) & archive_names))
+        p4 = payload.get("p4") or {}
+        p4_ok = (p4.get("count", 0) <= 3
+                 and p4.get("tokens", 0) <= int(args.budget * 0.30))
+        mark("p4_bounded", p4_ok)
+        noise = round(p4.get("tokens", 0) / used, 3) if used else 0.0
 
-        p4 = sum(b["tokens"] for b in blocks if b.get("priority") == "P4")
-        c = used
         rows.append({"id": t["id"], "title": t["title"], "a": a_tokens, "b": b_tokens,
-                     "c": c, "noise": round(p4 / c, 3) if c else 0.0, "counted": True,
-                     "graded": True,
-                     "quality": label,
-                     "pass": ok, "ms": int((time.time() - started) * 1000)})
+                     "c": used, "noise": noise, "counted": True,
+                     "graded": True, "quality": label if budget_ok else label + "（预算口径不一致）",
+                     "pass": ok and budget_ok, "ms": int((time.time() - started) * 1000)})
 
     counted = [r for r in rows if r["counted"]]
     errors = [r for r in rows if not r["counted"] and r["graded"]]
@@ -273,7 +335,8 @@ def main() -> int:
     total_metrics = sum(m["total"] for m in metrics.values())
     passed_metrics = sum(m["passed"] for m in metrics.values())
     rate = round(passed_metrics / total_metrics, 3) if total_metrics else 0.0
-    # 关键项不接受「被平均值抹平」：硬约束丢失、错误路径被放行都是硬失败
+    # 关键项不接受「被平均值抹平」：硬约束丢失、错误路径被放行、预算口径不一致、
+    # 工作线静默遗漏、计数器口径不一致，都是硬失败。
     hard_ok = all(metrics[k]["total"] and metrics[k]["passed"] == metrics[k]["total"]
                   for k in GATE_MUST_PASS)
     need = max(1, int(round(len(graded) * 0.8)))
@@ -291,6 +354,8 @@ def main() -> int:
         "metrics": {k: {"label": label, "passed": metrics[k]["passed"],
                         "total": metrics[k]["total"]} for k, label in METRIC_KEYS},
         "metrics_rate": rate,
+        "recall": recall,
+        "facts_seen": picked,
         "gate": {"min_rate": 0.8, "min_passes": need,
                  "must_pass": list(GATE_MUST_PASS),
                  "hard_ok": hard_ok, "passed": gate_ok},
@@ -300,9 +365,12 @@ def main() -> int:
             "A/B/C 用同一个 TokenCounter（%s），口径一致" % tok_desc,
             "A=全部参与检索文本，B=00+05，C=单次任务上下文；三者统计范围不同",
             "C 均值只统计 %d 个正常任务；%d 个错误路径单列，不参与均值" % (len(counted), len(errors)),
-            "可评任务 %d 个（未迁移库的 section 类任务会标为跳过，不混进通过率）"
+            "可评任务 %d 个（未迁移库的 section 类任务、缺少对应事实的任务会标跳过）"
             % len(graded),
-            "质量判定：命中（或如实报缺口）且硬约束仍在；不是「约束在就算过」",
+            "硬门槛（必须 100%%）：%s" % "、".join(GATE_MUST_PASS),
+            "命中判定按章节 ID / 事实 ID 与其状态，不做「全文含某个词」的宽泛包含",
+            "多工作线：完整召回 %d、部分召回并报告 %d、静默遗漏 %d"
+            % (recall["full"], recall["partial"], recall["silent"]),
         ],
     }
 
@@ -323,6 +391,8 @@ def main() -> int:
     print("| 任务通过 | %d/%d（可评） |" % (passes, len(graded)))
     print("| 质量项通过 | %d/%d（%.0f%%） |"
           % (passed_metrics, total_metrics, result["metrics_rate"] * 100))
+    print("| 工作线召回 | 完整 %d / 部分 %d / 静默 %d |"
+          % (recall["full"], recall["partial"], recall["silent"]))
     print("| tokenizer | %s |" % tok_desc)
     print("")
     print("| # | 任务 | A | B | C | P4 噪声比 | 质量 | ms |")
@@ -333,11 +403,13 @@ def main() -> int:
                  r["b"], "-" if not r["counted"] else str(r["c"]),
                  r["noise"], r["quality"], r["ms"]))
     print("")
-    print("| 质量项 | 通过 |")
-    print("|---|---|")
+    print("| 质量项 | 通过 | 门槛 |")
+    print("|---|---|---|")
     for key, label in METRIC_KEYS:
         m = metrics[key]
-        print("| %s | %d/%d |" % (label, m["passed"], m["total"]))
+        print("| %s | %d/%d | %s |"
+              % (label, m["passed"], m["total"],
+                 "必须 100%" if key in GATE_MUST_PASS else "仅报告"))
     print("")
     print("> A/B/C 同口径（%s）；三者统计范围不同，别把降幅当成 API 账单对比。" % tok_desc)
     print("> 主看「相对 A」：A 才是「全读」的真实成本。相对 B 只在小库上为负，"

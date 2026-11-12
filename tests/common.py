@@ -37,6 +37,21 @@ def no_identity_env(tmp: Path):
     return env
 
 
+def same_path(a, b) -> bool:
+    """两个路径是否指向同一个对象 —— 不做字面比较。
+
+    GitHub Windows runner 的临时目录是 8.3 短名（`C:\\Users\\RUNNER~1\\...`），
+    经 `Path.resolve()` 会展开成长名（`...\\runneradmin\\...`），
+    于是「我传进去的那个 Path」和「事务内部 resolve 后的 Path」字面不等 ——
+    这是夹具的判定缺陷，不是产品缺陷。优先用 inode/file-id 判定。
+    """
+    pa, pb = Path(a), Path(b)
+    try:
+        return os.path.samefile(pa, pb)
+    except OSError:
+        return os.path.normcase(os.path.realpath(pa)) == os.path.normcase(os.path.realpath(pb))
+
+
 def run(script, *args, cwd=None, env=None, input=None, timeout=None):
     """用当前解释器跑脚本，返回 CompletedProcess。"""
     e = dict(os.environ)
@@ -200,11 +215,12 @@ ssh r1 'cat /etc/version'
 """)
 
 
-def write_txn(root, name, entries, state="prepared", schema=2):
+def write_txn(root, name, entries, state="prepared", schema=2, root_id=None):
     """在 root/.kb-txn/<name> 写一个 v2 journal（带 checksum 与真实备份）。
 
     entries: [{"path","sha_before","sha_after","op","backup_bytes"}]
     schema=1 用于构造「旧/不支持 schema」的损坏现场。
+    root_id 默认写**真实**的 root_id；要构造「库被移动过」的现场就显式传别的值。
     """
     import json
     import os
@@ -226,7 +242,8 @@ def write_txn(root, name, entries, state="prepared", schema=2):
             "backup_sha256": safeio.sha256_bytes(bp.read_bytes()),
             "state": "staged",
         })
-    journal = {"schema_version": schema, "transaction_id": name, "root_id": "test",
+    journal = {"schema_version": schema, "transaction_id": name,
+               "root_id": root_id if root_id is not None else safeio.root_id(root),
                "pid": os.getpid(), "host": safeio.host_name(), "session": "t",
                "created": time.time(), "updated": time.time(), "state": state,
                "entry_count": len(jentries), "entries": jentries}

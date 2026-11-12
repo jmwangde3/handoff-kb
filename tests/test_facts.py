@@ -176,6 +176,100 @@ class FactsTest(unittest.TestCase):
         self.assertIn(("05_进度仪表盘.md", "K-01"),
                       [(r.path, r.id) for r in refs])
 
+    # 19
+    def test_update_refuses_to_change_fact_id(self):
+        """update_fact 只能改内容，不能顺手换 ID —— 换了就等于删掉旧事实。"""
+        text = "## K-01 固件版本\n\n- 值：21.02\n- 证据：a.log\n"
+        for evil in ("## K-99 新事实", "### K-99 新事实", "## G-01 换个前缀"):
+            with self.assertRaises(facts.FactError) as ctx:
+                facts.update_fact_definition(text, "K-01", evil, "00.md")
+            self.assertIn("不可变", str(ctx.exception), evil)
+        self.assertEqual(text, "## K-01 固件版本\n\n- 值：21.02\n- 证据：a.log\n",
+                         "被拒绝时不得改动原文本")
+
+    def test_update_heading_keeps_following_body(self):
+        text = "## G-010 当前 NSS 配置\n\n证据：`nss.log`\n其余说明也保留\n"
+        out = facts.update_fact_definition(text, "G-010", "## G-010 当前 NSS 配置（已核实）")
+        self.assertIn("证据：`nss.log`", out)
+        self.assertIn("其余说明也保留", out)
+
+    def test_update_rejects_multiline_content(self):
+        """只替换定义行；多行 content 会被静默丢弃 → 必须拒绝而不是替用户删内容。"""
+        text = "## K-01 固件\n\n- 值：1\n"
+        with self.assertRaises(facts.FactError) as ctx:
+            facts.update_fact_definition(text, "K-01", "## K-01 新标题\n\n新正文")
+        self.assertIn("单行", str(ctx.exception))
+
+    # 20
+    def test_counts_separate_empty_from_all_good(self):
+        """一条事实都没有 ≠ 全部通过：统计口径必须能区分。"""
+        empty, problems = facts.parse_fact_definitions(self.root)
+        c = facts.counts(empty, problems)
+        self.assertEqual(c["definitions"], 0)
+        self.write("10_固件.md", "# 10\n\n- **K-01** 版本 21.02\n")
+        defs, problems = facts.parse_fact_definitions(self.root)
+        c = facts.counts(defs, problems)
+        self.assertEqual(c["definitions"], 1)
+        self.assertEqual(c["ids"], 1)
+
+    # 21
+    def test_definition_text_includes_table_header(self):
+        self.write("00_基线.md",
+                   "# 00\n\n| ID | 项 | 值 | 状态 | 证据 |\n|---|---|---|---|---|\n"
+                   "| K-01 | 版本 | 21.02 | 有效 | x |\n")
+        defs, _ = facts.parse_fact_definitions(self.root)
+        d = defs["K-01"][0]
+        text = facts.definition_text(self.root, d)
+        self.assertIn("| ID | 项 | 值 | 状态 | 证据 |", text)
+        self.assertIn("| K-01 | 版本 | 21.02 | 有效 | x |", text)
+
+    def test_definition_text_heading_returns_body(self):
+        self.write("10_固件.md", "# 10\n\n## G-010 当前 NSS 配置\n\n证据：nss.log\n")
+        defs, _ = facts.parse_fact_definitions(self.root)
+        d = defs["G-010"][0]
+        text = facts.definition_text(self.root, d)
+        self.assertIn("G-010 当前 NSS 配置", text)
+        self.assertIn("证据：nss.log", text)
+
+    # 索引页里的条目是指针，不是第二条定义（真实库上曾报 4 条假重复）
+    def test_index_page_pointer_is_not_a_duplicate(self):
+        self.write("00_INDEX.md",
+                   "# 索引\n\n## 当前空白\n\n- G-018：菜单未整理；G-004：上限有歧义。\n")
+        self.write("10_游戏事实.md",
+                   "# 10\n\n### G-018 菜单\n- 结论：未整理。\n\n"
+                   "### G-004 上限\n- 结论：两套口径。\n")
+        by_id, _ = facts.parse_fact_definitions(self.root)
+        self.assertEqual(facts.duplicates(by_id), {})
+        # 一条列表项只定义它开头那个 ID，句中的 G-004 仍算引用
+        self.assertEqual(sorted(facts.pointer_only(by_id)), ["G-018"])
+        c = facts.counts(by_id, [])
+        self.assertEqual((c["definitions"], c["canonical"], c["pointers"]), (3, 2, 1))
+        self.assertEqual(c["duplicated_ids"], 0)
+        # 规范定义（分册）排在指针之前
+        self.assertEqual(facts.canonical(by_id["G-018"])[0].path, "10_游戏事实.md")
+
+    def test_same_id_twice_in_one_index_page_still_duplicates(self):
+        """索引页内部自己重复两遍，就没有「规范定义」可退回，必须照报。"""
+        self.write("00_索引.md", "# 索引\n\n- K-01：a\n\n- K-01：b\n")
+        by_id, _ = facts.parse_fact_definitions(self.root)
+        self.assertIn("K-01", facts.duplicates(by_id))
+
+    def test_index_named_page_holding_only_facts_keeps_them(self):
+        """整页都叫索引、但全库只有这样一份事实：不能因为「是指针」就丢掉。"""
+        self.write("00_INDEX.md",
+                   "# 索引\n\n| ID | 项 | 状态 | 证据 |\n|---|---|---|---|\n"
+                   "| K-07 | 版本 | 有效 | x |\n")
+        by_id, _ = facts.parse_fact_definitions(self.root)
+        self.assertEqual(by_id["K-07"][0].status, "valid")
+        self.assertEqual(facts.canonical(by_id["K-07"])[0].path, "00_INDEX.md")
+        self.assertEqual(facts.counts(by_id, [])["pointers"], 0)
+
+    def test_similar_name_is_not_an_index_page(self):
+        for name in ("00_共享页.md", "索引式清单说明.md", "10_游戏事实.md"):
+            self.assertFalse(facts.is_index_page(name), name)
+        for name in ("00_INDEX.md", "00_索引.md", "TOC.md", "00_索引_ffrs.md"):
+            self.assertTrue(facts.is_index_page(name), name)
+
 
 if __name__ == "__main__":
     unittest.main()

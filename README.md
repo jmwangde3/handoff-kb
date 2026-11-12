@@ -1,4 +1,7 @@
-# handoff-kb 2.0
+# handoff-kb 2.0.1-hotfix
+
+> **工具版本** `2.0.1-hotfix`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
+> 两者独立：换工具版本不改协议，也不要求现有库迁移。
 
 **给多会话并行项目的分层交接库。** 一套 Markdown 协议 + 十个零依赖 Python 脚本：让「上下文快满、几条线同时推、文档越堆越多」的项目，新会话接手时只读固定的一小份，而不是全库重读。
 
@@ -21,9 +24,10 @@
 | 场景 | 结果 | 口径 |
 |---|---|---|
 | 真实路由器项目（v1 时代） | 全库 1,759 行 / 221 KB → 接手 20.6 KB（`05`+`00`），降 90% | 实际文件体积，非估算 |
-| 本仓库合成夹具（v2 benchmark） | A 全量 3,055 / B `00+05` 389 / C 路由 395.6 tokens，任务 10/10，质量项 55/55 | `heuristic` **估算**，夹具 ~11 KB |
+| 合成夹具（2.0.1-hotfix benchmark） | A 全量 3,082 / B `00+05` 389 / C 路由 454 tokens，任务 10/10，质量项 63/63 | `heuristic` **估算**，夹具 ~11 KB |
+| 脱敏 FFRS 夹具（自有命名，`--loose`） | A 1,248 / B 446 / C 561 tokens（相对 A 降 55%） | 同上，内容全部虚构 |
 
-第二行可用两条命令复现（`py tests/make_fixture.py ../kbdemo` → `py scripts/kb-benchmark.py --target ../kbdemo`）。**注意夹具上 C（395.6）并不比 B（389）小**：C 含包装（标题 / 来源 / 理由 / 缺口），B 只是 `00+05` 原文；夹具太小，包装开销占满。真正有意义的是相对 A 的 87%——A 才是「全读」的成本。口径与逐任务明细见 `references/benchmark.md`。
+前两行可用两条命令复现（`py tests/make_fixture.py ../kbdemo` → `py scripts/kb-benchmark.py --target ../kbdemo`）。**注意夹具上 C（454）并不比 B（389）小**：C 含包装（标题 / 来源 / 理由 / 缺口），B 只是 `00+05` 原文；夹具太小，包装开销占满。真正有意义的是相对 A 的 85%——A 才是「全读」的成本。口径与逐任务明细见 `references/benchmark.md`。
 
 ---
 
@@ -233,16 +237,17 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 201 个用例
+python -m unittest discover -s tests        # 269 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
 ```
 
-- 测试覆盖（201 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、事实三定义位与作废链、多工作线装配与预算收敛、`--loose` 自有命名、Hook 预览零写入与官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
+- 测试覆盖（269 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
 - `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价。
 - CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
-- benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 8 项质量指标，`硬约束保留` 与 `错误路径被拒绝` 是硬门槛，不接受被平均值抹平。
+- benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平。
+- 每项测试/CI/客户端集成**实际到什么程度**，写在 §17 而不是这里；本节只保证命令能跑。
 
 ---
 
@@ -294,7 +299,7 @@ scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
 scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
-tests/                      201 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+tests/                      269 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
 tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
@@ -303,31 +308,167 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 
 ---
 
-## 16. 2.0.1 修了什么（以及撤回了哪个数字）
+## 16. 2.0.1-hotfix 修了什么
 
-2.0.1 是**修缺陷**的补丁版，不新增协议能力，`kb:schema: 2` 与 v1→v2 迁移方式都没变。
+2.0.1-hotfix 是**修可靠性**的补丁版：不加协议能力，`kb:schema: 2` 与 v1→v2 迁移方式都没变。
+所有改动都能落到一个具体后果上——「这会让谁少踩一次坑」。
 
-安全与并发：
+### 16.1 安全与并发
 
-- `kb-hooks install` 默认**预览**，`--write` 才落盘；写前重校验 SHA；TOML 卸载不再留下空表头。
-- `WorkspaceLock` 有 owner token；只回收「同机 + 原进程确定已退出 / PID 复用」的锁；不完整锁不抢占；`release` 拒绝删除别人的锁。
-- `Transaction` journal 升 schema 2 带 checksum；`recover` 认 `.kb-txn/journal.json`（此前只看子目录，**真实崩溃现场看不见**）；证据不足一律保留现场，绝不 `rmtree`。
-- `kb-migrate --apply` 加锁 + 事务化，计划绑定 `root_id` 与源文件哈希，操作白名单化。
-- `kb-init` 不再写入 `handoff-kb@localhost` 这类虚构 Git 身份：没有身份就提示你自己配，并保留已暂存文件。
+- **路径发现不再信字符串**：绝对路径、盘符、UNC、`..` 一律拒绝。POSIX 上 `PurePath("C:/x").drive`
+  是空的，所以盘符判定改成正则——此前 Linux 上 `C:/Windows/x.md` 能过。
+- **越界判定按路径组成，不按前缀**：`C:\proj` 与 `C:\proj-backup` 不是包含关系；符号链接与 Junction
+  越界会被剪枝，并产出 `dir-outside` / `symlink-outside` 诊断，而不是静默跳过。
+- **事务目录必须在库内**：`.kb-txn/`、备份、journal 逐个核对；journal 里的 `root_id` 与当前目录不符
+  直接判 `manual-recovery-required`（`--force` 也不绕）；写回前二次 `sha256` 校验，冲突就保留现场。
+  （**这不是跨进程 CAS**，见 §17。）
+- **`kb-hooks install` 默认预览**，`--write` 才落盘；写前重校验 SHA；TOML 卸载不留空表头。
 
-上下文与事实：
+### 16.2 Hook 集成
 
-- 新增 `lib/facts.py` 统一「定义位」解析（标题 / 列表 / 表格），`kb-check` / `kb-handoff` / `kb-write` 共用一套判定。
-- `kb-context` 支持一次加载**多条**工作线；预算按**最终渲染**收敛；装不下的线如实列进 `omitted_lines` 与缺口。
-- 修掉「P2 事实块根本没进装配」的缺陷——此前 `selected_lines` 永远为空、还误报成「预算不足」。
-- JSON `context` 不再因同名 `kb:id` 互相覆盖；`--loose` 贯穿 search / context / handoff / hooks / benchmark，并识别 `60_流水/` 这类分片目录。
-- `kb-write read` 改成严格 UTF-8：坏字节直接报 `ENCODING`，不再用替换字符糊出一个「看起来正常」的文本。
+- 安装前预检 `original_exists` + `sha256` 双状态：预览之后文件被别的会话改过，就**放弃整个安装**。
+- 多文件安装要么全做要么全退：逐文件写，失败按字节快照回滚，不留半套配置；
+  回滚本身也走原子字节写（临时文件 → `os.replace`），不会把旧配置写成半截。
+- `SessionStart` 的 matcher 按两家官方语义修正为 `startup|resume|clear|compact|fork`
+  （2.0.1 漏了 `clear`，清空会话后重新开始拿不到接手上下文）。
+- `PreCompact` 的输出按两家协议分开：Claude Code 丢弃 `systemMessage`，非阻断时
+  **stdout 纯文本**才是压缩摘要的指令；Codex 认 `systemMessage`、忽略纯文本。
+- 输出用 `hookSpecificOutput.additionalContext` / `systemMessage`，不用 `decision: block`；
+  `run` 永远退出 0、只读、不联网。Codex 用官方三级结构 `{matcher, hooks:[{type, command}]}`。
 
-评测：
+### 16.3 事实（`00` 与 `10–17`）
 
-- benchmark 重写统计：错误路径单列、均值不含错误路径、A/B/C 同口径、8 项质量指标 + 硬门槛。
-- **撤回 2.0 文档里的「C = 89 tokens / 降 77%」**：那个数字是在 P2 事实块缺失的缺陷下跑出来的，属于把部分成功报成完整成功。现在夹具上是 C=395.6（vs B=389、A=3055），真实 FFRS 上是 C≈1886（vs B=4866、A=1.75M）。
-- 未迁移库（无 `kb:id`）的 section 类任务标为「跳过」而不是「答错」，并在报告里提示先跑 `kb-migrate.py`。
+- **事实 ID 不可变**：`update_fact(K-01, "## K-99 …")` 直接拒绝——那不是更新，是「用一次更新
+  把 K-01 换成 K-99」，全库引用会指向空气。多行 `content` 也拒绝（只会替换定义行，多出来的会被丢掉）。
+- **三种定义位同权**：标题首 / 列表首 / 表格首列都能定义事实，`kb-check` / `kb-search` /
+  `kb-context` / `kb-handoff` / `kb-write` 共用 `lib/facts.py` 一套判定，不再各写一套正则。
+- **索引页里的条目是指针**：`00_INDEX.md` 的「待核」列表写着同一批 ID，那是导航不是定义。
+  现在标 `pointer`：不算重复定义、不当事实正文、不抢搜索满分。真实库上因此从
+  **ERR 4 → ERR 0**（此前每次体检都报 4 条假重复）。
+- **查不到 ≠ 通过**：解析失败的文件单独报 ERR 并写明「其中的事实未被检查」；全库零定义时报
+  「这不是全部通过」；`counts()` 把定义 / 规范 / 指针 / 有效 / 待核 / 作废 / 未知 / 重复 / 文件失败分开数。
+
+### 16.4 上下文路由
+
+- `kb-search` 与 `kb-context` 真正复用 `lib/facts.py`：作废判定走规范化 `status`，不再看
+  「这一行有没有『已作废』四个字」；被排除的定义进 `superseded` 列表并给出替代 ID。
+- 任务点名 `K-xx` / `G-xxx` 时走 P3 专线：有效 → 给整段定义；作废 → 报缺口 + 替代 ID；
+  待核 → 明说「待核」；库里没有 → 报缺口，不编。
+- **P4 受控**：最多 3 块、最多占预算 30%、且必须命中 ≥2 个关键词或 1 个 ≥4 字符的独特词；
+  任务点名的事实所在文件整份不参与 P4（否则会把已作废的整篇捞回来），事实 ID 也不作 P4 关键词。
+- **只含已作废事实的章节默认不进 P4**（见 §16.7）：任务没在问「以前 / 历史」时，作废内容
+  按行置空（同节有效内容照留），整节相关性都来自作废内容时整节跳过并在缺口里报数。
+- 归档（`90_*`）与流水（`06_流水/`）统一按相对路径定角色降权，`--include-archive` 才升级。
+
+### 16.5 评测
+
+- 10 项质量指标分两级：**5 项必须 100%**（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、
+  计数器口径一致），**5 项仅报告**（章节命中、事实命中、缺口如实、归档未混入、P4 受约束）。
+  把受夹具内容限制的指标写死成 100%，只是把测试调绿。
+- 任务集 10 条，新增「按 ID 定位事实」「作废要指向替代」「待核要标待核」「多工作线召回」。
+  没有可测对象时标 `skip` 且不进分母——「没测到」不许冒充「通过了」。
+- 召回分 完整 / 部分 / 静默，静默遗漏算硬失败。
+
+### 16.6 撤回的数字
+
+- **「C = 89 tokens / 降 77%」**（2.0 文档）：产生于 P2 事实块根本没进装配队列的缺陷版本，
+  少给内容所以数字小，被写成了「路由很省」。
+- **「C = 395.6」（合成夹具）/「C ≈ 1,886」（真实库）**：任务集与指标口径都变了
+  （8 项 → 10 项，任务集换了 4 条），这组数不再可比，已删除。当前口径下的数字见 §1 与
+  `references/benchmark.md`。
+
+### 16.7 PR #1 复审补丁（四处收口）
+
+复审在已经通过六环境 CI 的 `52dcecf` 上又找出四个口子，只修这四处、不扩范围：
+
+1. **`AGENTS.md` 没有路径校验**：`kb-context` 读入口文件前只看 `is_file()`。
+   库里放一个指向库外的符号链接，就能把别人的文件当「本库硬约束」注入。
+   现在先过 `scope.is_within()`（`resolve()` 展开符号链接与 Windows Junction），
+   越界则跳过并写进缺口。`role_files` / `iter_text_files` 早就这么做，只有这处漏了。
+2. **P4 不认 `status: deprecated`**：只含已作废事实的章节会被当成普通「相关补充」捞回来，
+   而 P3 按 ID 查同一条时明明会说「已作废」。现在 P4 用 `lib/facts.py` 的解析结果标注节内事实，
+   与 `kb-search` 用同一口径**按行置空**作废定义：
+   - 混合节 → 保留仍然有效的内容，正文前写「已省略 N 条已作废事实：G-014（替代 G-013）」；
+   - 整节相关性都来自作废内容（或标题行本身就是那条作废定义）→ 整节跳过并在缺口里报数；
+   - 任务在问「以前 / 历史 / 作废」，或显式 `--include-superseded` → 原样带回，
+     正文前标「已作废：G-011（替代 K-04）」。
+   `p4.deprecated_skipped` 计入 JSON，便于基准区分「被过滤」与「没命中」。
+3. **`PreCompact` 用了 Claude 会丢弃的字段**：Claude Code 官方文档写明
+   「discards a PreCompact hook's `systemMessage` and `continue` fields」，非阻断时
+   **stdout 纯文本**才是压缩摘要的指令。现在 Claude 发纯文本、Codex 发 `{"systemMessage": …}`，
+   两家都不发 `decision` / `continue`。此前对 Claude 发 `systemMessage` 等于什么都没说。
+4. **回滚用 `write_bytes()` 直接盖**：写到一半崩掉会把本来完好的旧配置变成半截。
+   改用 `atomic_write_bytes()`（临时文件 → fsync → `os.replace` → fsync 目录），
+   第三方改动的冲突检测保持不变——检测不过就保留现场，不覆盖。
+
+判断依据很简单：`used` 只有 89，而 P0+P1 本身的包装就超过这个量。现在的实现会
+1) 先把 P2 真正装配进去，2) 按**最终渲染**收敛预算，3) 把装不下的线写进 `omitted_lines` 与缺口。
+宁可数字变大，也不把「漏给」记成「省了」。
+
+---
+
+## 17. 测试与验证状态（诚实版）
+
+写清楚「测过什么、没测什么」，比多写几个 PASS 有用。
+
+### 17.1 本地测试
+
+| 项 | 结果 |
+|---|---|
+| `python -m unittest discover -s tests` | **269 passed**（起点 201，本版新增 68；无 skip） |
+| 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
+| `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
+| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |
+
+### 17.2 CI（六个环境）
+
+`Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
+每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
+
+**实跑结果**（run [43058773827](https://github.com/jmwangde3/handoff-kb/actions/runs/43058773827)，2026-11-11，`pull_request`，HEAD `4346389`）：
+
+| 环境 | 结果 | 用时 |
+|---|---|---|
+| py3.10 / ubuntu-latest | pass | 51s |
+| py3.12 / ubuntu-latest | pass | 46s |
+| py3.13 / ubuntu-latest | pass | 47s |
+| py3.10 / windows-latest | pass | 1m46s |
+| py3.12 / windows-latest | pass | 1m15s |
+| py3.13 / windows-latest | pass | 1m26s |
+
+六环境全部 `Ran 269 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
+此前的 main 上是**三连红**（`42865218867` / `42866356878` / `43041287159`），本版修的就是那两处。
+同一分支早先两次运行（`43053794612` / `43054353521`）是 255 用例版本，结论一致。
+
+> 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
+
+### 17.3 客户端 Hook
+
+- **已验证**：配置结构符合两家官方格式、预览零写入、SHA 变更即放弃、多文件回滚（含原子写与
+  第三方改动冲突）、`SessionStart` 五种来源都被覆盖、`PreCompact` 按两家协议分别输出
+  （Claude 纯文本 / Codex `systemMessage`，都不带 `decision` / `continue`）——均为模拟事件测试。
+- **未验证**：真实客户端启动进程时的实际注入效果。测试只到「配置结构与事件映射」这一层，
+  没有起 Claude Code / Codex 真跑一遍。`references/hooks.md` 里标了同样的边界。
+
+### 17.4 Benchmark 口径
+
+- 三个 token 数（A/B/C）用**同一个** `TokenCounter` 实例；默认是 `heuristic` 估算
+  （CJK 1 字 ≈ 1 token，其余 4 字符 ≈ 1 token），**不是** API 账单。
+- 要真实计数就装 `tiktoken` 并显式 `--tokenizer cl100k_base`；装不上会退出 2，不会静默降级。
+- A 含子目录全部可检索文本（排除资料目录与 >2 MB 文件），所以真实库的 A 会非常大；
+  降幅百分比随库的体积分布变化，**不要跨库比较**。
+
+### 17.5 已知残余风险
+
+| 风险 | 现状 | 影响 |
+|---|---|---|
+| 多文件恢复不是数据库事务 | 逐文件写 + 二次 SHA + 失败保留现场；没有 WAL / 两阶段提交 | 进程在两次写之间被 kill，可能留下「部分已写」的现场；`recover` 会报告并要求人工确认，不会假装成功 |
+| 外部编辑器绕过锁 | 锁只在 `kb-write` 内部生效 | VS Code / Typora 直接保存不会被拦；靠写回前的 `sha256` 比对发现冲突 |
+| 真实大库未压测 | 只读跑过 FFRS（正文 47 份 / 0.6 MB，归档 795 份 / 5.6 MB，物理总量约 36 GB 含素材） | 那是「文件多」不是「单文件大」；>10 MB 单文件或 >500 份参与检索的正文没测过，`kb-context` 仍是全库扫描，可能慢 |
+| 跨进程竞态 | 锁 + 二次校验，非 CAS | 两个 `kb-write` 同时写同一文件，极端时序下可能都要重试；不会静默覆盖 |
+| 客户端启动未端到端验证 | 见 §17.3 | Hook 装了但没生效时，只能靠「没有注入上下文」这个现象发现 |
+| P4 的「在问历史」靠关键词猜 | `历史 / 以前 / 作废 / 沿革…` 命中才带回作废内容 | 换一种说法（「当初」「回滚前」）可能不触发；给人用的显式开关是 `--include-superseded`，模型侧只能看缺口提示 |
+| 作废内容按「定义行」置空 | 只认 `lib/facts.py` 解析出的定义位 | 章节里用自然语言复述旧值（没写成定义位）不会被置空；要靠写库时把旧值标成 `status: deprecated` |
 
 ---
 
