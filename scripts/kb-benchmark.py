@@ -58,6 +58,16 @@ METRIC_KEYS = (
 )
 
 
+def min_passes(total: int) -> int:
+    """80% 门槛下必须通过的任务条数——**向上取整**。
+
+    round() 会把 8 个任务的 6.4 抹成 6：6/8 = 75%，「80% 门槛」名不副实。
+    用整数运算而不是 math.ceil(total * 0.8)：0.8 在二进制里不精确，
+    15 * 0.8 = 12.000000000000002，ceil 会给出 13。
+    """
+    return max(1, (total * 4 + 4) // 5)
+
+
 def run_json(script, args):
     p = subprocess.run([sys.executable, str(HERE / script)] + args,
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -339,7 +349,7 @@ def main() -> int:
     # 工作线静默遗漏、计数器口径不一致，都是硬失败。
     hard_ok = all(metrics[k]["total"] and metrics[k]["passed"] == metrics[k]["total"]
                   for k in GATE_MUST_PASS)
-    need = max(1, int(round(len(graded) * 0.8)))
+    need = min_passes(len(graded))
     gate_ok = passes >= need and rate >= 0.8 and hard_ok
 
     result = {

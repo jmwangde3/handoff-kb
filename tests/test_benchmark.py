@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
 import sys
@@ -14,6 +15,38 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import ROOT, TempProject, run, run_json  # noqa: E402
 
 FFRS = ROOT / "tests" / "fixtures" / "ffrs"
+
+
+def load_script(name: str):
+    """按路径加载 scripts/ 下的脚本（文件名带连字符，不能直接 import）。"""
+    path = ROOT / "scripts" / ("%s.py" % name)
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class GateThresholdTest(unittest.TestCase):
+    """质量门的 80% 必须向上取整，不能被 round() 抹成 75%。"""
+
+    def test_min_passes_rounds_up(self):
+        m = load_script("kb-benchmark")
+        cases = {1: 1, 2: 2, 3: 3, 4: 4, 5: 4, 6: 5, 7: 6, 8: 7, 9: 8, 10: 8,
+                 11: 9, 12: 10, 13: 11, 14: 12, 15: 12, 16: 13, 20: 16, 100: 80}
+        for total, want in cases.items():
+            self.assertEqual(m.min_passes(total), want, "total=%d" % total)
+
+    def test_no_float_rounding_error(self):
+        """15*0.8 在二进制里是 12.000000000000002：ceil(total*0.8) 会错给 13。"""
+        m = load_script("kb-benchmark")
+        self.assertEqual(m.min_passes(15), 12)
+        self.assertEqual(m.min_passes(25), 20)
+
+    def test_eight_graded_tasks_need_seven(self):
+        """8 个可评任务时 6 个通过只有 75%，必须判红。"""
+        m = load_script("kb-benchmark")
+        self.assertEqual(m.min_passes(8), 7)
+        self.assertLess(6, m.min_passes(8))
 
 
 class BenchmarkTest(TempProject):
@@ -101,6 +134,14 @@ class BenchmarkTest(TempProject):
         m = data["metrics"]["p4_bounded"]
         self.assertEqual(m["total"], 9)
         self.assertEqual(m["passed"], m["total"], "正常任务上 P4 都应在 3 块 / 30% 之内")
+
+    def test_gate_threshold_matches_graded_count(self):
+        """端到端锁住取整：min_passes 必须等于 ceil(可评任务数 × 0.8)。"""
+        data, _ = self.bench()
+        total = data["quality"]["total"]
+        self.assertGreater(total, 0)
+        self.assertEqual(data["gate"]["min_passes"], max(1, (total * 4 + 4) // 5))
+        self.assertGreaterEqual(data["gate"]["min_passes"], total * 0.8)
 
     def test_gate_fails_when_quality_drops(self):
         """把 05 的硬约束段删掉：约束保留率下降，工具必须报失败而不是照样打勾。"""
