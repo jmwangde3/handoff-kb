@@ -110,6 +110,27 @@ class CheckTest(TempProject):
         data, _ = self.report("--mode", "project")
         self.assertIn("WARN", self.levels(data, "事实证据"))
 
+    def test_constraints_fallback_to_agents_is_ok(self):
+        """kb-context 的 P0 会退到 AGENTS 的「硬约束」段，kb-check 要同口径。
+
+        两边不一致时，同一个库会一边正常注入硬约束、一边报 WARN，
+        读者只会去补一个并不缺的 kb:id。
+        """
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        self.write("05_进度仪表盘.md",
+                   dash.split("<!-- kb:id: dashboard.constraints -->")[0])
+        agents = self.root / "AGENTS.md"
+        if agents.exists():
+            agents.unlink()
+        data, _ = self.report()
+        self.assertIn("WARN", self.levels(data, "05 硬约束"),
+                      "没有 AGENTS 兜底时必须报 WARN")
+        self.write("AGENTS.md", "# AGENTS\n\n## 硬约束\n\n- 不许动 r1\n")
+        data, _ = self.report()
+        self.assertIn("OK", self.levels(data, "05 硬约束"))
+        self.assertNotIn("WARN", self.levels(data, "05 硬约束"))
+
     def test_legacy_fact_shard_recognized(self):
         self.make_v1()
         data, p = self.report()

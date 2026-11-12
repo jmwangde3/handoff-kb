@@ -194,7 +194,7 @@ def check_sizes(root: Path, rep: Report, files):
     return main, archive
 
 
-def check_dashboard(files, rep: Report):
+def check_dashboard(root: Path, files, rep: Report):
     if not files.get("dashboard"):
         return
     p = files["dashboard"][0]
@@ -216,7 +216,23 @@ def check_dashboard(files, rep: Report):
     if not by_id("dashboard.next"):
         rep.add(WARN, "05 下一手", "缺少 kb:id: dashboard.next（新会话不知道下一步做什么）", p)
     if not (by_id("dashboard.constraints") or by_id("dashboard.safety")):
-        rep.add(WARN, "05 硬约束", "缺少 kb:id: dashboard.constraints（预算裁剪时无安全上下文）", p)
+        # 与 kb-context 同口径：P0 会退到 AGENTS.md 的「硬约束」段。
+        # 入口文件兜得住就不算缺口，只提示「收在哪」——否则同一个库
+        # 一边说「硬约束正常注入」一边报 WARN，读者只会去补一个并不缺的 id。
+        fallback = ""
+        agents = root / "AGENTS.md"
+        if agents.is_file():
+            try:
+                adoc = md.parse_file(agents)
+                if any("硬约束" in s.title for s in adoc.sections):
+                    fallback = "（由 AGENTS.md「硬约束」段兜底）"
+            except Exception:
+                pass
+        if fallback:
+            rep.add(OK, "05 硬约束", "dashboard 未声明，%s" % fallback.strip("（）"), p)
+        else:
+            rep.add(WARN, "05 硬约束",
+                    "缺少 kb:id: dashboard.constraints（预算裁剪时无安全上下文）", p)
 
     summ = by_id("dashboard.summary")
     if summ:
@@ -554,7 +570,7 @@ def main() -> int:
 
     check_structure(files, rep, args.loose)
     main, archive = check_sizes(root, rep, files)
-    check_dashboard(files, rep)
+    check_dashboard(root, files, rep)
     check_thresholds(root, files, rep, args.loose)
     check_todo_and_secrets(main + archive, rep)
     check_ids(root, main, rep, args.loose)
