@@ -511,6 +511,33 @@ class P4HygieneTest(TempProject):
         self.assertTrue(reasons, [b["reason"] for b in data["blocks"]])
         self.assertTrue(all("权重 1.0" in r for r in reasons), reasons)
 
+    def test_small_container_section_falls_back_when_children_fail(self):
+        """h1 只是名字、每个子节只命中一个词时，允许整节兜底。
+
+        真实库里 1–2 KB 的小分册长这样：`# 02 · 岗位方向与匹配` 下面跟三个 h2，
+        每个 h2 只出现一次「方向」。父节按自有正文算是空壳、子节又各自够不上
+        「≥2 个关键词」，两边都不参赛，整条线就一条也进不了 P4。
+        """
+        self.write("22_戊.md",
+                   "# 22 · 固件刷机恢复\n\n"
+                   "## 备份\n\n- 刷机前先备份原分区。\n\n"
+                   "## 回滚\n\n- 出问题就用备份回滚固件。\n")
+        data, _ = self.ctx("--task", "固件刷机后怎么恢复", "--budget", "3000")
+        heads = [b["title"] for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertIn("相关补充 · 22 · 固件刷机恢复", heads, heads)
+
+    def test_large_container_section_does_not_fall_back(self):
+        """整节太大的容器节不兜底：装整棵子树会挤掉别的结论。"""
+        filler = "".join("- 条目 %02d：刷机日志占位说明，与任务无关的填充内容。\n" % i
+                         for i in range(1, 41))
+        self.write("23_己.md",
+                   "# 23 · 固件刷机恢复\n\n"
+                   "## 日志甲\n\n" + filler +
+                   "\n## 日志乙\n\n" + filler)
+        data, _ = self.ctx("--task", "固件刷机后怎么恢复", "--budget", "3000")
+        heads = [b["title"] for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertNotIn("相关补充 · 23 · 固件刷机恢复", heads, heads)
+
     def test_same_content_is_not_loaded_twice(self):
         """block 的 source 只有文件名，P4 比的是相对路径：子目录同名会漏判重复。"""
         body = "- 刷机完成判据：`cat /etc/version` 回 21.02.3。\n"

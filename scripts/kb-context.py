@@ -43,6 +43,11 @@ TASK_VERBS_CROSS = ("影响", "波及", "交叉", "同步", "同时", "依赖")
 P4_MAX_BLOCKS = 3
 P4_BUDGET_SHARE = 0.30
 P4_MIN_TERMS = 2
+# 容器节（h1 只是名字、正文全在子节）单独兜底时的整节上限。
+# 超过这个量说明它是大分册，装整棵子树太贵，交给子节各自竞争。
+# 600 的依据：1–2 KB 的小分册整节约 350–450 tok（实测 430），装整节比拆成
+# 子节更划算——不必重复装、上下文完整，还救得回「子节各只命中一个词」的线。
+CONTAINER_MAX_TOKENS = 600
 TASK_ID_RE = re.compile(r"\b([KG]-\d{2,3})\b")
 # 只有明确在问「过去」的任务，才允许 P4 把已作废章节带回上下文
 TASK_HISTORY_HINTS = ("历史", "以前", "旧值", "旧的", "曾经", "当初", "作废",
@@ -206,6 +211,7 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
         return [], dropped
     marks_by_file = fact_marks(fact_defs)
     rows = []
+    containers = []
     for p, reason in scope.iter_text_files(root, include_archive=include_archive):
         if reason:
             continue
@@ -247,9 +253,15 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
             # ——「本节省略了 N 条作废事实」只有它能表达，丢了读者就不知道
             # 这里还有过旧值。这种节保留，按整棵子树计分。
             if not own_body.strip():
-                if not dead:
+                if dead:
+                    score_text = (sec.title or "") + "\n" + raw_body
+                else:
+                    # 其余容器节先记下来，等本文件的子节都判完再决定要不要兜底：
+                    # 1–2 KB 的小分册常常是「h1 只是名字、内容全在 h2」，子节
+                    # 各自只命中一个词、够不上「≥2 个关键词」，整条线会全军覆没。
+                    containers.append({"rel": rel, "sec": sec, "raw": raw_body,
+                                       "weight": weight, "id": sec.id})
                     continue
-                score_text = (sec.title or "") + "\n" + raw_body
             else:
                 score_text = (sec.title or "") + "\n" + own_body
             # 文件导语（第一个节且是 h1）不参与 P4：它装的是「本文件讲什么」
@@ -301,6 +313,25 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
             if dead:
                 row["deprecated"] = [{"id": m[2], "superseded_by": m[4]} for m in dead]
             rows.append(row)
+
+    # 容器节兜底：子树里一个够格的节都没有时，才允许把整节端上来——前提是
+    # 整节不大（<= CONTAINER_MAX_TOKENS）。这样 1–2 KB 的小分册不会因为
+    # 「h1 只是名字、每节只命中一个词」而整条线落空；而 60 KB 的分册 h1
+    # 依然进不来（装整棵子树太贵，它本来也不该靠标题抢名额）。
+    for c in containers:
+        sec = c["sec"]
+        if any(r["file"] == c["rel"] and sec.line < r["line"] <= sec.stop for r in rows):
+            continue
+        if tokens.heuristic(c["raw"]) > CONTAINER_MAX_TOKENS:
+            continue
+        hits = [t for t in terms if t.lower() in ((sec.title or "") + "\n" + c["raw"]).lower()]
+        if not relevant(hits):
+            continue
+        rows.append({"score": len(hits) * c["weight"], "file": c["rel"],
+                     "section_id": c["id"], "heading": sec.title, "line": sec.line,
+                     "text": ((sec.title or "") + "\n" + c["raw"]).strip(),
+                     "hits": hits, "role": scope.role_of_path(root, root / c["rel"],
+                                                             loose=loose)})
     rows.sort(key=lambda r: (-r["score"], r["file"], r["line"]))
     return rows[:max_blocks], dropped
 
