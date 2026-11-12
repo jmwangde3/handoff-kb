@@ -63,6 +63,40 @@ class CheckTest(TempProject):
         data, _ = self.report()
         self.assertIn("ERR", self.levels(data, "明文凭证"))
 
+    def test_summary_counts_timestamp_lines(self):
+        """最近记录用 `[YYYY-MM-DD HH:MM]` 开头时也必须数到。
+
+        只认 `-`/`*` 会让全用时间戳记流水的库恒报「0 条」，阈值等于没设。
+        """
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        head = dash.split("<!-- kb:id: dashboard.summary -->")[0]
+        for n, level in ((5, "OK"), (6, "WARN")):
+            items = "\n".join("[2026-11-%02d 10:00] 记录 %d" % (i + 1, i + 1)
+                              for i in range(n))
+            self.write("05_进度仪表盘.md",
+                       head + "<!-- kb:id: dashboard.summary -->\n## 8. 最近 5 条\n\n"
+                       + items + "\n")
+            data, _ = self.report()
+            got = [f for f in data["findings"] if f["category"] == "05 最近记录"]
+            self.assertEqual(len(got), 1, data["findings"])
+            self.assertEqual(got[0]["level"], level, got[0]["message"])
+            self.assertIn("%d 条" % n, got[0]["message"])
+
+    def test_summary_counts_list_items(self):
+        """列表项写法保持原有口径，不能被时间戳改动带偏。"""
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        head = dash.split("<!-- kb:id: dashboard.summary -->")[0]
+        items = "\n".join("- [2026-11-1%d 22:00] 记录 %d → 无" % (i, i) for i in range(6))
+        self.write("05_进度仪表盘.md",
+                   head + "<!-- kb:id: dashboard.summary -->\n## 8. 最近 5 条\n\n"
+                   + items + "\n")
+        data, _ = self.report()
+        got = [f for f in data["findings"] if f["category"] == "05 最近记录"]
+        self.assertEqual(got[0]["level"], "WARN", got[0]["message"])
+        self.assertIn("6 条", got[0]["message"])
+
     def test_template_mode_skips_evidence(self):
         self.init()
         data, _ = self.report("--mode", "template")

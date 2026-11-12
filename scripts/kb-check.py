@@ -32,6 +32,23 @@ from lib import protocol, scope, security, tokens  # noqa: E402
 
 OK, WARN, ERR = "OK", "WARN", "ERR"
 
+# 「最近记录」的条目形态：列表项、编号项、或时间戳开头（`[2026-11-12 09:20] …`）。
+# 只认 `-`/`*` 会让「全用时间戳记流水」的库恒为 0 条，阈值形同虚设。
+SUMMARY_ITEM_RE = re.compile(
+    r"^(?:[-*+]\s+\S|\d+[.)]\s+\S|\[?\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s|\]|$))")
+
+
+def summary_entries(body: str) -> list:
+    """数「最近记录」条目；跳过空行、表格行、引用行与代码块围栏。"""
+    out = []
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("|", ">", "```")):
+            continue
+        if SUMMARY_ITEM_RE.match(line):
+            out.append(line)
+    return out
+
 
 class Report:
     def __init__(self, mode: str):
@@ -204,10 +221,10 @@ def check_dashboard(files, rep: Report):
     summ = by_id("dashboard.summary")
     if summ:
         body, _ = md.render(doc, summ, include_children=False)
-        items = [x for x in body.splitlines() if x.strip().startswith(("-", "*"))]
+        items = summary_entries(body)
         over = len(items) > 5
         rep.add(OK if not over else WARN, "05 最近记录",
-                "%d 条（阈值 ≤5）" % len(items), p, summ.line)
+                "%d 条（阈值 ≤5；列表项与时间戳行都算）" % len(items), p, summ.line)
 
 
 def check_thresholds(root: Path, files, rep: Report, loose: bool = False):
