@@ -364,6 +364,31 @@ class EntryFileSafetyTest(TempProject):
         self.assertIn("硬约束（AGENTS.md）", titles)
         self.assertIn("不许动 r1", " ".join(data["context"].values()))
 
+    def test_agents_fallback_does_not_report_false_gap(self):
+        """兜底成功了就不该再报「缺 dashboard.constraints」。
+
+        先查 dashboard 就记缺口、后面又从 AGENTS 补上，会让每个任务都带一条
+        假缺口，把人引去补一个并不缺的 kb:id。
+        """
+        self.strip_constraints()
+        self.write("AGENTS.md", "# AGENTS\n\n## 硬约束\n\n- 不许动 r1\n")
+        data, _ = self.ctx("--task", "查看现状", "--budget", "3000")
+        self.assertTrue(any(b["priority"] == "P0" for b in data["blocks"]))
+        self.assertFalse([g for g in data["gaps"]
+                          if "缺少 kb:id: dashboard.constraints" in g],
+                         "已从 AGENTS 兜底到硬约束，不该再报缺 id：%s" % data["gaps"])
+
+    def test_gap_reported_when_nothing_can_supply_constraints(self):
+        """三级兜底全落空时才报缺口——不能因为加了兜底就把真缺口也吞掉。"""
+        self.strip_constraints()
+        agents = self.root / "AGENTS.md"
+        if agents.exists():
+            agents.unlink()
+        data, _ = self.ctx("--task", "查看现状", "--budget", "3000")
+        self.assertFalse(any(b["priority"] == "P0" for b in data["blocks"]))
+        self.assertTrue(any("缺少 kb:id: dashboard.constraints" in g
+                            for g in data["gaps"]), data["gaps"])
+
     def test_agents_symlink_outside_is_refused(self):
         import os
         self.strip_constraints()
@@ -408,6 +433,81 @@ class EntryFileSafetyTest(TempProject):
         data, p = self.ctx("--task", "查看现状", "--budget", "3000")
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertFalse(any("AGENTS" in b["title"] for b in data["blocks"]))
+
+
+class P4HygieneTest(TempProject):
+    """P4 只补「确实相关」的内容——别让噪声抢走那几个名额。
+
+    这里的每一条都对应一次实测浪费：agent 工作日志、空壳父节、文件导语
+    都会因为「命中词多」排到前面，把真正的结论条目挤出去。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.make_filled()
+
+    def ctx(self, *args):
+        return run_json("kb-context.py", "--target", self.root, "--format", "json", *args)
+
+    def all_text(self, data):
+        return " ".join(data["context"].values())
+
+    def test_agent_memory_dirs_are_not_searched(self):
+        """`.workbuddy` / `.shared` 里的 md 是 agent 工作日志，不是交接正文。"""
+        log = ("# 工作日志\n\n## 刷机记录\n\n"
+               "- 固件 21.02.3 刷机完成，重载 nss 后恢复；这条只该留在日志里\n")
+        self.write(".shared/memory/2026-11-10.md", log)
+        self.write(".workbuddy/memory/2026-11-10.md", log)
+        data, p = self.ctx("--task", "固件刷机完成后怎么恢复", "--budget", "3000")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("这条只该留在日志里", self.all_text(data),
+                         "agent 记忆目录不该参与 P4 检索")
+
+    def test_empty_parent_section_never_becomes_p4(self):
+        """只有标题、正文全在子节里的父节不参与打分。
+
+        它的子节会各自成为候选；父节命中只说明标题里有那个词，
+        装进去就是一段空壳，还占掉一个名额。
+        """
+        self.write("20_乙.md", "# 20 · 乙\n\n"
+                   "## 固件刷机\n\n"
+                   "### 刷机后检查\n\n"
+                   "- 固件刷机后先 `cat /etc/version` 再重载 nss。\n")
+        data, _ = self.ctx("--task", "固件刷机后检查什么", "--budget", "3000")
+        heads = [b["title"] for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertNotIn("相关补充 · 固件刷机", heads)
+        self.assertIn("相关补充 · 刷机后检查", heads, heads)
+
+    def test_document_lead_section_is_skipped(self):
+        """文件导语（第一个 h1 节）命中词天然最多，不能靠它抢 P4 名额。"""
+        self.write("30_丙.md", "# 30 · 固件刷机总纲\n\n"
+                   "固件刷机的全部内容都在本文件：刷机前备份、刷机后检查、nss 重载。\n\n"
+                   "## 刷机后检查\n\n"
+                   "- 刷机后 `cat /etc/version` 必须回 21.02.3，否则回滚。\n")
+        data, _ = self.ctx("--task", "固件刷机后检查", "--budget", "3000")
+        heads = [b["title"] for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertNotIn("相关补充 · 30 · 固件刷机总纲", heads)
+        self.assertIn("相关补充 · 刷机后检查", heads, heads)
+
+    def test_same_content_is_not_loaded_twice(self):
+        """block 的 source 只有文件名，P4 比的是相对路径：子目录同名会漏判重复。"""
+        body = "- 刷机完成判据：`cat /etc/version` 回 21.02.3。\n"
+        self.write("子目录/40_丁.md", "# 40 · 丁\n\n## 刷机完成判据\n\n" + body)
+        data, _ = self.ctx("--task", "刷机完成判据", "--budget", "3000")
+        text = self.all_text(data)
+        self.assertLessEqual(text.count("刷机完成判据"), 2,
+                             "同一节被装了不止一次：%s" % text.count("刷机完成判据"))
+
+    def test_p2_gap_is_rewritten_when_p4_fills_facts(self):
+        """P2 靠线名命中，任务里没线名就空；P4 补到事实后那条缺口已经作废。"""
+        data, _ = self.ctx("--task", "版本 21.02.3 怎么核", "--budget", "3000")
+        got_fact = [b for b in data["blocks"]
+                    if b["priority"] == "P4" and "当前值" in b["title"]]
+        if not got_fact:
+            self.skipTest("本夹具下 P4 没补到事实节，另有用例覆盖")
+        self.assertFalse([g for g in data["gaps"]
+                          if g.startswith("任务没有命中任何事实分册")],
+                         "P4 已经补到事实，不该再说「没命中任何事实分册」：%s" % data["gaps"])
 
 
 class ContextTest(TempProject):

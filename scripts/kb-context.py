@@ -224,13 +224,38 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
             if key in used_section_keys:
                 continue
             raw_body = "\n".join(doc.lines[sec.start:sec.stop])
-            raw_text = (sec.title or "") + "\n" + raw_body
-            # 相关性先按「原样内容」判：本节确实在讲任务问的东西，
-            # 才有资格进 dropped 报告；否则只是无关章节，不该拿来充数。
-            if not relevant([t for t in terms if t.lower() in raw_text.lower()]):
-                continue
+            # markdown 的 section 是「到下一个同级标题为止」，所以父节天然把
+            # 所有子节都算进 body。用它打分等于让父节靠子节内容刷分：父节
+            # 命中数必 ≥ 子节，永远排前面，装进来的却是整棵子树。
+            # 打分与「空壳」判定只认**本节自有正文**（标题到下一个任意级标题）。
+            own_stop = sec.stop
+            for nxt in doc.sections[sec.n:]:
+                if nxt.line > sec.line:
+                    own_stop = min(own_stop, nxt.line - 1)
+                    break
+            own_body = "\n".join(doc.lines[sec.start:own_stop])
             found = section_marks(marks, sec)
             dead = [m for m in found if m[3] == "deprecated"]
+            # 只有标题、正文全在子节里的父节：子节会各自成为候选，父节装进去
+            # 只是一段空壳，还占掉一个名额。**例外**是子树里含作废事实的容器节
+            # ——「本节省略了 N 条作废事实」只有它能表达，丢了读者就不知道
+            # 这里还有过旧值。这种节保留，按整棵子树计分。
+            if not own_body.strip():
+                if not dead:
+                    continue
+                score_text = (sec.title or "") + "\n" + raw_body
+            else:
+                score_text = (sec.title or "") + "\n" + own_body
+            # 文件导语（第一个节且是 h1）不参与 P4：它装的是「本文件讲什么」
+            # 和适用版本，命中词天然最多（整份分册的主题词都在里面），
+            # 按命中个数排序必占前几名，把真正的结论条目挤出去。
+            # 只认 level==1，没有 h1 开头的库不受影响。
+            if sec.n == 1 and sec.level == 1 and len(doc.sections) > 1:
+                continue
+            # 相关性先按「原样内容」判：本节确实在讲任务问的东西，
+            # 才有资格进 dropped 报告；否则只是无关章节，不该拿来充数。
+            if not relevant([t for t in terms if t.lower() in score_text.lower()]):
+                continue
             body_lines = list(doc.lines[sec.start:sec.stop])
             if dead and not allow_deprecated:
                 # 置空作废定义占的行（保留行号），而不是整节丢弃：
@@ -240,7 +265,14 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
                         body_lines[ln - 1 - sec.start] = ""
             body = "\n".join(body_lines)
             text = (sec.title or "") + "\n" + body
-            hits = [t for t in terms if t.lower() in text.lower()]
+            # 计分同样只认 score_text（自有正文；容器节例外时是整棵子树），
+            # 否则父节靠子节内容拿高分，把真正有内容的那一节挤掉。
+            # 输出仍是整节，信息不缩水。
+            hits = [t for t in terms if t.lower() in score_text.lower()]
+            if dead and not allow_deprecated:
+                # 作废定义被置空后，本节如果不再命中就不该留下：
+                # 「原文里有这个词」不能作为保留作废内容的理由。
+                hits = [t for t in hits if t.lower() in text.lower()]
             if dead and not allow_deprecated:
                 # 标题行即那条作废定义、置空后什么都不剩、或者剩下的内容
                 # 已经和任务无关 —— 三种情况都不该把这一节塞进上下文。
@@ -281,16 +313,18 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
                        "section_id": sid, "text": text, "reason": reason,
                        "required": required, "line": line})
 
-    # P0 硬约束
+    # P0 硬约束：dashboard 的 kb:id → AGENTS 的「硬约束」段 → 都没有才报缺口。
+    # 三级兜底必须走完再决定报不报：先查 dashboard 就记缺口、后面又从 AGENTS
+    # 兜底成功，会让每个任务都带一条假缺口，把人引去补一个并不缺的 kb:id。
+    p0_done = False
     if dash:
-        sec, text = section_text(dash, "dashboard.constraints", False)
-        if sec is None:
-            sec, text = section_text(dash, "dashboard.safety", False)
-        if text and text.strip():
-            add("P0", "硬约束（不裁剪）", dash_p.name, sec.id, text,
-                "任何预算下必读；删掉会让后续会话失去操作边界", required=True)
-        else:
-            gaps.append("缺少 kb:id: dashboard.constraints —— 硬约束未声明，建议补上")
+        for sid in protocol.SAFETY_SECTION_IDS:
+            sec, text = section_text(dash, sid, False)
+            if text and text.strip():
+                add("P0", "硬约束（不裁剪）", dash_p.name, sec.id, text,
+                    "任何预算下必读；删掉会让后续会话失去操作边界", required=True)
+                p0_done = True
+                break
 
     agents = root / "AGENTS.md"
     # 入口文件也可能是符号链接 / Junction：读之前必须核对真实路径。
@@ -301,14 +335,18 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
         agents = None
     elif not agents.is_file():
         agents = None
-    if agents is not None and not any(b["priority"] == "P0" for b in blocks):
+    if agents is not None and not p0_done:
         adoc = md.parse_file(agents)
         for s in adoc.sections:
             if "硬约束" in s.title:
                 text, _ = md.render(adoc, s, include_children=False)
                 add("P0", "硬约束（AGENTS.md）", agents.name, None, text,
                     "dashboard 没有约束段，退回入口文件", required=True)
+                p0_done = True
                 break
+
+    if not p0_done:
+        gaps.append("缺少 kb:id: dashboard.constraints —— 硬约束未声明，建议补上")
 
     # P1 现状 + 下一手
     if dash:
@@ -417,13 +455,24 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
                     "任务涉及跨线影响：先看交叉链再动手")
 
     # P4 受控补充：数量、预算占比、相关性阈值三者同时生效
-    used_sources = {b["source"] for b in blocks}
+    # block 的 source 只有文件名（给人看），P4 比较的是相对路径；子目录里的
+    # 同名文件（归档/M-013_实测过程.md vs 根目录同名）会因此漏判成「没用过」，
+    # 同一份内容被 P3 和 P4 各装一遍。这里按 role_files 建映射对齐。
+    name_to_rel = {}
+    for group in (files or {}).values():
+        for _p in group:
+            try:
+                name_to_rel.setdefault(_p.name, _p.relative_to(root).as_posix())
+            except ValueError:
+                pass
+    used_sources = {name_to_rel.get(b["source"], b["source"]) for b in blocks}
     # 任务点名事实所在的文件整份不参与 P4：那条事实已经由 P3 按状态处理过，
     # 再从全文捞一遍会把「已作废」的内容当补充材料塞回上下文。
     for fid in asked:
         for d in fact_defs.get(fid, []):
             used_sources.add(d.path)
-    used_keys = {(b["source"], b["section_id"]) for b in blocks if b["section_id"]}
+    used_keys = {(name_to_rel.get(b["source"], b["source"]), b["section_id"])
+                 for b in blocks if b["section_id"]}
     # 事实 ID 不作为 P4 关键词：ID 的查找有专门路径（含状态判定），
     # 交给全文匹配只会在整个文件里乱捞。
     p4_terms = [t for t in terms if not TASK_ID_RE.fullmatch(t)]
@@ -450,6 +499,16 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
             reason += "；含已作废事实 %s，已标注为历史参考" % "、".join(
                 d["id"] for d in row["deprecated"][:3])
         add("P4", title, row["file"], row["section_id"], row["text"], reason)
+
+    # P2 是按「工作线名」命中的，问「机械冲撞」时任务里没有「游戏事实」四个字，
+    # 于是 P2 空、报一条缺口；但 P4 随后按内容把 G-001 补进来了。这时那条缺口
+    # 已经作废，留着会让人以为「库里没这内容」，转头去重复调查。
+    fact_picked = [r for r in picked if r["role"] == "fact"]
+    if fact_picked:
+        gaps[:] = [g for g in gaps if not g.startswith("任务没有命中任何事实分册")]
+        gaps.append("P2 未按工作线名命中；已由 P4 按内容补入 %d 条事实节（%s）"
+                    % (len(fact_picked),
+                       "、".join((r["heading"] or r["file"]) for r in fact_picked[:2])))
     if p4_dropped:
         gaps.append("P4 排除了 %d 个只含已作废事实的章节（%s）；"
                     "要查历史请在任务里说明「以前 / 历史 / 作废」"
