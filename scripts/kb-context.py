@@ -213,7 +213,13 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
         if rel in used_sources:
             continue
         role = scope.role_of_path(root, p, loose=loose)
-        weight = 0.4 if role in ("log", "shard") else (0.3 if role == "archive" else 1.0)
+        # 权重阶梯：结构内的正文 1.0；流水/分片 0.4；归档 0.3；
+        # 其余一律 0.5。`other` 曾经也是 1.0，但它装的是 AGENTS.md、一次性
+        # 发布稿、检索记录、覆盖率矩阵这类东西——不是知识库结构内的正文。
+        # 真实库里 `检索记录_….md` 有 62 KB，任务问什么都可能从里面命中几个词，
+        # 凭体积压过分册条目；P4 只有 3 个名额，抢一次就少一条真结论。
+        weight = (0.4 if role in ("log", "shard")
+                  else 0.3 if role == "archive" else 0.5 if role == "other" else 1.0)
         try:
             doc = md.parse_file(p)
         except Exception:

@@ -489,6 +489,28 @@ class P4HygieneTest(TempProject):
         self.assertNotIn("相关补充 · 30 · 固件刷机总纲", heads)
         self.assertIn("相关补充 · 刷机后检查", heads, heads)
 
+    def test_other_role_is_downweighted(self):
+        """`other` 不是结构内正文（一次性发布稿、检索记录、入口文件），权重低于 fact。
+
+        真实库里 62 KB 的检索记录凭体积就能从任何任务里命中几个词；跟分册正文
+        同权重时，P4 的 3 个名额会被它抢走，装进来的却不是结论。
+        """
+        self.write("临时记录.md",
+                   "# 临时记录\n\n## 固件刷机备忘\n\n- 固件刷机备忘：先备份 ZZQ\n")
+        data, _ = self.ctx("--task", "固件刷机备忘", "--budget", "3000")
+        reasons = [b["reason"] for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertTrue(reasons, "夹具里应该有可补的 P4 内容")
+        self.assertTrue(any("权重 0.5" in r and "other" in r for r in reasons), reasons)
+
+    def test_fact_role_keeps_full_weight(self):
+        """降权只针对 other：事实分册仍是 1.0，别把真正文一起压下去。"""
+        self.write("11_乙.md", "# 11 · 乙\n\n## 固件刷机判据\n\n- 刷机判据 ZZQ\n")
+        data, _ = self.ctx("--task", "固件刷机判据", "--budget", "3000")
+        reasons = [b["reason"] for b in data["blocks"]
+                   if b["priority"] == "P4" and "fact" in b["reason"]]
+        self.assertTrue(reasons, [b["reason"] for b in data["blocks"]])
+        self.assertTrue(all("权重 1.0" in r for r in reasons), reasons)
+
     def test_same_content_is_not_loaded_twice(self):
         """block 的 source 只有文件名，P4 比的是相对路径：子目录同名会漏判重复。"""
         body = "- 刷机完成判据：`cat /etc/version` 回 21.02.3。\n"
