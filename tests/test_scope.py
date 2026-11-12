@@ -33,6 +33,20 @@ class RoleTest(unittest.TestCase):
         for name, want in cases.items():
             self.assertEqual(protocol.role_of_name(name, loose=True), want, name)
 
+    def test_loose_numeric_shards_are_facts(self):
+        """自有命名项目把 20/30/50 这类数字分册也算事实线（FFRS 型编号）。"""
+        for name in ("20_数据与解包.md", "30_mod开发.md", "50_死路与坑.md"):
+            self.assertEqual(protocol.role_of_name(name, loose=True), "fact", name)
+        # 保留位与别名不能被兜底吞成 fact
+        for name, want in (("00_INDEX.md", "baseline"), ("60_进度.md", "dashboard"),
+                           ("61_流水.md", "log"), ("90_过程档案.md", "archive")):
+            self.assertEqual(protocol.role_of_name(name, loose=True), want, name)
+
+    def test_strict_mode_still_rejects_out_of_range(self):
+        """不带 --loose 时 18/50 这类编号仍是 other，别放宽标准库。"""
+        for name in ("18_超范围.md", "50_死路与坑.md"):
+            self.assertEqual(protocol.role_of_name(name), "other", name)
+
     def test_reserved_numbers_never_become_facts(self):
         for name in ("00_x.md", "05_x.md", "06_x.md", "90_x.md"):
             self.assertNotEqual(protocol.role_of_name(name), "fact", name)

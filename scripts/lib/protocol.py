@@ -111,6 +111,10 @@ def role_of_name(name: str, loose: bool = False):
         for role in ("dashboard", "log", "baseline", "archive"):
             if ALIASES[role].search(name):
                 return role
+        # 自有命名项目的数字分册兜底：`20_数据与解包` / `30_mod开发` / `50_死路与坑`
+        # 不在 10–17 规范区间，但同样是事实线。别名先判，避免把 `60_进度` 吞成 fact。
+        if num is not None:
+            return "fact"
     return "other"
 
 
