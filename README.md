@@ -237,13 +237,13 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 285 个用例
+python -m unittest discover -s tests        # 287 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
 ```
 
-- 测试覆盖（285 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底）、agent 目录不进检索、P4 只按自有正文打分、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
+- 测试覆盖（287 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底）、agent 目录不进检索、P4 只按自有正文打分、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门。
 - `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价。
 - CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
 - benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平；任务通过率门槛 80% **向上取整**（8 个任务要 7 个过，`round()` 会把 6.4 抹成 6）。
@@ -299,7 +299,7 @@ scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
 scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
-tests/                      285 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+tests/                      287 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
 tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
@@ -449,6 +449,11 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
    把人引去补一个并不缺的 id。现在三级兜底走完才判缺口，`kb-check` 同口径（能从 AGENTS
    兜住就报 OK，不再边注入边 WARN）。
 
+5. **`other` 跟分册正文同权重**：`other` 装的是 `AGENTS.md`、一次性发布稿、检索记录、
+   覆盖率矩阵这类东西——不在知识库结构里。真实库那份 `检索记录_….md` 有 62 KB，
+   任务问什么都可能从里面命中几个词，凭体积压过分册条目，P4 的 3 个名额就被它抢走。
+   现在权重阶梯是：结构内正文 1.0 / 流水与分片 0.4 / 归档 0.3 / 其余 0.5。
+
 还有一个连带修正：block 的 `source` 只存文件名，P4 比较的是相对路径，子目录里的同名文件
 会被判成「没用过」而重复装载。现在按 `role_files` 建名字→相对路径映射后对齐。
 
@@ -462,7 +467,7 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **285 passed**（起点 201，累计新增 84；无 skip） |
+| `python -m unittest discover -s tests` | **287 passed**（起点 201，累计新增 86；无 skip） |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
 | `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |
@@ -483,7 +488,7 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 | py3.12 / windows-latest | pass | 1m35s |
 | py3.13 / windows-latest | pass | 1m8s |
 
-六环境全部 `Ran 285 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
+六环境全部 `Ran 287 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
 上一版（2.0.1-hotfix）的记录是 run `43058773827`（269 例）；合并进 main 后的 push CI
 `43131692070` 同样是六环境全绿。
 
