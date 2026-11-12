@@ -484,16 +484,16 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
-**实跑结果**（run [43134669356](https://github.com/jmwangde3/handoff-kb/actions/runs/43134669356)，2026-11-12，`pull_request`，HEAD `708c610`）：
+**实跑结果**（run [43142107329](https://github.com/jmwangde3/handoff-kb/actions/runs/43142107329)，2026-11-12，`pull_request`，HEAD `5c0fc47`）：
 
 | 环境 | 结果 | 用时 |
 |---|---|---|
-| py3.10 / ubuntu-latest | pass | 45s |
-| py3.12 / ubuntu-latest | pass | 51s |
-| py3.13 / ubuntu-latest | pass | 51s |
-| py3.10 / windows-latest | pass | 2m22s |
+| py3.10 / ubuntu-latest | pass | 57s |
+| py3.12 / ubuntu-latest | pass | 47s |
+| py3.13 / ubuntu-latest | pass | 43s |
+| py3.10 / windows-latest | pass | 2m19s |
 | py3.12 / windows-latest | pass | 1m35s |
-| py3.13 / windows-latest | pass | 1m8s |
+| py3.13 / windows-latest | pass | 1m33s |
 
 六环境全部 `Ran 289 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
 上一版（2.0.1-hotfix）的记录是 run `43058773827`（269 例）；合并进 main 后的 push CI
