@@ -442,20 +442,20 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
-**实跑结果**（run [43058773827](https://github.com/jmwangde3/handoff-kb/actions/runs/43058773827)，2026-11-11，`pull_request`，HEAD `4346389`）：
+**实跑结果**（run [43134669356](https://github.com/jmwangde3/handoff-kb/actions/runs/43134669356)，2026-11-12，`pull_request`，HEAD `708c610`）：
 
 | 环境 | 结果 | 用时 |
 |---|---|---|
-| py3.10 / ubuntu-latest | pass | 51s |
-| py3.12 / ubuntu-latest | pass | 46s |
-| py3.13 / ubuntu-latest | pass | 47s |
-| py3.10 / windows-latest | pass | 1m46s |
-| py3.12 / windows-latest | pass | 1m15s |
-| py3.13 / windows-latest | pass | 1m26s |
+| py3.10 / ubuntu-latest | pass | 45s |
+| py3.12 / ubuntu-latest | pass | 51s |
+| py3.13 / ubuntu-latest | pass | 51s |
+| py3.10 / windows-latest | pass | 2m22s |
+| py3.12 / windows-latest | pass | 1m35s |
+| py3.13 / windows-latest | pass | 1m8s |
 
-六环境全部 `Ran 269 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
-此前的 main 上是**三连红**（`42865218867` / `42866356878` / `43041287159`），本版修的就是那两处。
-同一分支早先两次运行（`43053794612` / `43054353521`）是 255 用例版本，结论一致。
+六环境全部 `Ran 277 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
+上一版（2.0.1-hotfix）的记录是 run `43058773827`（269 例）；合并进 main 后的 push CI
+`43131692070` 同样是六环境全绿。
 
 > 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
 
