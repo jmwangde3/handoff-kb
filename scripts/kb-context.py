@@ -492,6 +492,12 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
 _SENT_SPLIT_RE = re.compile(r"[。；;！!?？\n]+")
 # 归一化只去 Markdown 装饰与空白，保留实义字符用于子串比对。
 _MARKUP_RE = re.compile(r"[`*_~#>|\[\]()（）]+")
+# 句内混着导语成分时才用的切分符。只认逗号：`适用版本 2.0，生产环境禁止写入`
+# 的逗号两边是两件事，导语那半该剥掉、约束那半必须留下。顿号刻意不切 ——
+# `本文件讲 A、B、C` 这种枚举正是导语形态，切开只会把目录当成独有事实。
+# 没有导语提示词的句子也不切，理由同 _SENT_SPLIT_RE：逗号两边常常是同一个
+# 条件的两半。
+_PIECE_SPLIT_RE = re.compile(r"[，,]")
 
 
 def _plain(text):
@@ -501,6 +507,20 @@ def _plain(text):
     return re.sub(r"\s+", "", s)
 
 
+def _content_pieces(sent):
+    """把句子里的导语成分剔掉，返回真正要判定的事实片段。
+
+    「适用版本 2.0，生产环境禁止写入」这类句子是一半导航 + 一半约束：整句因为
+    含「适用版本」就跳过，等于把后半句的操作禁令一起丢了。含导语提示词时按
+    逗号拆开，只丢导语那几片；不含提示词时整句返回，绝不按逗号乱切。顿号不拆：
+    `本文件讲 A、B、C` 是目录，拆开就成了三条「独有事实」。
+    """
+    if not any(h in sent for h in H1_META_HINTS):
+        return [sent]
+    return [p for p in _PIECE_SPLIT_RE.split(sent)
+            if p.strip() and not any(h in p for h in H1_META_HINTS)]
+
+
 def _h1_is_intro_only(row, kid):
     """h1 的自有正文是否只是子节已经说过的话。
 
@@ -508,9 +528,17 @@ def _h1_is_intro_only(row, kid):
     于是 `set(kid.hits) <= set(h1.hits)` 成立；但 `# 当前 NSS 配置` 里那句
     「参数 YY 必须禁用」子节根本没提，只按关键词判就会连事实一起丢掉。
 
-    这里逐句比对实际内容：h1 自有正文里只要有一句（≥4 个实义字符）在子节
-    文本里找不到，就说明它带来了子节没有的内容，必须保留；全部都能在子节里
-    找到（或正文为空）才算纯导语，允许去重。
+    这里逐句比对实际内容：h1 自有正文里只要有一句在子节文本里找不到，就说明
+    它带来了子节没有的内容，必须保留；全都能在子节里找到（或正文为空）才算
+    纯导语，允许去重。
+
+    两个不能让句子「白丢」的边界：
+
+    - **短句**（<4 个实义字符）不按长度一律忽略。「只读」「禁写」这种短句正是
+      最容易写进 h1 的操作约束，长度短不代表不重要。判据改成「是否与任务相关」：
+      句子里出现本 h1 命中的任一任务词才算独有正文，与任务无关的短句（`（无）`、
+      `待补`）仍旧不参与判断，导语去重行为不变。
+    - **导语与事实混在一句**时只剥导语那半（`_content_pieces`），剩下的照常比对。
 
     文件导语句（「本文件讲什么 / 适用版本 / 最后更新」）例外：它们是导航，
     不是任务事实，即便子节没复述也不该为它们多占一个名额。
@@ -521,14 +549,16 @@ def _h1_is_intro_only(row, kid):
     if not body.strip():
         return True
     kid_text = _plain(kid.get("text") or "")
+    task_terms = [t.lower() for t in (row.get("hits") or []) if t]
     for sent in _SENT_SPLIT_RE.split(body):
-        s = _plain(sent)
-        if len(s) < 4:
-            continue
-        if any(h in s for h in H1_META_HINTS):
-            continue
-        if s not in kid_text:
-            return False
+        for piece in _content_pieces(sent):
+            s = _plain(piece)
+            if not s or s in kid_text:
+                continue
+            if len(s) >= 4:
+                return False
+            if any(t in s.lower() for t in task_terms):
+                return False
     return True
 
 
