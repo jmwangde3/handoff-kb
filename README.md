@@ -1,6 +1,6 @@
-# handoff-kb 2.0.2
+# handoff-kb 2.0.3
 
-> **工具版本** `2.0.2`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
+> **工具版本** `2.0.3`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
 > 两者独立：换工具版本不改协议，也不要求现有库迁移。
 
 **给多会话并行项目的分层交接库。** 一套 Markdown 协议 + 十个零依赖 Python 脚本：让「上下文快满、几条线同时推、文档越堆越多」的项目，新会话接手时只读固定的一小份，而不是全库重读。
@@ -237,13 +237,13 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 333 个用例
+python -m unittest discover -s tests        # 341 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
 ```
 
-- 测试覆盖（333 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底与候选分册降权）、agent 目录不进检索、P4 只按自有正文打分、P4 补入边界与 `p4_facts`、P0 三级兜底（含软链越界与占位符）、围栏内容不进计数、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门、内容级去重与重复装载指标、单事实分册与 `--line` 兜底、容器 599/600/601 边界、P0 去重豁免。
+- 测试覆盖（341 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底与候选分册降权）、agent 目录不进检索、P4 只按自有正文打分、P4 补入边界与 `p4_facts`、P0 三级兜底（含软链越界与占位符）、围栏内容不进计数、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门、内容级去重与重复装载指标、单事实分册与 `--line` 兜底、容器 599/600/601 边界、P0 去重豁免、P0 两级 dashboard 逐级兜底、h1 导语判定（正文逐句比对 / 短句按任务相关性 / 导语与事实混句）。
 - `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价；`tests/fixtures/plain/` 是普通数字编号库（`00/05/20/30/40/50`，无 `kb:id`、无事实结构），用来验证「编号像分册」不等于「里面是事实」。
 - CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
 - benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平；任务通过率门槛 80% **向上取整**（8 个任务要 7 个过，`round()` 会把 6.4 抹成 6）。
@@ -299,7 +299,7 @@ scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
 scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
-tests/                      333 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+tests/                      341 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
 tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
@@ -538,6 +538,27 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
    顺带把容器兜底的 600 token 判据改用**同一个 TokenCounter**：原先固定用 heuristic，
    与 `--tokenizer cl100k_base` 下的总预算不是一套单位。
 
+### 16.11 2.0.3：复审补丁——四处「提前返回」和「只看一半」
+
+2.0.2 合并后复审又量出四处「规则写了没生效」，形状都一样：某一层提前 return，
+或者判据只检查了必要条件。
+
+1. **P0 只兜一级**：`dashboard.constraints` 存在但正文是 `[填]` 时函数直接 return，
+   下面有效的 `dashboard.safety` 永远读不到，最后却报「缺少硬约束」。改成逐级尝试、
+   每级原因都记下来；两级都无效才回退 `AGENTS.md`，缺口诊断同时报出两个 ID。
+   路径越界、空正文、占位符的判定不变，`kb-check` 与 `kb-context` 仍共用 `resolve()`。
+2. **h1 只比关键词**：父节正文更长，几乎必然把子节关键词全命中，「关键词是子集」
+   于是成立，h1 连同「参数 YY 必须禁用」一起被删。判据加一层正文逐句比对：h1
+   自有正文里只要有一句在子节文本里找不到就保留（文件导语句不计入独有内容）。
+3. **短句被长度吞掉**：`len(s) < 4` 无条件跳过，「只读」这类两字操作约束正好被跳。
+   改成看任务相关性——短句里出现本 h1 命中的任务词才算独有正文；`（无）`、`待补`
+   这类无关短句仍不参与判断，正常导语照旧去重。
+4. **导语与事实混在一句**：整句含「适用版本」就跳过，`适用版本 2.0，生产环境禁止写入`
+   的后半句禁令一起消失。现在含导语提示词时按逗号拆开、只丢导语片段；顿号不拆——
+   `本文件讲 A、B、C` 是目录，拆开就成了三条假独有事实。纯版本说明仍正常去重。
+
+用例 333 → 341（constraints +2、context_edges +6），协议仍是 v2，现有库不需要迁移。
+
 ---
 
 ## 17. 测试与验证状态（诚实版）
@@ -548,7 +569,7 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **333 passed**（起点 201，累计新增 132；无 skip） |
+| `python -m unittest discover -s tests` | **341 passed**（起点 201，累计新增 140；无 skip） |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
 | `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""P0 硬约束的统一解析（handoff-kb 2.0.2）
+"""P0 硬约束的统一解析（handoff-kb 2.0.3）
 
 `kb-context` 负责注入、`kb-check` 负责体检。两边早先各判一套：
 context 看正文有没有内容，check 只看有没有「硬约束」这个标题 —— 于是
