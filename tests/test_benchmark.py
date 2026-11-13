@@ -37,10 +37,20 @@ class GateThresholdTest(unittest.TestCase):
             self.assertEqual(m.min_passes(total), want, "total=%d" % total)
 
     def test_no_float_rounding_error(self):
-        """15*0.8 在二进制里是 12.000000000000002：ceil(total*0.8) 会错给 13。"""
+        """门槛全程整数运算：不引浮点，就没有「差一点点算不算进位」要论证。
+
+        早先这里写过 `15*0.8=12.000000000000002`，那是假的——双精度下就是 12.0。
+        用 `math.ceil(total*0.8)` 在常见任务数上也碰巧对，但正确性依赖二进制表示，
+        换个乘法顺序就得重新论证一遍；整数运算不需要论证。
+        """
         m = load_script("kb-benchmark")
         self.assertEqual(m.min_passes(15), 12)
         self.assertEqual(m.min_passes(25), 20)
+
+    def test_empty_task_set_never_passes(self):
+        """一条可评任务都没有时不能自动过闸（空集合的 80% 是 0 个，等于没门槛）。"""
+        m = load_script("kb-benchmark")
+        self.assertGreaterEqual(m.min_passes(0), 1)
 
     def test_eight_graded_tasks_need_seven(self):
         """8 个可评任务时 6 个通过只有 75%，必须判红。"""
