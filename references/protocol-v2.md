@@ -210,8 +210,12 @@ P4 的 `used_sources` 按相对路径比对，不是文件名：`source` 字段�
   没有事实节的线单独说明（「没有 fact.current…」），**不把「没写」说成「预算不够」**。
 - 默认预算 3000；`--format json` 输出 `blocks / skipped / gaps / used / over_budget /
   selected_lines / omitted_lines / block_tokens / rendered_tokens / required_tokens / exact /
-  p4 / p4_facts / p4_candidates`。`p4_facts` 只收真事实分册的节，`p4_candidates` 收候选
-  分册（只有编号、没有事实条目）的节——消费方不必猜哪条是核实过的。
+  p4 / p4_facts / p4_candidates / deduped`。`p4_facts` 只收真事实分册的节，`p4_candidates`
+  收候选分册（只有编号、没有事实条目）的节——消费方不必猜哪条是核实过的。
+- 每个 block 带 `text_sha`（正文 sha256 前 12 位）：JSON 里 blocks 不带正文，要判断
+  「同一段被装两遍」还是「一节按用途拆两块」只能靠它。
+- `deduped` 列出被内容去重跳过的块与 `kept_in`（保留在哪一块）。只在保留的那份真的进了
+  上下文时才列出——那一份也被预算裁掉时，这段内容其实没进来，报「已去重」会误导。
 - `context` 的键是 `section_id`；同一 ID 出现多块（基线命中 + 证据指针）时自动加后缀，不互相覆盖。
 - 找不到任何命中 → `gaps` 说明，**不虚构**。
 - token：`heuristic`（CJK 1 字≈1 token，其余 4 字符≈1 token）默认；`tiktoken` 可用时标注编码器名。
