@@ -237,13 +237,13 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 319 个用例
+python -m unittest discover -s tests        # 333 个用例
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
 ```
 
-- 测试覆盖（319 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底与候选分册降权）、agent 目录不进检索、P4 只按自有正文打分、P4 补入边界与 `p4_facts`、P0 三级兜底（含软链越界与占位符）、围栏内容不进计数、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门、内容级去重与重复装载指标。
+- 测试覆盖（333 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底与候选分册降权）、agent 目录不进检索、P4 只按自有正文打分、P4 补入边界与 `p4_facts`、P0 三级兜底（含软链越界与占位符）、围栏内容不进计数、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门、内容级去重与重复装载指标、单事实分册与 `--line` 兜底、容器 599/600/601 边界、P0 去重豁免。
 - `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价；`tests/fixtures/plain/` 是普通数字编号库（`00/05/20/30/40/50`，无 `kb:id`、无事实结构），用来验证「编号像分册」不等于「里面是事实」。
 - CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
 - benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平；任务通过率门槛 80% **向上取整**（8 个任务要 7 个过，`round()` 会把 6.4 抹成 6）。
@@ -299,7 +299,7 @@ scripts/kb-handoff.py       交接有效性检查（证据优先）
 scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
 scripts/kb-benchmark.py     Token 与质量评测
 scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
-tests/                      319 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
+tests/                      333 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
 tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
 tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
@@ -522,6 +522,20 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
    是设计，不算重复；真正要抓的是「同位置同内容」和「异位同文」。
    合成夹具 C 均值 456 → 440，正是任务 4/6 各少装一行。
 
+7. **一条事实的分册被当成散文，「--line」成了空操作**：刚建线只核了一个值的分册
+   （`## G-001 当前 MTU`）过不了「≥2 条」的门槛，被判候选、P4 只给 0.5，缺口还说
+   「只有编号、没有事实条目」——它明明有一条。更糟的是显式 `--line 数据与解包`：
+   真实库那份 20 KB 分册没有 `fact.*` 章节 ID，于是**一块都不给**，只回一句
+   「该线没有可加载的 fact.* 事节」。
+   改：标题位置就是事实 ID 时**一条即算结构化**（列表项/表格行这类弱证据仍要 ≥2 条）；
+   显式 `--line` 在该线没有 `fact.current` 时取它自己的事实节，最多 3 节、按关键词排序。
+   真实库复测：`--line 数据与解包` 从 0 块 → D-011/D-002/D-004 三节（预算 3000 用 2809），
+   预算降到 400 时如实报「未加载（预算不足）」。
+   只在**显式 `--line`** 时兜底：任务里顺带提到两个线名就整节倒进去，会把
+   `baseline.chains` 这类跨线结论挤出预算（这条在真实库 benchmark 上先踩到过一次）。
+   顺带把容器兜底的 600 token 判据改用**同一个 TokenCounter**：原先固定用 heuristic，
+   与 `--tokenizer cl100k_base` 下的总预算不是一套单位。
+
 ---
 
 ## 17. 测试与验证状态（诚实版）
@@ -532,7 +546,7 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **319 passed**（起点 201，累计新增 118；无 skip） |
+| `python -m unittest discover -s tests` | **333 passed**（起点 201，累计新增 132；无 skip） |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
 | `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |

@@ -227,5 +227,5 @@ A 全量 / B `00+05` / C 路由，10 个固定任务（1 个错误路径单列�
 | `references/hooks.md` | Hook 语义与安装 |
 | `references/benchmark.md` | 评测口径 |
 | `assets/` | 骨架模板 |
-| `tests/` | 319 个 unittest + smoke + 依赖检查 |
+| `tests/` | 333 个 unittest + smoke + 依赖检查 |
 | `tests/fixtures/ffrs/` | 脱敏「自有命名」项目夹具（`--loose` 用，内容全部虚构） |
