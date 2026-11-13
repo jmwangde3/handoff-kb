@@ -105,6 +105,12 @@ py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboa
 
 - 报「超额」时**不要删硬约束**：拆任务或提高 `--budget`，并把超额项写进输出让用户知情。
 - 没有命中就报缺口，去 `kb-search`，别编。
+- **P4 只补节，不等于整线加载**：缺口里出现「P4 只补入 N 个事实节」时，说明这条工作线
+  只按关键词取了几节；要整线取用 `--line <线名>`。JSON 的 `p4_facts` 是真事实分册的节，
+  `p4_candidates` 是「编号像分册、里面没事实条目」的普通文档（权重 0.5，当线索读）。
+- P0 走三级兜底：`dashboard.constraints` → `dashboard.safety` → `AGENTS.md`「硬约束」段；
+  越界的软链入口、只写占位符的段落都不算已声明。`kb-check` 与 `kb-context` 同一判据。
+- `.workbuddy` / `.shared` / `.claude` 等客户端状态目录不算正文，检索与装配都跳过。
 - token 默认 `heuristic` 估算；用 `--tokenizer cl100k_base` 且装了 tiktoken 才是真实计数。
 
 ## 6. 写回 SOP（禁止整文件覆盖）
