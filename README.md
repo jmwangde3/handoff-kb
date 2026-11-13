@@ -532,7 +532,7 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
-**实跑结果**（run [43344905827](https://github.com/jmwangde3/handoff-kb/actions/runs/43344905827)，2026-11-13，`pull_request`，HEAD `4908c89`）：
+**实跑结果**（run [43344905827](https://github.com/jmwangde3/handoff-kb/actions/runs/43344905827)，2026-11-13，`pull_request`，代码 HEAD `4908c89`；此后的提交只改文档）：
 
 | 环境 | 结果 | 用时 |
 |---|---|---|
