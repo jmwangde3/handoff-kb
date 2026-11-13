@@ -63,6 +63,88 @@ class CheckTest(TempProject):
         data, _ = self.report()
         self.assertIn("ERR", self.levels(data, "明文凭证"))
 
+    def test_summary_counts_timestamp_lines(self):
+        """最近记录用 `[YYYY-MM-DD HH:MM]` 开头时也必须数到。
+
+        只认 `-`/`*` 会让全用时间戳记流水的库恒报「0 条」，阈值等于没设。
+        """
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        head = dash.split("<!-- kb:id: dashboard.summary -->")[0]
+        for n, level in ((5, "OK"), (6, "WARN")):
+            items = "\n".join("[2026-11-%02d 10:00] 记录 %d" % (i + 1, i + 1)
+                              for i in range(n))
+            self.write("05_进度仪表盘.md",
+                       head + "<!-- kb:id: dashboard.summary -->\n## 8. 最近 5 条\n\n"
+                       + items + "\n")
+            data, _ = self.report()
+            got = [f for f in data["findings"] if f["category"] == "05 最近记录"]
+            self.assertEqual(len(got), 1, data["findings"])
+            self.assertEqual(got[0]["level"], level, got[0]["message"])
+            self.assertIn("%d 条" % n, got[0]["message"])
+
+    def test_summary_counts_list_items(self):
+        """列表项写法保持原有口径，不能被时间戳改动带偏。"""
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        head = dash.split("<!-- kb:id: dashboard.summary -->")[0]
+        items = "\n".join("- [2026-11-1%d 22:00] 记录 %d → 无" % (i, i) for i in range(6))
+        self.write("05_进度仪表盘.md",
+                   head + "<!-- kb:id: dashboard.summary -->\n## 8. 最近 5 条\n\n"
+                   + items + "\n")
+        data, _ = self.report()
+        got = [f for f in data["findings"] if f["category"] == "05 最近记录"]
+        self.assertEqual(got[0]["level"], "WARN", got[0]["message"])
+        self.assertIn("6 条", got[0]["message"])
+
+    def count_summary(self, body):
+        """把 body 写进 05 的最近记录段，返回那一条 finding 的数字。"""
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        head = dash.split("<!-- kb:id: dashboard.summary -->")[0]
+        self.write("05_进度仪表盘.md",
+                   head + "<!-- kb:id: dashboard.summary -->\n## 8. 最近 5 条\n\n"
+                   + body + "\n")
+        data, _ = self.report()
+        got = [f for f in data["findings"] if f["category"] == "05 最近记录"]
+        self.assertEqual(len(got), 1, data["findings"])
+        m = __import__("re").search(r"(\d+) 条", got[0]["message"])
+        self.assertIsNotNone(m, got[0]["message"])
+        return int(m.group(1))
+
+    def test_summary_timestamp_formats(self):
+        """四种时间戳写法都要算：方括号、斜杠、ISO 带时区、UTC 的 Z。"""
+        lines = ["[2026-11-01 09:20] 甲",
+                 "2026/11/02 10:30 乙",
+                 "2026-11-03T11:40:12+08:00 丙",
+                 "2026-11-04T12:50:33Z 丁"]
+        self.assertEqual(self.count_summary("\n".join(lines)), 4)
+
+    def test_summary_ignores_fenced_blocks(self):
+        """围栏里的示例记录不是记录：``` 与 ~~~ 都不能数进去。
+
+        只按行首判断会把文档里贴的示例流水全算成条目，阈值当场失效。
+        """
+        body = "\n".join([
+            "[2026-11-01 09:20] 真记录",
+            "```markdown",
+            "- [2026-11-02 10:00] 示例甲",
+            "- [2026-11-03 10:00] 示例乙",
+            "```",
+            "~~~",
+            "[2026-11-04 10:00] 示例丙",
+            "~~~",
+        ])
+        self.assertEqual(self.count_summary(body), 1)
+
+    def test_summary_rejects_bare_and_invalid_timestamps(self):
+        """只有时间戳的行是分隔符；`2026-13-45` 不是日期。"""
+        body = "\n".join(["[2026-11-01 09:20]",       # 只有时间戳
+                          "[2026-13-45 09:20] 假日期",
+                          "[2026-11-02 25:00] 假小时",
+                          "[2026-11-03 09:20] 真记录"])
+        self.assertEqual(self.count_summary(body), 1)
+
     def test_template_mode_skips_evidence(self):
         self.init()
         data, _ = self.report("--mode", "template")
@@ -75,6 +157,27 @@ class CheckTest(TempProject):
             "| K-01 | 固件版本 | 21.02.3 | 有效 | — | — |"))
         data, _ = self.report("--mode", "project")
         self.assertIn("WARN", self.levels(data, "事实证据"))
+
+    def test_constraints_fallback_to_agents_is_ok(self):
+        """kb-context 的 P0 会退到 AGENTS 的「硬约束」段，kb-check 要同口径。
+
+        两边不一致时，同一个库会一边正常注入硬约束、一边报 WARN，
+        读者只会去补一个并不缺的 kb:id。
+        """
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        self.write("05_进度仪表盘.md",
+                   dash.split("<!-- kb:id: dashboard.constraints -->")[0])
+        agents = self.root / "AGENTS.md"
+        if agents.exists():
+            agents.unlink()
+        data, _ = self.report()
+        self.assertIn("WARN", self.levels(data, "05 硬约束"),
+                      "没有 AGENTS 兜底时必须报 WARN")
+        self.write("AGENTS.md", "# AGENTS\n\n## 硬约束\n\n- 不许动 r1\n")
+        data, _ = self.report()
+        self.assertIn("OK", self.levels(data, "05 硬约束"))
+        self.assertNotIn("WARN", self.levels(data, "05 硬约束"))
 
     def test_legacy_fact_shard_recognized(self):
         self.make_v1()

@@ -71,6 +71,13 @@ DATA_DIRS = {
     ".git", ".kb-txn", ".kb.lock", ".venv", "venv", ".idea", ".vscode",
     # 解包/工具产物与备份残留：正文里出现这些目录基本都是数据，不是交接文档
     "unpack", "unpacked", "_tmp", ".trash",
+    # AI 客户端的规则/记忆目录。里面的 md 是 agent 工作日志（当天流水、项目索引卡），
+    # 不是交接正文：进去检索会拿到「某天做过什么」，把真正的分册结论挤出预算。
+    # 实测某库 50 个待检索文件里 16 个属于这类，且 .workbuddy/memory 常是 .shared/memory
+    # 的软链，同一份内容被算两遍、命中分翻倍，更容易抢占 P4 名额。
+    ".workbuddy", ".shared", ".codex", ".qoder", ".trae", ".claude",
+    ".cursor", ".gemini", ".aider", ".continue", ".windsurf", ".agents",
+    ".kiro", ".zed", ".junie",
 }
 
 MAX_TEXT_BYTES = 2 * 1024 * 1024  # 超过按数据产物处理
@@ -111,6 +118,10 @@ def role_of_name(name: str, loose: bool = False):
         for role in ("dashboard", "log", "baseline", "archive"):
             if ALIASES[role].search(name):
                 return role
+        # 自有命名项目的数字分册兜底：`20_数据与解包` / `30_mod开发` / `50_死路与坑`
+        # 不在 10–17 规范区间，但同样是事实线。别名先判，避免把 `60_进度` 吞成 fact。
+        if num is not None:
+            return "fact"
     return "other"
 
 

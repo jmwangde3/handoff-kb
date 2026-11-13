@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
 import sys
@@ -14,6 +15,48 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import ROOT, TempProject, run, run_json  # noqa: E402
 
 FFRS = ROOT / "tests" / "fixtures" / "ffrs"
+
+
+def load_script(name: str):
+    """按路径加载 scripts/ 下的脚本（文件名带连字符，不能直接 import）。"""
+    path = ROOT / "scripts" / ("%s.py" % name)
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class GateThresholdTest(unittest.TestCase):
+    """质量门的 80% 必须向上取整，不能被 round() 抹成 75%。"""
+
+    def test_min_passes_rounds_up(self):
+        m = load_script("kb-benchmark")
+        cases = {1: 1, 2: 2, 3: 3, 4: 4, 5: 4, 6: 5, 7: 6, 8: 7, 9: 8, 10: 8,
+                 11: 9, 12: 10, 13: 11, 14: 12, 15: 12, 16: 13, 20: 16, 100: 80}
+        for total, want in cases.items():
+            self.assertEqual(m.min_passes(total), want, "total=%d" % total)
+
+    def test_no_float_rounding_error(self):
+        """门槛全程整数运算：不引浮点，就没有「差一点点算不算进位」要论证。
+
+        早先这里写过 `15*0.8=12.000000000000002`，那是假的——双精度下就是 12.0。
+        用 `math.ceil(total*0.8)` 在常见任务数上也碰巧对，但正确性依赖二进制表示，
+        换个乘法顺序就得重新论证一遍；整数运算不需要论证。
+        """
+        m = load_script("kb-benchmark")
+        self.assertEqual(m.min_passes(15), 12)
+        self.assertEqual(m.min_passes(25), 20)
+
+    def test_empty_task_set_never_passes(self):
+        """一条可评任务都没有时不能自动过闸（空集合的 80% 是 0 个，等于没门槛）。"""
+        m = load_script("kb-benchmark")
+        self.assertGreaterEqual(m.min_passes(0), 1)
+
+    def test_eight_graded_tasks_need_seven(self):
+        """8 个可评任务时 6 个通过只有 75%，必须判红。"""
+        m = load_script("kb-benchmark")
+        self.assertEqual(m.min_passes(8), 7)
+        self.assertLess(6, m.min_passes(8))
 
 
 class BenchmarkTest(TempProject):
@@ -101,6 +144,51 @@ class BenchmarkTest(TempProject):
         m = data["metrics"]["p4_bounded"]
         self.assertEqual(m["total"], 9)
         self.assertEqual(m["passed"], m["total"], "正常任务上 P4 都应在 3 块 / 30% 之内")
+
+    def test_gate_threshold_matches_graded_count(self):
+        """端到端锁住取整：min_passes 必须等于 ceil(可评任务数 × 0.8)。"""
+        data, _ = self.bench()
+        total = data["quality"]["total"]
+        self.assertGreater(total, 0)
+        self.assertEqual(data["gate"]["min_passes"], max(1, (total * 4 + 4) // 5))
+        self.assertGreaterEqual(data["gate"]["min_passes"], total * 0.8)
+
+    def test_duplicates_are_reported_by_content_fingerprint(self):
+        """重复装载要看内容指纹，不能只看 section_id。
+
+        同一节按用途拆成两块（基线命中 + 证据指针）是设计；真正要抓的是
+        「同一段正文进了两次」。blocks 的 JSON 不带正文，只能靠 text_sha。
+        """
+        m = load_script("kb-benchmark")
+        same = [{"source_path": "a.md", "section_id": "s1", "text_sha": "x"},
+                {"source_path": "a.md", "section_id": "s1", "text_sha": "x"}]
+        self.assertEqual(m.count_duplicates(same)["exact"], 1)
+        self.assertEqual(m.describe_duplicates(same)["split_section"], 0,
+                         "同文同节不算「一节多片」")
+
+        slices = [{"source_path": "a.md", "section_id": "s1", "text_sha": "x"},
+                  {"source_path": "a.md", "section_id": "s1", "text_sha": "y"}]
+        self.assertEqual(m.count_duplicates(slices)["exact"], 0)
+        self.assertEqual(m.describe_duplicates(slices)["split_section"], 1,
+                         "一节两块不同正文要认出来")
+
+        cross = [{"source_path": "a.md", "section_id": "s1", "text_sha": "x"},
+                 {"source_path": "b.md", "section_id": "s2", "text_sha": "x"}]
+        self.assertEqual(m.count_duplicates(cross)["cross"], 1)
+
+        # 点名事实没有 section_id：两块不同正文不能因为 None==None 被判重
+        bare = [{"source_path": "a.md", "section_id": None, "text_sha": "x"},
+                {"source_path": "a.md", "section_id": None, "text_sha": "y"}]
+        self.assertEqual(m.count_duplicates(bare), {"exact": 0, "cross": 0})
+
+    def test_benchmark_reports_duplicates(self):
+        data, _ = self.bench()
+        dup = data["duplicates"]
+        for key in ("exact", "cross", "split_sections", "blocks"):
+            self.assertIn(key, dup)
+        self.assertGreater(dup["blocks"], 0)
+        self.assertEqual(dup["exact"], 0,
+                         "正常装配不该出现同节同文：%s" % dup)
 
     def test_gate_fails_when_quality_drops(self):
         """把 05 的硬约束段删掉：约束保留率下降，工具必须报失败而不是照样打勾。"""

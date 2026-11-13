@@ -26,11 +26,65 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lib import constraints  # noqa: E402
 from lib import facts  # noqa: E402
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope, security, tokens  # noqa: E402
 
 OK, WARN, ERR = "OK", "WARN", "ERR"
+
+# 一条记录可以是列表项、编号项，或时间戳开头（`[2026-11-12 09:20] …`）。
+# 只认 `-`/`*` 会让「全用时间戳记流水」的库恒为 0 条，阈值形同虚设。
+LIST_ITEM_RE = re.compile(r"^(?:[-*+]\s+\S|\d+[.)]\s+\S)")
+# 时间戳：`[YYYY-MM-DD HH:MM]` / `YYYY/MM/DD HH:MM` / ISO8601（含 T、秒、时区）。
+# 日期用标准库校验，`2026-13-45` 这种不算记录。
+TIMESTAMP_RE = re.compile(
+    r"""^[\[\(]?\s*
+        (?P<y>\d{4})[-/](?P<mo>\d{1,2})[-/](?P<d>\d{1,2})
+        (?:[ T](?P<h>\d{1,2}):(?P<mi>\d{2})(?::(?P<s>\d{2}))?(?:\.\d+)?
+           (?:Z|[+-]\d{2}:?\d{2})?)?
+        \s*[\]\)]?\s*(?P<rest>.*)$""",
+    re.X)
+
+
+def _timestamp_entry(line: str):
+    """`line` 是不是「时间戳 + 实际内容」；是则返回 True。
+
+    只有时间戳、后面什么都没写的行不算——那是分隔符，不是记录。
+    """
+    m = TIMESTAMP_RE.match(line)
+    if not m:
+        return False
+    try:
+        datetime.date(int(m.group("y")), int(m.group("mo")), int(m.group("d")))
+    except ValueError:
+        return False
+    if m.group("h") is not None:
+        if int(m.group("h")) > 23 or int(m.group("mi")) > 59:
+            return False
+        if m.group("s") is not None and int(m.group("s")) > 59:
+            return False
+    return bool(m.group("rest").strip())
+
+
+def summary_entries(body: str) -> list:
+    """数「最近记录」条目。
+
+    跳过：空行、表格行、引用行、**围栏内的所有行**（含围栏标记本身）、
+    只有时间戳没有内容的行。围栏规则交给 `markdown.scan_fences`，
+    三个以上反引号 / 波浪线、长度匹配、语言标记、CRLF 都与解析器一致。
+    """
+    out = []
+    for _, line, fenced in md.scan_fences(body.splitlines()):
+        if fenced:
+            continue
+        text = line.strip()
+        if not text or text.startswith(("|", ">")):
+            continue
+        if LIST_ITEM_RE.match(text) or _timestamp_entry(text):
+            out.append(text)
+    return out
+
 
 
 class Report:
@@ -177,7 +231,7 @@ def check_sizes(root: Path, rep: Report, files):
     return main, archive
 
 
-def check_dashboard(files, rep: Report):
+def check_dashboard(root: Path, files, rep: Report):
     if not files.get("dashboard"):
         return
     p = files["dashboard"][0]
@@ -198,16 +252,27 @@ def check_dashboard(files, rep: Report):
         rep.add(WARN, "05 现状", "缺少 kb:id: dashboard.current（无法按 ID 定位现状）", p)
     if not by_id("dashboard.next"):
         rep.add(WARN, "05 下一手", "缺少 kb:id: dashboard.next（新会话不知道下一步做什么）", p)
-    if not (by_id("dashboard.constraints") or by_id("dashboard.safety")):
-        rep.add(WARN, "05 硬约束", "缺少 kb:id: dashboard.constraints（预算裁剪时无安全上下文）", p)
+    # 与 kb-context 同口径：三级兜底走完、且**内容有效**才算有硬约束。
+    # 只看「有没有硬约束这个标题」会把「## 硬约束」后面空一片判成 OK，
+    # 而注入端拿不到任何正文——同一个库一边说正常、一边报缺口。
+    p0 = constraints.resolve(root, doc, p)
+    if p0["ok"]:
+        if p0["source"] == "dashboard":
+            rep.add(OK, "05 硬约束", "由 %s 提供（不放行空标题）" % p0["block"]["section_id"],
+                    p, by_id(p0["block"]["section_id"]).line
+                    if by_id(p0["block"]["section_id"]) else None)
+        else:
+            rep.add(OK, "05 硬约束", "dashboard 未声明，%s" % p0["detail"], p)
+    else:
+        rep.add(WARN, "05 硬约束", p0["gap"], p)
 
     summ = by_id("dashboard.summary")
     if summ:
         body, _ = md.render(doc, summ, include_children=False)
-        items = [x for x in body.splitlines() if x.strip().startswith(("-", "*"))]
+        items = summary_entries(body)
         over = len(items) > 5
         rep.add(OK if not over else WARN, "05 最近记录",
-                "%d 条（阈值 ≤5）" % len(items), p, summ.line)
+                "%d 条（阈值 ≤5；列表项与时间戳行都算）" % len(items), p, summ.line)
 
 
 def check_thresholds(root: Path, files, rep: Report, loose: bool = False):
@@ -537,7 +602,7 @@ def main() -> int:
 
     check_structure(files, rep, args.loose)
     main, archive = check_sizes(root, rep, files)
-    check_dashboard(files, rep)
+    check_dashboard(root, files, rep)
     check_thresholds(root, files, rep, args.loose)
     check_todo_and_secrets(main + archive, rep)
     check_ids(root, main, rep, args.loose)

@@ -90,6 +90,41 @@ def _strip_closing_hashes(title: str) -> str:
     return t
 
 
+def scan_fences(lines):
+    """产出 `(行号 0 基, 行文本, in_fence)`。
+
+    `in_fence=True` 包含**围栏标记行本身**与围栏内的每一行。围栏规则与
+    `parse()` 完全一致：≤3 空格缩进、3 个以上 ``` 或 ~~~、闭合必须同字符且长度不小于
+    开启、闭合行除围栏外不能有别的内容（语言标记只允许出现在开启行）。
+
+    只写这一份实现：早先 `facts.py` / `kb-check.py` / `kb-context.py` 各写一遍，
+    于是「围栏内的表格算不算表格」在不同脚本里答案不一样。
+    """
+    fence_ch, fence_len = None, 0
+    for idx, raw in enumerate(lines):
+        line = raw.rstrip("\r")
+        m = FENCE_RE.match(line)
+        if fence_ch:
+            if m and m.group(2)[0] == fence_ch and len(m.group(2)) >= fence_len \
+                    and not m.group(3).strip():
+                fence_ch = None
+            yield idx, line, True
+            continue
+        if m:
+            fence_ch, fence_len = m.group(2)[0], len(m.group(2))
+            yield idx, line, True
+            continue
+        yield idx, line, False
+
+
+def unfenced_lines(doc):
+    """产出 `(1 基行号, 行文本)`：跳过围栏标记行与围栏内的所有行。"""
+    for idx, line, fenced in scan_fences(doc.lines):
+        if fenced:
+            continue
+        yield idx + 1, line
+
+
 def parse(text: str, path: Optional[Path] = None) -> Document:
     lines = text.splitlines()
     heads = []           # (idx, level, title, id)

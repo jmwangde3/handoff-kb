@@ -3,9 +3,9 @@ name: handoff-kb
 description: 给「多会话并行 / 上下文容易满 / 需要长期维护」的项目搭分层交接库（00 基线 + 10–17 事实分册 + 05 现状 + 06 流水 + 90 归档 + AGENTS 入口 + git 机制），并提供按 Token 预算的上下文路由、带哈希校验的安全写入、证据驱动的交接检查、v1→v2 无损迁移、客户端 Hook 与评测。触发词：上下文满了、文档臃肿、多会话同步、进度仪表盘、按线分片、结论索引、别再建第 N 份文档、老项目改造、存量迁移、文档库分层、知识库改造、handoff 库、token 预算、safe write。**不适用**：单会话一次性交接、只要一份 handoff / 继续提示词、临时任务收尾、文档少于 3 份且只有一个会话——这类直接写一份 6 行 handoff 即可，不必展开本 skill、不要建库。
 ---
 
-# 分层交接库（handoff-kb 2.0.1-hotfix）
+# 分层交接库（handoff-kb 2.0.2）
 
-> **工具版本** `2.0.1-hotfix`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
+> **工具版本** `2.0.2`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
 > 两者独立：换工具版本不改协议，也不要求现有库迁移。
 
 ## 适用边界（加载后先读这段）
@@ -105,6 +105,12 @@ py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboa
 
 - 报「超额」时**不要删硬约束**：拆任务或提高 `--budget`，并把超额项写进输出让用户知情。
 - 没有命中就报缺口，去 `kb-search`，别编。
+- **P4 只补节，不等于整线加载**：缺口里出现「P4 只补入 N 个事实节」时，说明这条工作线
+  只按关键词取了几节；要整线取用 `--line <线名>`。JSON 的 `p4_facts` 是真事实分册的节，
+  `p4_candidates` 是「编号像分册、里面没事实条目」的普通文档（权重 0.5，当线索读）。
+- P0 走三级兜底：`dashboard.constraints` → `dashboard.safety` → `AGENTS.md`「硬约束」段；
+  越界的软链入口、只写占位符的段落都不算已声明。`kb-check` 与 `kb-context` 同一判据。
+- `.workbuddy` / `.shared` / `.claude` 等客户端状态目录不算正文，检索与装配都跳过。
 - token 默认 `heuristic` 估算；用 `--tokenizer cl100k_base` 且装了 tiktoken 才是真实计数。
 
 ## 6. 写回 SOP（禁止整文件覆盖）
@@ -221,5 +227,5 @@ A 全量 / B `00+05` / C 路由，10 个固定任务（1 个错误路径单列�
 | `references/hooks.md` | Hook 语义与安装 |
 | `references/benchmark.md` | 评测口径 |
 | `assets/` | 骨架模板 |
-| `tests/` | 269 个 unittest + smoke + 依赖检查 |
+| `tests/` | 333 个 unittest + smoke + 依赖检查 |
 | `tests/fixtures/ffrs/` | 脱敏「自有命名」项目夹具（`--loose` 用，内容全部虚构） |
