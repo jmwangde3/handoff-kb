@@ -426,27 +426,30 @@ MIN_STRUCTURE_ENTRIES = 2
 def has_fact_structure(doc) -> bool:
     """这个文件里有没有「一条条事实」的结构（而不是一篇散文 / 一份会议记录）。
 
-    判据（任一满足）：
-      - 有 `fact.*` 章节 ID（协议内的事实线）；
-      - 有 ≥2 条 K/G 定义（标题首 / 列表首 / 表格首列）；
-      - 有 ≥2 条 D/M/O/X 这类项目自有编号条目。
-    只命中一条不足以晋升：单条可能是正文里的一句举例。
+    两种强度的证据，不能混为一谈：
+
+      - 强：**标题位置就是事实 ID**（`## G-001 当前 MTU` / `### D-011 …`）。
+        一条就够——散文不会把 `G-001` 放在小标题位置。只有一条事实的分册
+        （刚建线、只核了一个值）是合法状态，不能因为它没凑够两条就判成散文。
+      - 弱：列表项 / 表格首列 / 正文里提到编号。这种可能只是正文举例，
+        仍然要 ≥2 条才晋升。
+      - 另有协议事实线 `fact.*` 章节 ID，直接算结构化。
     """
     if any((s.id or "").startswith("fact.") for s in doc.sections):
         return True
-    kg = 0
-    own = 0
+    weak = 0
     for _, line in md.unfenced_lines(doc):
         text = line.strip()
+        is_heading = bool(re.match(r"^#{1,6}\s", text))
+        if (is_heading and (HEADING_RE.match(text)
+                            or STRUCTURED_ENTRY_RE.match(text))):
+            return True
         if HEADING_RE.match(text) or LIST_RE.match(text) or TABLE_RE.match(text):
-            kg += 1
-            if kg >= MIN_STRUCTURE_ENTRIES:
-                return True
-            continue
-        if STRUCTURED_ENTRY_RE.match(text):
-            own += 1
-            if own >= MIN_STRUCTURE_ENTRIES:
-                return True
+            weak += 1
+        elif STRUCTURED_ENTRY_RE.match(text):
+            weak += 1
+        if weak >= MIN_STRUCTURE_ENTRIES:
+            return True
     return False
 
 

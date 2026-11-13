@@ -120,6 +120,54 @@ def rel_of(root: Path, p) -> str:
         return ""
 
 
+# `--line` 兜底：分册里没有 `fact.*` 章节 ID 时，按「标题即事实 ID」取节。
+# 上限定在 3，和 P4 一个量级——点名一条线不等于把整份分册倒进上下文。
+LINE_FACT_MAX = 3
+FACT_HEADING_RE = re.compile(r"^\s*[`*]*[KGDMXO]-\d{2,3}\b")
+
+
+def own_section_text(doc, sec) -> str:
+    """本节自有正文：标题到下一个任意级标题。
+
+    父节不能把子树算成自己的——否则一个空壳标题靠子节内容刷分，
+    装进来的却是整棵子树。
+    """
+    stop = sec.stop
+    for nxt in doc.sections[sec.n:]:
+        if nxt.line > sec.line:
+            stop = min(stop, nxt.line - 1)
+            break
+    return "\n".join(doc.lines[sec.start:stop]).strip()
+
+
+def line_fact_sections(p: Path, doc, name: str, terms, limit: int = LINE_FACT_MAX):
+    """`--line` 指定的线没有 `fact.current` / `fact.commands` 时，退回到它自己的
+    事实节（`## G-001 …` / `### D-011 …`）。
+
+    协议 v2 的分册可以用 kb:id 拆节；自有命名项目通常只写标题。没有这一步，
+    `--line 数据与解包` 在真实库上会 0 块——点名了一条线却什么都没给，
+    再报一句「该线没有可加载的 fact.* 事节」，读者只能以为这条线是空的。
+    """
+    rows = []
+    for sec in doc.sections:
+        title = (sec.title or "").strip()
+        if not FACT_HEADING_RE.match(title):
+            continue
+        text = own_section_text(doc, sec)
+        if not text:
+            continue
+        hits = [t for t in terms if t.lower() in text.lower()]
+        rows.append((len(hits), sec.line, title, text))
+    if not rows:
+        return []
+    rows.sort(key=lambda r: (-r[0], r[1]))
+    if any(r[0] for r in rows):
+        rows = [r for r in rows if r[0]]
+    return [("本线事实节 · %s · %s" % (name, title), p.name, None, text,
+             "按工作线取用「%s」：%s" % (name, title))
+            for _, _, title, text in rows[:limit]]
+
+
 def find_line_facts(root, files, line_spec, terms, task: str = "", loose: bool = False):
     """返回 (paths, reason, missing, candidates)。
 
@@ -249,7 +297,7 @@ def relevant(hits) -> bool:
 
 def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
                   include_archive: bool, loose: bool, max_blocks=P4_MAX_BLOCKS,
-                  fact_defs=None, allow_deprecated: bool = False):
+                  fact_defs=None, allow_deprecated: bool = False, counter=None):
     """受控 P4：只补「确实相关」的少量章节。
 
     约束（全部硬性）：
@@ -418,7 +466,10 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
         sec = c["sec"]
         if any(r["file"] == c["rel"] and sec.line < r["line"] <= sec.stop for r in rows):
             continue
-        if tokens.heuristic(c["raw"]) > CONTAINER_MAX_TOKENS:
+        # 与预算走同一个计数器：容器阈值按 heuristic 判、总量按 tiktoken 算，
+        # 会得出两套单位（cl100k 下同一段文本的计数能差 30% 以上）。
+        count = counter.count if counter is not None else tokens.heuristic
+        if count(c["raw"]) > CONTAINER_MAX_TOKENS:
             continue
         hits = [t for t in terms if t.lower() in ((sec.title or "") + "\n" + c["raw"]).lower()]
         if not relevant(hits):
@@ -481,7 +532,7 @@ def drop_overlaps(rows):
 
 def build(root: Path, files, task: str, line_spec, include_archive: bool,
           counter, budget: int = 3000, loose: bool = False,
-          include_superseded: bool = False):
+          include_superseded: bool = False, explicit_line: bool = False):
     terms = parse_terms(task)
     blocks, gaps = [], []
     selected_lines, omitted_lines = [], []
@@ -584,6 +635,11 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
             if t3 and t3.strip():
                 items.append(("本线踩过的坑 · %s" % name, p.name, "fact.pitfalls", t3,
                               "排障类任务优先给已知坑，避免重走旧路"))
+        if not items and explicit_line:
+            # 只在**显式 --line** 时退回到分册自己的事实节：那是「我就要这条线」，
+            # 分册没打 kb:id 也得给。仅任务里提到线名时不这么做——那多半只是
+            # 一句话里带了两个线名，倒进整节会把 baseline.chains 这类跨线结论挤掉。
+            items = line_fact_sections(p, fdoc, name, terms)
         # P2 必须真正进入 blocks，否则装配器永远看不到工作线事实
         for title, source, sid, text, reason in items:
             add("P2", title, source, sid, text, reason, required=False, line=name,
@@ -675,7 +731,8 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
                                    include_archive, loose,
                                    fact_defs=fact_defs,
                                    allow_deprecated=(include_superseded
-                                                     or wants_history(task)))
+                                                     or wants_history(task)),
+                                   counter=counter)
     p4_cap = int(budget * P4_BUDGET_SHARE)
     picked, used_tokens, seen_text = [], 0, set()
     for row in p4:
@@ -915,7 +972,8 @@ def main() -> int:
         line_spec = ",".join(parts) or None
 
     built = build(root, files, args.task, line_spec, args.include_archive,
-                  counter, args.budget, args.loose, args.include_superseded)
+                  counter, args.budget, args.loose, args.include_superseded,
+                  explicit_line=bool(line_spec))
     kept, skipped, rendered_tokens, over, text = assemble(
         args.task, line_spec, args.mode, args.budget, built["blocks"], built["gaps"],
         counter, args.explain)
