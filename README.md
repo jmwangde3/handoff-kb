@@ -579,23 +579,23 @@ tests/deps_check.py         非标准库导入检查（只允许可选的 tiktok
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
-**实跑结果**（run [43362918599](https://github.com/jmwangde3/handoff-kb/actions/runs/43362918599)，2026-11-13，`pull_request`，代码 HEAD `f8653f3`；此后的提交只改文档）：
+**实跑结果**（run [43451488874](https://github.com/jmwangde3/handoff-kb/actions/runs/43451488874)，2026-11-13，`pull_request`，代码 HEAD `f4a0dfc`；此后的提交只改文档）：
 
 | 环境 | 结果 | 用时 |
 |---|---|---|
-| py3.10 / ubuntu-latest | pass | 56s |
-| py3.12 / ubuntu-latest | pass | 52s |
-| py3.13 / ubuntu-latest | pass | 1m2s |
-| py3.10 / windows-latest | pass | 2m4s |
+| py3.10 / ubuntu-latest | pass | 1m1s |
+| py3.12 / ubuntu-latest | pass | 56s |
+| py3.13 / ubuntu-latest | pass | 1m3s |
+| py3.10 / windows-latest | pass | 2m30s |
 | py3.12 / windows-latest | pass | 1m48s |
-| py3.13 / windows-latest | pass | 1m41s |
+| py3.13 / windows-latest | pass | 1m44s |
 
-六环境全部 `Ran 333 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
-这一轮先红过一次：单元级调用 `p4_candidates()` 时夹具传的是 8.3 短名、
+六环境全部 `Ran 341 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
+2.0.2 那一轮先红过一次：单元级调用 `p4_candidates()` 时夹具传的是 8.3 短名、
 `iter_text_files()` 回来的是长名，`relative_to` 抛 `ValueError`（只有 Windows runner 有）。
 CLI 走 `scope.resolve_root()` 本来是安全的，改成与 CLI 同口径后六绿。
-上一版（2.0.1-hotfix）的记录是 run `43058773827`（269 例）、2.0.2 上一轮是
-`43142107329`（289 例）；合并进 main 后的 push CI `43131692070` 同样是六环境全绿。
+更早的记录：2.0.1-hotfix 是 run `43058773827`（269 例）、2.0.2 上一轮是
+`43142107329`（289 例）、合并进 main 后是 `43131692070` / `43364730300`（均六环境全绿）。
 
 > 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
 
