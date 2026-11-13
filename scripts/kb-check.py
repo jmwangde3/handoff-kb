@@ -26,28 +26,65 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lib import constraints  # noqa: E402
 from lib import facts  # noqa: E402
 from lib import markdown as md  # noqa: E402
 from lib import protocol, scope, security, tokens  # noqa: E402
 
 OK, WARN, ERR = "OK", "WARN", "ERR"
 
-# 「最近记录」的条目形态：列表项、编号项、或时间戳开头（`[2026-11-12 09:20] …`）。
+# 一条记录可以是列表项、编号项，或时间戳开头（`[2026-11-12 09:20] …`）。
 # 只认 `-`/`*` 会让「全用时间戳记流水」的库恒为 0 条，阈值形同虚设。
-SUMMARY_ITEM_RE = re.compile(
-    r"^(?:[-*+]\s+\S|\d+[.)]\s+\S|\[?\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s|\]|$))")
+LIST_ITEM_RE = re.compile(r"^(?:[-*+]\s+\S|\d+[.)]\s+\S)")
+# 时间戳：`[YYYY-MM-DD HH:MM]` / `YYYY/MM/DD HH:MM` / ISO8601（含 T、秒、时区）。
+# 日期用标准库校验，`2026-13-45` 这种不算记录。
+TIMESTAMP_RE = re.compile(
+    r"""^[\[\(]?\s*
+        (?P<y>\d{4})[-/](?P<mo>\d{1,2})[-/](?P<d>\d{1,2})
+        (?:[ T](?P<h>\d{1,2}):(?P<mi>\d{2})(?::(?P<s>\d{2}))?(?:\.\d+)?
+           (?:Z|[+-]\d{2}:?\d{2})?)?
+        \s*[\]\)]?\s*(?P<rest>.*)$""",
+    re.X)
+
+
+def _timestamp_entry(line: str):
+    """`line` 是不是「时间戳 + 实际内容」；是则返回 True。
+
+    只有时间戳、后面什么都没写的行不算——那是分隔符，不是记录。
+    """
+    m = TIMESTAMP_RE.match(line)
+    if not m:
+        return False
+    try:
+        datetime.date(int(m.group("y")), int(m.group("mo")), int(m.group("d")))
+    except ValueError:
+        return False
+    if m.group("h") is not None:
+        if int(m.group("h")) > 23 or int(m.group("mi")) > 59:
+            return False
+        if m.group("s") is not None and int(m.group("s")) > 59:
+            return False
+    return bool(m.group("rest").strip())
 
 
 def summary_entries(body: str) -> list:
-    """数「最近记录」条目；跳过空行、表格行、引用行与代码块围栏。"""
+    """数「最近记录」条目。
+
+    跳过：空行、表格行、引用行、**围栏内的所有行**（含围栏标记本身）、
+    只有时间戳没有内容的行。围栏规则交给 `markdown.scan_fences`，
+    三个以上反引号 / 波浪线、长度匹配、语言标记、CRLF 都与解析器一致。
+    """
     out = []
-    for raw in body.splitlines():
-        line = raw.strip()
-        if not line or line.startswith(("|", ">", "```")):
+    for _, line, fenced in md.scan_fences(body.splitlines()):
+        if fenced:
             continue
-        if SUMMARY_ITEM_RE.match(line):
-            out.append(line)
+        text = line.strip()
+        if not text or text.startswith(("|", ">")):
+            continue
+        if LIST_ITEM_RE.match(text) or _timestamp_entry(text):
+            out.append(text)
     return out
+
 
 
 class Report:
@@ -215,24 +252,19 @@ def check_dashboard(root: Path, files, rep: Report):
         rep.add(WARN, "05 现状", "缺少 kb:id: dashboard.current（无法按 ID 定位现状）", p)
     if not by_id("dashboard.next"):
         rep.add(WARN, "05 下一手", "缺少 kb:id: dashboard.next（新会话不知道下一步做什么）", p)
-    if not (by_id("dashboard.constraints") or by_id("dashboard.safety")):
-        # 与 kb-context 同口径：P0 会退到 AGENTS.md 的「硬约束」段。
-        # 入口文件兜得住就不算缺口，只提示「收在哪」——否则同一个库
-        # 一边说「硬约束正常注入」一边报 WARN，读者只会去补一个并不缺的 id。
-        fallback = ""
-        agents = root / "AGENTS.md"
-        if agents.is_file():
-            try:
-                adoc = md.parse_file(agents)
-                if any("硬约束" in s.title for s in adoc.sections):
-                    fallback = "（由 AGENTS.md「硬约束」段兜底）"
-            except Exception:
-                pass
-        if fallback:
-            rep.add(OK, "05 硬约束", "dashboard 未声明，%s" % fallback.strip("（）"), p)
+    # 与 kb-context 同口径：三级兜底走完、且**内容有效**才算有硬约束。
+    # 只看「有没有硬约束这个标题」会把「## 硬约束」后面空一片判成 OK，
+    # 而注入端拿不到任何正文——同一个库一边说正常、一边报缺口。
+    p0 = constraints.resolve(root, doc, p)
+    if p0["ok"]:
+        if p0["source"] == "dashboard":
+            rep.add(OK, "05 硬约束", "由 %s 提供（不放行空标题）" % p0["block"]["section_id"],
+                    p, by_id(p0["block"]["section_id"]).line
+                    if by_id(p0["block"]["section_id"]) else None)
         else:
-            rep.add(WARN, "05 硬约束",
-                    "缺少 kb:id: dashboard.constraints（预算裁剪时无安全上下文）", p)
+            rep.add(OK, "05 硬约束", "dashboard 未声明，%s" % p0["detail"], p)
+    else:
+        rep.add(WARN, "05 硬约束", p0["gap"], p)
 
     summ = by_id("dashboard.summary")
     if summ:

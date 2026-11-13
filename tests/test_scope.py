@@ -11,7 +11,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib import protocol, scope  # noqa: E402
+from common import run_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 FFRS = ROOT / "tests" / "fixtures" / "ffrs"
@@ -132,6 +134,43 @@ class FilesTest(unittest.TestCase):
         self.assertTrue(scope.is_data_path(p, self.root))
         q = self.touch("06_流水/a.md")
         self.assertFalse(scope.is_data_path(q, self.root))
+
+    def test_client_state_dirs_are_skipped(self):
+        """客户端自己写的状态目录不是知识库正文。
+
+        `.workbuddy/memory/` 里全是历史记忆、`.claude/` 里是技能说明——它们会
+        命中任何关键词，进 P4 就是抢真结论的名额；而且这些目录常带软链，
+        走进去还可能越界。默认跳过，`--include-archive` 也不放行。
+        """
+        self.touch("00_基线.md")
+        for d in (".workbuddy", ".claude", ".codex", ".qoder", ".cursor", ".trae"):
+            self.touch("%s/memory/note.md" % d)
+            self.touch("%s/AGENTS.md" % d)
+        # 名字像但不是客户端目录的，不能被误杀
+        self.touch("workbuddy笔记.md")
+        self.touch("我的.claude备份/x.md")
+        got = {p.name for p, reason in scope.iter_text_files(self.root)}
+        self.assertIn("00_基线.md", got)
+        self.assertIn("workbuddy笔记.md", got)
+        self.assertIn("x.md", got, "目录名里带 .claude 的普通目录不该被整棵跳过")
+        for name in ("note.md",):
+            self.assertNotIn(name, got, "客户端状态目录没被跳过：%s" % got)
+        with_archive = {p.name for p, r in scope.iter_text_files(
+            self.root, include_archive=True)}
+        self.assertNotIn("AGENTS.md", with_archive - {"AGENTS.md"},
+                         "客户端目录里的 AGENTS.md 不能顶替库根入口文件")
+
+    def test_client_dir_excluded_from_roles_and_check(self):
+        """角色识别与体检统计也不能把客户端目录算进去。"""
+        self.touch("00_基线.md")
+        self.touch("05_进度仪表盘.md")
+        self.touch(".workbuddy/memory/MEMORY.md")
+        files = scope.role_files(self.root)
+        names = [p.name for group in files.values() for p in group]
+        self.assertNotIn("MEMORY.md", names)
+        data, _ = run_json("kb-check.py", "--target", self.root, "--json")
+        paths = " ".join(str(f.get("path") or "") for f in data["findings"])
+        self.assertNotIn(".workbuddy", paths)
 
 
 class FixtureTest(unittest.TestCase):

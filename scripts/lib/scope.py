@@ -146,14 +146,19 @@ def role_of_path(root: Path, path, loose: bool = False) -> str:
 
 def iter_text_files(root: Path, *, include_archive: bool = False,
                     include_data: bool = False, max_bytes: int = protocol.MAX_TEXT_BYTES,
-                    audit: list | None = None):
+                    audit: list | None = None, dedupe: bool = True):
     """遍历根下文本文件，产出 (Path, reason_or_None)。reason 非空表示被跳过。
 
     目录级安全：每个目录都用 `os.path.realpath` 解析后核对是否仍在根内，
     越界的符号链接 / Windows Junction 会被**剪枝**（不下降、不读取），
     并以 `dir-outside` 产出一次诊断，交给调用方决定报 WARN 还是 ERR。
+
+    `dedupe=True` 时按 (st_dev, st_ino) 去掉同一份内容的第二个入口：
+    库里两条内部软链指向同一份文件（如 `.workbuddy/memory` → `.shared/memory`
+    这类布局），检索会把同一段文字算两遍、命中分翻倍，两条同名结论互相挤占名额。
     """
     root = Path(root).resolve()
+    seen = set()
     for dirpath, dirnames, filenames in os.walk(root):
         d = Path(dirpath)
         # os.walk 默认不跟随符号链接，但 Junction 在 Windows 上不是 islink，
@@ -189,13 +194,22 @@ def iter_text_files(root: Path, *, include_archive: bool = False,
                     audit.append((str(p), "symlink-outside", escape_reason(root, p)))
                 continue
             try:
-                size = p.stat().st_size
+                st = p.stat()
             except OSError as exc:
                 yield p, "stat-error:%s" % exc
                 continue
-            if size > max_bytes:
+            if st.st_size > max_bytes:
                 yield p, "too-large"
                 continue
+            key = (getattr(st, "st_dev", 0), getattr(st, "st_ino", 0))
+            if dedupe and key != (0, 0):
+                if key in seen:
+                    yield p, "duplicate-inode"
+                    if audit is not None:
+                        audit.append((str(p), "duplicate-inode",
+                                      "与已收录文件是同一份内容（硬链接/软链）"))
+                    continue
+                seen.add(key)
             yield p, None
 
 

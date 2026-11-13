@@ -413,6 +413,75 @@ def is_filled(text: str, placeholders=("[填", "TODO", "TBD", "FIXME")) -> bool:
     return len("".join(real).strip(" -|:\t")) >= 4
 
 
+# 自有命名项目的结构化条目：`## X-052 …` / `- M-013: …` / `| O-022 | …`。
+# 这些字母前缀不属于协议，但确实是「一条可引用的事实」，用来区分
+# 「按文件名像事实分册」和「里面真有一条条事实」。
+STRUCTURED_ENTRY_RE = re.compile(
+    r"^(?:#{1,6}\s*[`*\s]*[DMKOX]-\d{2,3}\b"
+    r"|[-*+]\s*[`*]*[DMKOX]-\d{2,3}\b"
+    r"|\|\s*[`*\s]*[DMKOX]-\d{2,3}\s*\|)")
+MIN_STRUCTURE_ENTRIES = 2
+
+
+def has_fact_structure(doc) -> bool:
+    """这个文件里有没有「一条条事实」的结构（而不是一篇散文 / 一份会议记录）。
+
+    判据（任一满足）：
+      - 有 `fact.*` 章节 ID（协议内的事实线）；
+      - 有 ≥2 条 K/G 定义（标题首 / 列表首 / 表格首列）；
+      - 有 ≥2 条 D/M/O/X 这类项目自有编号条目。
+    只命中一条不足以晋升：单条可能是正文里的一句举例。
+    """
+    if any((s.id or "").startswith("fact.") for s in doc.sections):
+        return True
+    kg = 0
+    own = 0
+    for _, line in md.unfenced_lines(doc):
+        text = line.strip()
+        if HEADING_RE.match(text) or LIST_RE.match(text) or TABLE_RE.match(text):
+            kg += 1
+            if kg >= MIN_STRUCTURE_ENTRIES:
+                return True
+            continue
+        if STRUCTURED_ENTRY_RE.match(text):
+            own += 1
+            if own >= MIN_STRUCTURE_ENTRIES:
+                return True
+    return False
+
+
+def fact_confidence(path, *, loose: bool = False, doc=None) -> str:
+    """`structured`（真事实分册）/ `candidate`（只是编号像分册）。
+
+    `--loose` 把 `20_数据与解包.md` 这类数字分册当事实线，这是为了兼容自有命名
+    项目；但「编号是两位数字」本身不能证明里面是经过整理的事实。真实库里有
+    `20_会议记录.md` / `40_临时测试.md` / `80_历史备忘.md` 这类东西，
+    凭编号就给 1.0 权重会让它们跟分册正文抢 P4 名额。
+    """
+    p = Path(path)
+    if doc is None:
+        try:
+            doc = md.parse_file(p)
+        except Exception:
+            return "candidate"
+    return "structured" if has_fact_structure(doc) else "candidate"
+
+
+def is_custom_fact_name(name: str) -> bool:
+    """是不是「规范区间之外、靠 --loose 兜底才成为事实线」的文件名。"""
+    num = protocol.number_of(name)
+    if num is None:
+        return False
+    if num in protocol.RESERVED_NUMBERS:
+        return False
+    if protocol.FACT_RANGE[0] <= num <= protocol.FACT_RANGE[1]:
+        return False
+    if protocol.LEGACY_FACT_RANGE[0] <= num <= protocol.LEGACY_FACT_RANGE[1]:
+        return False
+    return True
+
+
+
 # --------------------------------------------------------------------------- #
 # 更新（供 kb-write 使用；纯文本变换，不碰磁盘）
 # --------------------------------------------------------------------------- #

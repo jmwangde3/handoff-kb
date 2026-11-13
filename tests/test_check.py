@@ -97,6 +97,54 @@ class CheckTest(TempProject):
         self.assertEqual(got[0]["level"], "WARN", got[0]["message"])
         self.assertIn("6 条", got[0]["message"])
 
+    def count_summary(self, body):
+        """把 body 写进 05 的最近记录段，返回那一条 finding 的数字。"""
+        self.make_filled()
+        dash = self.read("05_进度仪表盘.md")
+        head = dash.split("<!-- kb:id: dashboard.summary -->")[0]
+        self.write("05_进度仪表盘.md",
+                   head + "<!-- kb:id: dashboard.summary -->\n## 8. 最近 5 条\n\n"
+                   + body + "\n")
+        data, _ = self.report()
+        got = [f for f in data["findings"] if f["category"] == "05 最近记录"]
+        self.assertEqual(len(got), 1, data["findings"])
+        m = __import__("re").search(r"(\d+) 条", got[0]["message"])
+        self.assertIsNotNone(m, got[0]["message"])
+        return int(m.group(1))
+
+    def test_summary_timestamp_formats(self):
+        """四种时间戳写法都要算：方括号、斜杠、ISO 带时区、UTC 的 Z。"""
+        lines = ["[2026-11-01 09:20] 甲",
+                 "2026/11/02 10:30 乙",
+                 "2026-11-03T11:40:12+08:00 丙",
+                 "2026-11-04T12:50:33Z 丁"]
+        self.assertEqual(self.count_summary("\n".join(lines)), 4)
+
+    def test_summary_ignores_fenced_blocks(self):
+        """围栏里的示例记录不是记录：``` 与 ~~~ 都不能数进去。
+
+        只按行首判断会把文档里贴的示例流水全算成条目，阈值当场失效。
+        """
+        body = "\n".join([
+            "[2026-11-01 09:20] 真记录",
+            "```markdown",
+            "- [2026-11-02 10:00] 示例甲",
+            "- [2026-11-03 10:00] 示例乙",
+            "```",
+            "~~~",
+            "[2026-11-04 10:00] 示例丙",
+            "~~~",
+        ])
+        self.assertEqual(self.count_summary(body), 1)
+
+    def test_summary_rejects_bare_and_invalid_timestamps(self):
+        """只有时间戳的行是分隔符；`2026-13-45` 不是日期。"""
+        body = "\n".join(["[2026-11-01 09:20]",       # 只有时间戳
+                          "[2026-13-45 09:20] 假日期",
+                          "[2026-11-02 25:00] 假小时",
+                          "[2026-11-03 09:20] 真记录"])
+        self.assertEqual(self.count_summary(body), 1)
+
     def test_template_mode_skips_evidence(self):
         self.init()
         data, _ = self.report("--mode", "template")
