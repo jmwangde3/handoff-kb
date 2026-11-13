@@ -273,5 +273,55 @@ class DedupSafetyTest(MinimalLibrary):
                          "同名不同路径被当成同一份了：%s" % paths)
 
 
+class H1IntroDedupTest(MinimalLibrary):
+    """P4 去冗余：h1 的独有事实不能被「关键词是子集」误删。"""
+
+    # h1 正文有一句子节完全没有的事实；关键词上 h1 是 h2 的超集（3 ⊃ 2），
+    # 旧判据会把 h1 删掉，连带「参数 YY 必须禁用」一起消失。
+    INTRO = """# 当前 NSS 配置
+
+参数 YY 必须禁用；NSS 服务保持运行。
+
+## NSS 排障
+
+NSS 禁用失败时检查服务。
+"""
+
+    # h1 正文与子节逐字重复：这是真导语，允许去重。
+    DUP = """# 当前 NSS 配置
+
+NSS 禁用失败时检查服务。
+
+## NSS 排障
+
+NSS 禁用失败时检查服务。
+"""
+
+    def run_ctx(self, shard):
+        self.make_minimal({"20_NSS配置.md": shard})
+        data, p = self.ctx("--loose", "--task", "NSS 参数 禁用", "--budget", "3000")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return data
+
+    def test_h1_with_unique_fact_survives_subsection(self):
+        data = self.run_ctx(self.INTRO)
+        joined = "\n".join(data["context"].values())
+        self.assertIn("参数 YY 必须禁用", joined,
+                      "h1 的独有事实被子节关键词覆盖误删：%s" % joined)
+        self.assertIn("NSS 禁用失败时检查服务", joined,
+                      "子节本身也要在：%s" % joined)
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertLessEqual(len(p4), 3, "P4 最多三块的上限不能被去重逻辑带跑")
+
+    def test_h1_repeating_subsection_is_dropped(self):
+        data = self.run_ctx(self.DUP)
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        titles = [b["title"] for b in p4]
+        self.assertEqual(len(titles), 1, "h1 正文已被子节完全覆盖，应当去重：%s" % titles)
+        self.assertIn("NSS 排障", titles[0], titles)
+        self.assertEqual("\n".join(data["context"].values()).count("NSS 禁用失败时检查服务"),
+                         1, "同一句话不该出现两遍")
+
+
 if __name__ == "__main__":
     unittest.main()

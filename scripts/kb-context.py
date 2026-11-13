@@ -487,13 +487,61 @@ def p4_candidates(root: Path, terms, used_sources: set, used_section_keys: set,
     return rows[:max_blocks], dropped
 
 
+# h1「导语」判定的切句符：中文标点与换行。逗号刻意不切——逗号两边往往是
+# 同一个条件的两半（「A 与 B 同时成立」），拆开判会把一句话拆成两条假独立事实。
+_SENT_SPLIT_RE = re.compile(r"[。；;！!?？\n]+")
+# 归一化只去 Markdown 装饰与空白，保留实义字符用于子串比对。
+_MARKUP_RE = re.compile(r"[`*_~#>|\[\]()（）]+")
+
+
+def _plain(text):
+    """去掉 Markdown 装饰与空白，得到可做子串比对的实义文本。"""
+    s = _MARKUP_RE.sub("", text or "")
+    s = re.sub(r"^[\-+\s]+", "", s)
+    return re.sub(r"\s+", "", s)
+
+
+def _h1_is_intro_only(row, kid):
+    """h1 的自有正文是否只是子节已经说过的话。
+
+    关键词集合是必要不充分条件：父节正文更长，几乎必然把子节的关键词全命中，
+    于是 `set(kid.hits) <= set(h1.hits)` 成立；但 `# 当前 NSS 配置` 里那句
+    「参数 YY 必须禁用」子节根本没提，只按关键词判就会连事实一起丢掉。
+
+    这里逐句比对实际内容：h1 自有正文里只要有一句（≥4 个实义字符）在子节
+    文本里找不到，就说明它带来了子节没有的内容，必须保留；全部都能在子节里
+    找到（或正文为空）才算纯导语，允许去重。
+
+    文件导语句（「本文件讲什么 / 适用版本 / 最后更新」）例外：它们是导航，
+    不是任务事实，即便子节没复述也不该为它们多占一个名额。
+    """
+    text = row.get("text") or ""
+    head = row.get("heading") or ""
+    body = text[len(head):] if head and text.startswith(head) else text
+    if not body.strip():
+        return True
+    kid_text = _plain(kid.get("text") or "")
+    for sent in _SENT_SPLIT_RE.split(body):
+        s = _plain(sent)
+        if len(s) < 4:
+            continue
+        if any(h in s for h in H1_META_HINTS):
+            continue
+        if s not in kid_text:
+            return False
+    return True
+
+
 def drop_redundant_h1(rows):
-    """h1 与它的子节同时入选、且子节没带来新关键词时，丢掉 h1。
+    """h1 与它的子节同时入选、且 h1 没有子节之外的内容时，丢掉 h1。
 
     `# 30 · 固件刷机总纲` 这类导语装着整份分册的主题词，按命中数排永远靠前；
-    降权之后如果仍与某个子节并列，说明它没有提供子节之外的任何关键词 ——
-    留着只是把同一批词再说一遍。反过来，h1 有子节没覆盖的词（比如
-    `# 当前系统状态` 里那句「参数 YY 已禁止」）时照样保留。
+    降权之后如果仍与某个子节并列，说明它没有提供子节之外的任何东西 ——
+    留着只是把同一批词再说一遍。反过来，h1 有子节没覆盖的内容（比如
+    `# 当前系统状态` 里那句「参数 YY 必须禁用」）时照样保留。
+
+    判据是「关键词子集 **且** 正文被覆盖」两条同时成立：只看关键词会把
+    「父节命中更多词」误读成「父节没有独有信息」，从而删掉整句事实。
     只对 level==1 生效：更深的父节有自己的正文，不该被这条规则波及。
     """
     out = []
@@ -502,7 +550,8 @@ def drop_redundant_h1(rows):
             kids = [k for k in rows
                     if k is not r and k["file"] == r["file"]
                     and r["line"] < k["line"] <= r.get("subtree_end", r["line_end"])]
-            if any(set(k["hits"]) <= set(r["hits"]) for k in kids):
+            if any(set(k["hits"]) <= set(r["hits"]) and _h1_is_intro_only(r, k)
+                   for k in kids):
                 continue
         out.append(r)
     return out

@@ -84,9 +84,15 @@ def _block_text(doc, sec) -> str:
 
 
 def _from_dashboard(doc, dash_path, dash_rel=None):
-    """dashboard 的 constraints / safety；返回 (结果|None, 无效原因|None)。"""
+    """dashboard 的 constraints / safety；返回 (结果|None, 无效原因|None)。
+
+    两级都必须试过才能收工：`dashboard.constraints` 有 ID 但正文是 `[填]`，
+    不代表 `dashboard.safety` 也没写。早先在第一个无效 ID 处直接返回，
+    等于把「这一级没填」当成「两级都没有」，后面的有效约束永远读不到。
+    """
     if doc is None:
         return None, None
+    reasons = []
     for sid in ("dashboard.constraints", "dashboard.safety"):
         sec = md.find_by_id(doc, sid)
         if sec is None:
@@ -97,9 +103,10 @@ def _from_dashboard(doc, dash_path, dash_rel=None):
                     "path": dash_path.name if dash_path else None,
                     "rel": dash_rel or "05", "title": "硬约束（不裁剪）",
                     "line": sec.line}, None
-        # 有 ID 但没内容：这比「没有 ID」更该报出来——ID 存在会让人以为已经配好
-        return None, "%s 为空或只有占位符" % sid
-    return None, None
+        # 有 ID 但没内容：这比「没有 ID」更该报出来——ID 存在会让人以为已经配好。
+        # 先记下原因继续看下一级，两级都无效时一起报。
+        reasons.append("%s 为空或只有占位符" % sid)
+    return None, "；".join(reasons) if reasons else None
 
 
 def read_agents(root: Path):
