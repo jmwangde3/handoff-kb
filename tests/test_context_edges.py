@@ -198,7 +198,9 @@ class ContainerLimitTest(MinimalLibrary):
         """
         m = load_script("kb-context")
         self.container_text(10)
-        root = self.root
+        # 与 CLI 同口径：`scope.resolve_root()` 返回的是真实路径。GitHub Windows
+        # runner 的临时目录是 8.3 短名（RUNNER~1），不 resolve 会 `relative_to` 失败。
+        root = Path(self.root).resolve()
 
         class Fixed:
             def __init__(self, n):
