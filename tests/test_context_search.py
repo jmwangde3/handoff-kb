@@ -751,10 +751,45 @@ class ContextTest(TempProject):
             sid = b["section_id"]
             if sid:
                 counts[sid] = counts.get(sid, 0) + 1
-        dups = [sid for sid, n in counts.items() if n > 1]
-        self.assertTrue(dups, "夹具没产出重复 section_id，这条用例就白跑了：%s" % counts)
         self.assertEqual(len(data["context"]), len(data["blocks"]),
-                         "JSON 上下文不能因同名 section 丢块")
+                         "JSON 上下文不能因同名 section 丢块：%s" % counts)
+        shas = [b["text_sha"] for b in data["blocks"]]
+        self.assertEqual(len(shas), len(set(shas)),
+                         "同一段正文进了两次，白占预算：%s" % data["blocks"])
+
+    def ctx_on(self, target, *args):
+        return run_json("kb-context.py", "--target", str(target), "--format", "json", *args)
+
+    def test_same_section_two_slices_both_kept(self):
+        """同一节按用途拆两块（基线命中 + 证据指针）时两块都要留下，且不算重复。"""
+        target = ROOT / "tests" / "fixtures" / "ffrs"
+        data, p = self.ctx_on(target, "--task", "排查固件的问题", "--budget", "3000",
+                              "--loose")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        slices = [b for b in data["blocks"] if b["section_id"] == "baseline.facts"]
+        self.assertEqual(len(slices), 2,
+                         "基线命中与证据指针是两块，少了就是被当重复吃掉：%s"
+                         % [b["title"] for b in data["blocks"]])
+        self.assertEqual(len(data["context"]), len(data["blocks"]),
+                         "同 section 出两块时 context 不能覆盖")
+        self.assertFalse(data["deduped"],
+                         "两块正文不同，不该被判成重复：%s" % data["deduped"])
+
+    def test_identical_text_loaded_once_and_reported(self):
+        """点名事实与基线命中是同一行时只装一次，被跳过的那块记进 deduped。"""
+        target = ROOT / "tests" / "fixtures" / "ffrs"
+        data, p = self.ctx_on(target, "--task", "K-02 核实过了吗", "--budget", "3000",
+                              "--loose")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        shas = [b["text_sha"] for b in data["blocks"]]
+        self.assertEqual(len(shas), len(set(shas)),
+                         "同一行被装了两次：%s" % data["blocks"])
+        self.assertTrue(data["deduped"],
+                        "去重不能静默：被跳过的块要能查到 %s" % data["blocks"])
+        dropped = data["deduped"][0]
+        self.assertEqual(dropped["section_id"], "baseline.facts", dropped)
+        self.assertIsNone(dropped["kept_in"]["section_id"],
+                          "保留的是点名事实那一块：%s" % dropped)
 
     def test_used_matches_rendered_and_budget(self):
         data, _ = self.ctx("--task", "查看现状", "--budget", "3000")

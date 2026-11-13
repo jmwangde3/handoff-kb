@@ -153,6 +153,43 @@ class BenchmarkTest(TempProject):
         self.assertEqual(data["gate"]["min_passes"], max(1, (total * 4 + 4) // 5))
         self.assertGreaterEqual(data["gate"]["min_passes"], total * 0.8)
 
+    def test_duplicates_are_reported_by_content_fingerprint(self):
+        """重复装载要看内容指纹，不能只看 section_id。
+
+        同一节按用途拆成两块（基线命中 + 证据指针）是设计；真正要抓的是
+        「同一段正文进了两次」。blocks 的 JSON 不带正文，只能靠 text_sha。
+        """
+        m = load_script("kb-benchmark")
+        same = [{"source_path": "a.md", "section_id": "s1", "text_sha": "x"},
+                {"source_path": "a.md", "section_id": "s1", "text_sha": "x"}]
+        self.assertEqual(m.count_duplicates(same)["exact"], 1)
+        self.assertEqual(m.describe_duplicates(same)["split_section"], 0,
+                         "同文同节不算「一节多片」")
+
+        slices = [{"source_path": "a.md", "section_id": "s1", "text_sha": "x"},
+                  {"source_path": "a.md", "section_id": "s1", "text_sha": "y"}]
+        self.assertEqual(m.count_duplicates(slices)["exact"], 0)
+        self.assertEqual(m.describe_duplicates(slices)["split_section"], 1,
+                         "一节两块不同正文要认出来")
+
+        cross = [{"source_path": "a.md", "section_id": "s1", "text_sha": "x"},
+                 {"source_path": "b.md", "section_id": "s2", "text_sha": "x"}]
+        self.assertEqual(m.count_duplicates(cross)["cross"], 1)
+
+        # 点名事实没有 section_id：两块不同正文不能因为 None==None 被判重
+        bare = [{"source_path": "a.md", "section_id": None, "text_sha": "x"},
+                {"source_path": "a.md", "section_id": None, "text_sha": "y"}]
+        self.assertEqual(m.count_duplicates(bare), {"exact": 0, "cross": 0})
+
+    def test_benchmark_reports_duplicates(self):
+        data, _ = self.bench()
+        dup = data["duplicates"]
+        for key in ("exact", "cross", "split_sections", "blocks"):
+            self.assertIn(key, dup)
+        self.assertGreater(dup["blocks"], 0)
+        self.assertEqual(dup["exact"], 0,
+                         "正常装配不该出现同节同文：%s" % dup)
+
     def test_gate_fails_when_quality_drops(self):
         """把 05 的硬约束段删掉：约束保留率下降，工具必须报失败而不是照样打勾。"""
         text = self.read("05_进度仪表盘.md")

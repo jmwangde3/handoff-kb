@@ -44,6 +44,50 @@ HERE = Path(__file__).resolve().parent
 GATE_MUST_PASS = ("constraint_kept", "error_rejected", "budget_honest",
                   "lines_honest", "tokenizer_consistent")
 
+
+def count_duplicates(blocks) -> dict:
+    """重复装载分两种，分开报，不互相掩盖：
+
+    - exact：同一个 (source_path, section_id, 正文) 进了两次——装配层没去重，
+      读者看到同一节被念两遍，还白占预算。
+    - cross：正文相同但位置不同——通常是「同一文件被两条路径读到」（软链、
+      同名副本），或容器节兜底又把子节整个装了一遍。
+
+    同一节按不同用途拆成多块（例如 baseline.facts 的「命中行」与「证据指针」）
+    不算重复：位置相同、正文不同，是补足信息，不是念第二遍。点名事实（P3）
+    没有 section_id，不能拿 None 互相比，否则一句「K-01」和「K-02」会被判重。
+    """
+    stamps, owners, exact, cross = set(), {}, 0, 0
+    for b in blocks:
+        # blocks 的 JSON 不带正文，只有 text_sha；旧版输出没有该字段就跳过内容比较。
+        sha = b.get("text_sha")
+        if not sha:
+            continue
+        key = (b.get("source_path"), b.get("section_id"))
+        if key[1]:
+            stamp = key + (sha,)
+            if stamp in stamps:
+                exact += 1
+                continue
+            stamps.add(stamp)
+        if sha in owners and owners[sha] != key:
+            cross += 1
+        owners.setdefault(sha, key)
+    return {"exact": exact, "cross": cross}
+
+
+def describe_duplicates(blocks) -> dict:
+    """「同节多片」是设计（一节按用途拆多块），单列出来免得被误读成重复。"""
+    groups = {}
+    for b in blocks:
+        key = (b.get("source_path"), b.get("section_id"))
+        sha = b.get("text_sha")
+        if key[1] and sha:
+            groups.setdefault(key, set()).add(sha)
+    multi = sum(1 for texts in groups.values() if len(texts) > 1)
+    return dict(count_duplicates(blocks), split_section=multi)
+
+
 METRIC_KEYS = (
     ("section_hit", "目标章节命中"),
     ("fact_hit", "目标事实命中（含状态判定）"),
@@ -228,23 +272,24 @@ def main() -> int:
                                   "--task", t["task"], "--format", "json"] + ctx_args)
             ok = code == 2 and "ERR" in (err or "")
             mark("error_rejected", ok)
-            rows.append({"id": t["id"], "title": t["title"], "a": 0, "b": b_tokens,
-                         "c": 0, "noise": 0.0, "counted": False, "graded": True,
+            rows.append({"id": t["id"], "title": t["title"], "task": t["task"], "a": 0, "b": b_tokens,
+                         "c": 0, "noise": 0.0, "dup_x": 0, "dup_c": 0, "split": 0, "blocks": 0,
+                         "counted": False, "graded": True,
                          "quality": "拒绝错误路径" if ok else "未拒绝",
                          "pass": ok, "ms": int((time.time() - started) * 1000)})
             continue
 
         if t.get("skip"):
-            rows.append({"id": t["id"], "title": t["title"], "a": a_tokens,
-                         "b": b_tokens, "c": 0, "noise": 0.0, "counted": False,
-                         "graded": False, "quality": "跳过：%s" % t["skip"],
-                         "pass": False, "ms": 0})
+            rows.append({"id": t["id"], "title": t["title"], "task": t["task"], "a": a_tokens,
+                         "b": b_tokens, "c": 0, "noise": 0.0, "dup_x": 0, "dup_c": 0, "split": 0, "blocks": 0,
+                         "counted": False, "graded": False,
+                         "quality": "跳过：%s" % t["skip"], "pass": False, "ms": 0})
             continue
 
         if kind == "section_id" and unmigrated:
-            rows.append({"id": t["id"], "title": t["title"], "a": a_tokens,
-                         "b": b_tokens, "c": 0, "noise": 0.0, "counted": False,
-                         "graded": False,
+            rows.append({"id": t["id"], "title": t["title"], "task": t["task"], "a": a_tokens,
+                         "b": b_tokens, "c": 0, "noise": 0.0, "dup_x": 0, "dup_c": 0, "split": 0, "blocks": 0,
+                         "counted": False, "graded": False,
                          "quality": "跳过：未迁移库没有 kb:id",
                          "pass": False, "ms": 0})
             continue
@@ -329,10 +374,13 @@ def main() -> int:
                  and p4.get("tokens", 0) <= int(args.budget * 0.30))
         mark("p4_bounded", p4_ok)
         noise = round(p4.get("tokens", 0) / used, 3) if used else 0.0
+        dups = describe_duplicates(blocks)
 
-        rows.append({"id": t["id"], "title": t["title"], "a": a_tokens, "b": b_tokens,
-                     "c": used, "noise": noise, "counted": True,
-                     "graded": True, "quality": label if budget_ok else label + "（预算口径不一致）",
+        rows.append({"id": t["id"], "title": t["title"], "task": t["task"], "a": a_tokens, "b": b_tokens,
+                     "c": used, "noise": noise, "dup_x": dups["exact"], "dup_c": dups["cross"],
+                     "split": dups["split_section"], "blocks": len(blocks),
+                     "counted": True, "graded": True,
+                     "quality": label if budget_ok else label + "（预算口径不一致）",
                      "pass": ok and budget_ok, "ms": int((time.time() - started) * 1000)})
 
     counted = [r for r in rows if r["counted"]]
@@ -349,6 +397,10 @@ def main() -> int:
     # 工作线静默遗漏、计数器口径不一致，都是硬失败。
     hard_ok = all(metrics[k]["total"] and metrics[k]["passed"] == metrics[k]["total"]
                   for k in GATE_MUST_PASS)
+    dup_exact = sum(r.get("dup_x", 0) for r in counted)
+    dup_cross = sum(r.get("dup_c", 0) for r in counted)
+    split_sections = sum(r.get("split", 0) for r in counted)
+    all_blocks = sum(r.get("blocks", 0) for r in counted)
     need = min_passes(len(graded))
     gate_ok = passes >= need and rate >= 0.8 and hard_ok
 
@@ -365,6 +417,8 @@ def main() -> int:
                         "total": metrics[k]["total"]} for k, label in METRIC_KEYS},
         "metrics_rate": rate,
         "recall": recall,
+        "duplicates": {"exact": dup_exact, "cross": dup_cross,
+                       "split_sections": split_sections, "blocks": all_blocks},
         "facts_seen": picked,
         "gate": {"min_rate": 0.8, "min_passes": need,
                  "must_pass": list(GATE_MUST_PASS),
@@ -381,6 +435,10 @@ def main() -> int:
             "命中判定按章节 ID / 事实 ID 与其状态，不做「全文含某个词」的宽泛包含",
             "多工作线：完整召回 %d、部分召回并报告 %d、静默遗漏 %d"
             % (recall["full"], recall["partial"], recall["silent"]),
+            "重复装载：同节同文 %d 次、异节同文 %d 次（共 %d 块）；只报告，不计入门槛"
+            % (dup_exact, dup_cross, all_blocks),
+            "同节多片 %d 处是设计（一节按用途拆多块，如命中行 + 证据指针），不算重复"
+            % split_sections,
         ],
     }
 
@@ -403,6 +461,8 @@ def main() -> int:
           % (passed_metrics, total_metrics, result["metrics_rate"] * 100))
     print("| 工作线召回 | 完整 %d / 部分 %d / 静默 %d |"
           % (recall["full"], recall["partial"], recall["silent"]))
+    print("| 重复装载 | 同节同文 %d / 异节同文 %d（共 %d 块；同节多片 %d 处不算重复） |"
+          % (dup_exact, dup_cross, all_blocks, split_sections))
     print("| tokenizer | %s |" % tok_desc)
     print("")
     print("| # | 任务 | A | B | C | P4 噪声比 | 质量 | ms |")

@@ -488,17 +488,35 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
     dash_p = files.get("dashboard", [None])[0]
     dash = md.parse_file(dash_p) if dash_p else None
 
+    # 内容级去重：同一段正文只进上下文一次。优先级先装先得（P0→P4），
+    # 后到的同文块直接跳过并记进 deduped —— 不静默丢，读者能查到「本来还有一块」。
+    # 硬约束（required）不受影响：P0 宁可重复也不能因为「别处也有这段」被挤掉。
+    seen_sha, deduped = {}, []
+
     def add(priority, title, source, sid, text, reason, required=False, line=None,
             source_path=None, line_start=None, line_end=None, role=None):
+        sha = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:12]
+        if not required and sha in seen_sha:
+            kept = seen_sha[sha]
+            deduped.append({"priority": priority, "title": title,
+                            "source_path": source_path or source, "section_id": sid,
+                            "kept_in": {"source_path": kept[0], "section_id": kept[1],
+                                        "title": kept[2]}})
+            return False
+        seen_sha.setdefault(sha, (source_path or source, sid, title))
         item = {"priority": priority, "title": title, "source": source,
                 "source_path": source_path or source, "section_id": sid,
                 "text": text, "reason": reason, "required": required,
-                "line": line, "line_start": line_start, "line_end": line_end}
+                "line": line, "line_start": line_start, "line_end": line_end,
+                # 内容指纹（前 12 位）：JSON 里 blocks 不带正文，消费方要判断
+                # 「同一节被装两遍」还是「一节按用途拆成两块」只能靠它。
+                "text_sha": sha}
         # role 只给 P4 用（fact / fact-candidate / log / archive / other）：
         # main() 要按它判断「这条是事实节补充」还是「普通相关段落」。
         if role:
             item["role"] = role
         blocks.append(item)
+        return True
 
     # P0 硬约束：dashboard 的 kb:id → AGENTS 的「硬约束」段 → 都没有才报缺口。
     # 三级兜底与「什么算有效内容」由 lib/constraints 统一判定（kb-check 同源），
@@ -714,6 +732,7 @@ def build(root: Path, files, task: str, line_spec, include_archive: bool,
 
     return {"blocks": blocks, "per_line": per_line_blocks, "gaps": gaps,
             "terms": terms, "fact_paths": fact_paths, "why": why,
+            "deduped": deduped,
             "selected_lines": [line_name(p) for p in fact_paths],
             "p4": {"count": len(picked), "tokens": used_tokens, "cap": p4_cap,
                    "candidates": len(p4), "deprecated_skipped": len(p4_dropped),
@@ -1003,6 +1022,12 @@ def main() -> int:
         "p4_candidates": [{"title": b["title"], "source_path": b["source_path"],
                            "section_id": b["section_id"]} for b in p4_cands],
         "gaps": built["gaps"],
+        # 被内容去重跳过的块。只在「保留的那一份真的进了上下文」时列出：
+        # 若那一份也被预算裁掉，这段内容其实没进来，报「已去重」会误导。
+        "deduped": [d for d in built["deduped"]
+                    if any(b["source_path"] == d["kept_in"]["source_path"]
+                           and b["section_id"] == d["kept_in"]["section_id"]
+                           for b in kept)],
         "context": context_map(kept),
     }
     if args.format == "json":
