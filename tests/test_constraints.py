@@ -87,6 +87,30 @@ class ResolveTest(TempProject):
         self.assertEqual(got["source"], "dashboard")
         self.assertIn("dashboard.safety", got["detail"])
 
+    def test_invalid_constraints_does_not_block_safety(self):
+        """第一级只有占位符时必须继续试第二级；没有 AGENTS.md 也能读到 safety。"""
+        self.set_dash(
+            "<!-- kb:id: dashboard.constraints -->\n## 7. 硬约束\n\n- [填]\n\n"
+            "<!-- kb:id: dashboard.safety -->\n## 9. 安全边界\n\n"
+            "- 生产环境只读，变更需双人复核。\n")
+        got = self.resolve()
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(got["source"], "dashboard")
+        self.assertIn("dashboard.safety", got["detail"],
+                      "第一级无效就返回了，第二级根本没被检查：%s" % got["detail"])
+        self.assertIn("双人复核", got["block"]["text"])
+
+    def test_both_dashboard_levels_invalid_keeps_both_reasons(self):
+        """两级都无效时，诊断要把两个 ID 都报出来，不能只报第一个。"""
+        self.set_dash(
+            "<!-- kb:id: dashboard.constraints -->\n## 7. 硬约束\n\n- [填]\n\n"
+            "<!-- kb:id: dashboard.safety -->\n## 9. 安全边界\n\nTODO\n")
+        got = self.resolve()
+        self.assertFalse(got["ok"], got)
+        self.assertIn("dashboard.constraints", got["gap"])
+        self.assertIn("dashboard.safety", got["gap"],
+                      "第二个 ID 的诊断被吞了：%s" % got["gap"])
+
     def test_agents_heading_without_body_is_gap(self):
         self.write("AGENTS.md", "# 规则\n\n## 硬约束\n\n- [填]\n")
         self.set_dash("")

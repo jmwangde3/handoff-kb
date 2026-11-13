@@ -273,5 +273,128 @@ class DedupSafetyTest(MinimalLibrary):
                          "同名不同路径被当成同一份了：%s" % paths)
 
 
+class H1IntroDedupTest(MinimalLibrary):
+    """P4 去冗余：h1 的独有事实不能被「关键词是子集」误删。"""
+
+    # h1 正文有一句子节完全没有的事实；关键词上 h1 是 h2 的超集（3 ⊃ 2），
+    # 旧判据会把 h1 删掉，连带「参数 YY 必须禁用」一起消失。
+    INTRO = """# 当前 NSS 配置
+
+参数 YY 必须禁用；NSS 服务保持运行。
+
+## NSS 排障
+
+NSS 禁用失败时检查服务。
+"""
+
+    # h1 正文与子节逐字重复：这是真导语，允许去重。
+    DUP = """# 当前 NSS 配置
+
+NSS 禁用失败时检查服务。
+
+## NSS 排障
+
+NSS 禁用失败时检查服务。
+"""
+
+    # 任务相关短句（2 个实义字符）：按「<4 一律忽略」会被当成空内容，
+    # h1 连同「只读」这条操作约束一起消失。
+    SHORT = """# 当前配置
+
+只读。
+
+## 操作说明
+
+当前配置请先检查。
+"""
+
+    # 用户给的 4 字短句夹具：恰好压在旧阈值上，用来钉住边界不被改回去。
+    SHORT4 = """# 当前配置
+
+禁止写入。
+
+## 操作说明
+
+请先检查配置。
+"""
+
+    # 导语与约束混在同一句：整句因「适用版本」被跳过，后半句禁令一起丢。
+    META_MIX = """# 当前配置
+
+适用版本 2.0，生产环境禁止写入。
+
+## 操作说明
+
+生产环境请先检查配置。
+"""
+
+    # 纯导语：全部片段都是版本/更新时间，仍应正常去重。
+    META_ONLY = """# 当前配置
+
+适用版本 2.0，最后更新 2026-11-13。
+
+## 当前配置检查
+
+当前配置请先检查。
+"""
+
+    def run_ctx(self, shard, task="NSS 参数 禁用"):
+        self.make_minimal({"20_NSS配置.md": shard})
+        data, p = self.ctx("--loose", "--task", task, "--budget", "3000")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return data
+
+    def test_h1_with_unique_fact_survives_subsection(self):
+        data = self.run_ctx(self.INTRO)
+        joined = "\n".join(data["context"].values())
+        self.assertIn("参数 YY 必须禁用", joined,
+                      "h1 的独有事实被子节关键词覆盖误删：%s" % joined)
+        self.assertIn("NSS 禁用失败时检查服务", joined,
+                      "子节本身也要在：%s" % joined)
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertLessEqual(len(p4), 3, "P4 最多三块的上限不能被去重逻辑带跑")
+
+    def test_h1_repeating_subsection_is_dropped(self):
+        data = self.run_ctx(self.DUP)
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        titles = [b["title"] for b in p4]
+        self.assertEqual(len(titles), 1, "h1 正文已被子节完全覆盖，应当去重：%s" % titles)
+        self.assertIn("NSS 排障", titles[0], titles)
+        self.assertEqual("\n".join(data["context"].values()).count("NSS 禁用失败时检查服务"),
+                         1, "同一句话不该出现两遍")
+
+    def test_short_task_constraint_survives_subsection(self):
+        data = self.run_ctx(self.SHORT, task="当前配置 只读")
+        joined = "\n".join(data["context"].values())
+        self.assertIn("只读", joined,
+                      "任务相关的短句被长度阈值吞掉，操作约束整条消失：%s" % joined)
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertLessEqual(len(p4), 3, "P4 最多三块的上限不变")
+
+    def test_four_char_short_sentence_boundary(self):
+        data = self.run_ctx(self.SHORT4, task="当前配置 禁止写入")
+        joined = "\n".join(data["context"].values())
+        self.assertIn("禁止写入", joined, "4 字短句也必须保留：%s" % joined)
+
+    def test_meta_prefixed_sentence_keeps_constraint(self):
+        data = self.run_ctx(self.META_MIX, task="生产环境 禁止写入")
+        joined = "\n".join(data["context"].values())
+        self.assertIn("生产环境禁止写入", joined,
+                      "含「适用版本」的句子不能整句跳过，后半句是操作禁令：%s" % joined)
+        # 导语片段只是在「是否重复」的判断里不算独有内容；整节输出仍不缩水，
+        # 所以这里不断言 text 被裁剪，只钉住去重判据。
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        self.assertLessEqual(len(p4), 3, "P4 最多三块的上限不变")
+
+    def test_pure_version_note_still_deduped(self):
+        data = self.run_ctx(self.META_ONLY, task="当前配置")
+        p4 = [b for b in data["blocks"] if b["priority"] == "P4"]
+        titles = [b["title"] for b in p4]
+        self.assertEqual(len(titles), 1,
+                         "h1 只有版本/更新时间这类导语，仍应去重：%s" % titles)
+        self.assertIn("当前配置检查", titles[0], titles)
+        self.assertNotIn("最后更新", "\n".join(data["context"].values()))
+
+
 if __name__ == "__main__":
     unittest.main()
