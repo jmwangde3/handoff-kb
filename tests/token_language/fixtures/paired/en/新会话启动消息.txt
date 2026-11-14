@@ -1,0 +1,21 @@
+Take over "PairedDemo" — [fill: which line / what task]. Working directory C:\Users\jmwan\.skills-manager\skills\handoff-kb\tests\token_language\fixtures\paired\en.
+
+The tools live in the handoff-kb skill directory (one real directory; client folders usually hold symlinks):
+  KB="$HOME/.skills-manager/skills/handoff-kb"
+
+Step one: take over through AGENTS.md (the only client-agnostic entry):
+  1) py "$KB/scripts/kb-context.py" --target . --task "<this task>" --budget 3000 --explain
+     -- the smallest sufficient context by budget: hard constraints -> current state -> next step -> line facts -> evidence pointers
+  2) git status; git log --oneline -5
+  3) for detail: locate with kb-search.py, then read precisely with kb-outline.py --section-id
+  4) read-only self-check: sh scripts/handoff-check.sh
+The fact baseline is 00_基线.md (K-xx + status + evidence), fact shards are 10–17; logs are in 06, the deep archive in 90 — neither is normally read.
+
+Wrap-up (never overwrite a whole file):
+  py "$KB/scripts/kb-write.py" read  --target . --file 05_进度仪表盘.md --json
+  py "$KB/scripts/kb-write.py" apply --target . --changes changes.json --dry-run
+  py "$KB/scripts/kb-write.py" apply --target . --changes changes.json
+  py "$KB/scripts/kb-handoff.py" check --target . --strict
+  git add -- <files changed here> && git commit -m "<line> <what you did>"
+
+This task: [fill]

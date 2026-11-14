@@ -1,0 +1,30 @@
+# Local memory / editor state (may contain plaintext credentials; never commit)
+.workbuddy/
+.history/
+
+# handoff-kb runtime artifacts (lock and transaction journals; never commit)
+.kb.lock/
+.kb-txn/
+
+# Sampling / runtime logs (re-collectable, large)
+*.log
+logs/
+
+# Backups and temporary scripts
+归档/_backup_*/
+_backup_*/
+scripts/_tmp_*
+*_ai.*
+*.bak
+*.part
+
+# Large binaries / media: extend per project, always before the first git add
+# ffrs_video/
+# *.mp4
+# *.zip
+# Note: deliverables (xlsx and similar) belong in the repo for rollback — do not exclude them
+
+Thumbs.db
+.DS_Store
+__pycache__/
+*.py[cod]

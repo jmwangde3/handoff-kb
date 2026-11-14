@@ -1,634 +1,497 @@
-# handoff-kb 2.0.3
+# handoff-kb 2.0.4
 
-> **工具版本** `2.0.3`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
-> 两者独立：换工具版本不改协议，也不要求现有库迁移。
+> **Tool version** `2.0.4` (script behavior) | **Protocol version** `2` (document layout, `<!-- kb:schema: 2 -->`).
+> The two are independent: a tool upgrade does not change the protocol and does not require an existing library to migrate.
 
-**给多会话并行项目的分层交接库。** 一套 Markdown 协议 + 十个零依赖 Python 脚本：让「上下文快满、几条线同时推、文档越堆越多」的项目，新会话接手时只读固定的一小份，而不是全库重读。
+Chinese edition: [`README.zh-CN.md`](README.zh-CN.md) (full manual and version chronicle).
 
-2.0 的重点不是加脚本，而是把四件事做实：**按预算取上下文、带证据的交接、带哈希校验的写入、能跑起来的测试**。仍然是纯文本、可 diff、无服务、无 embedding、无 SQLite。
+**A layered handoff library for projects with parallel sessions.** One Markdown protocol plus ten zero-dependency Python scripts, so that a project with "context almost full, several workstreams moving at once, documents piling up" only has to read a fixed small slice when a new session takes over — instead of re-reading the whole library.
+
+2.0 is not about adding scripts. It makes four things real: **budget-aware context retrieval, evidence-backed handoff, hash-verified writes, tests that actually run**. Still plain text, diffable, no service, no embeddings, no SQLite.
 
 ```
-接手 → kb-context（预算内最小上下文）→ 干活 → kb-write（哈希校验写回）→ kb-handoff（交接自检）
+take over → kb-context (smallest context within budget) → work → kb-write (hash-verified write-back) → kb-handoff (handoff self-check)
 ```
 
 ---
 
-## 1. 它解决什么（算术问题，不是文风问题）
+## 1. What it solves (an arithmetic problem, not a style problem)
 
-中文 UTF-8 约 4.5 字节 / token。全读一遍的代价随文档总量线性增长，而**真正决定接手质量的信息**（现在在干嘛、下一手、别做什么）通常不到 20 KB。
+Chinese UTF-8 runs roughly 4.5 bytes per token; English roughly 4 characters per token, and a translation needs about 2.5–3× the characters of the Chinese original. Either way, reading everything costs linearly in total library size, while **the information that actually decides handoff quality** (what is happening now, what is next, what not to do) is usually under 20 KB.
 
-答案不是「把文档写薄」，而是**把「存」和「读」解耦**：总量可以涨，单次必读集合恒定。
+The answer is not "write thinner documents". It is **decoupling storage from reading**: the total may grow, the per-session mandatory set stays constant.
 
-两个口径的数字，别混：
+Two kinds of numbers, never mixed:
 
-| 场景 | 结果 | 口径 |
+| Scenario | Result | Basis |
 |---|---|---|
-| 真实路由器项目（v1 时代） | 全库 1,759 行 / 221 KB → 接手 20.6 KB（`05`+`00`），降 90% | 实际文件体积，非估算 |
-| 合成夹具（2.0.1-hotfix benchmark） | A 全量 3,082 / B `00+05` 389 / C 路由 454 tokens，任务 10/10，质量项 63/63 | `heuristic` **估算**，夹具 ~11 KB |
-| 脱敏 FFRS 夹具（自有命名，`--loose`） | A 1,248 / B 446 / C 561 tokens（相对 A 降 55%） | 同上，内容全部虚构 |
+| Real router project (v1 era) | library 1,759 lines / 221 KB → handoff 20.6 KB (`05`+`00`), −90% | actual file size, not an estimate |
+| Synthetic fixture (2.0.1-hotfix benchmark) | A full 3,082 / B `00+05` 389 / C routed 454 tokens, tasks 10/10, quality items 63/63 | `heuristic` **estimate**, fixture ~11 KB |
+| Desensitized FFRS fixture (custom naming, `--loose`) | A 1,248 / B 446 / C 561 tokens (−55% vs A) | same estimate, all content fictional |
 
-前两行可用两条命令复现（`py tests/make_fixture.py ../kbdemo` → `py scripts/kb-benchmark.py --target ../kbdemo`）。**注意夹具上 C（454）并不比 B（389）小**：C 含包装（标题 / 来源 / 理由 / 缺口），B 只是 `00+05` 原文；夹具太小，包装开销占满。真正有意义的是相对 A 的 85%——A 才是「全读」的成本。口径与逐任务明细见 `references/benchmark.md`。
+The first two rows are reproducible with two commands (`py tests/make_fixture.py ../kbdemo` → `py scripts/kb-benchmark.py --target ../kbdemo`). **Note that C (454) is not smaller than B (389) on this fixture**: C includes packaging (title / source / reason / gap), B is just `00+05` verbatim; the fixture is too small, so packaging overhead fills the budget. What matters is the 85% against A — A is the "read everything" cost. Definitions and per-task detail: `references/benchmark.md`.
+
+English-edition numbers are in §12.2 and `tests/token_language/out/token-benchmark-all.md`. They are measured, and the shortfall against the 15% target on DeepSeek's own vocabulary is reported rather than hidden.
 
 ---
 
-## 2. 适用与不适用
+## 2. When to use it, when not to
 
-| 你的情况 | 怎么办 |
+| Your situation | What to do |
 |---|---|
-| 单会话、任务做完传给下一个会话、只要一份交接说明 | **别用**，写 6 行 handoff |
-| 文档 < 3 份、没有并行会话、一次性任务 | **别用** |
-| 多条线 + 多会话并行 + 上下文容易满 + 长期维护 | 用，`kb-init.py` |
-| 老项目已有一堆文档（`00/05/06/90` 或自有命名） | 用，`kb-check.py --loose` 诊断 → `kb-migrate.py` 增量迁移 |
+| One session, task done, next session just needs a handover note | **Do not use this** — write a 6-line handoff |
+| Fewer than 3 documents, no parallel sessions, one-off task | **Do not use this** |
+| Several workstreams + parallel sessions + context fills up + long-term maintenance | Use it, `kb-init.py` |
+| Old project already has a pile of documents (`00/05/06/90` or custom names) | Use it: `kb-check.py --loose` to diagnose → `kb-migrate.py` for incremental migration |
 
 ```text
-接手 [任务]，工作目录 [DIR]。
-已完成：[1–2 行]
-进行中 / 卡点：[1 行]
-下一手：[1 行]
-相关文件 / 提交：[路径 或 git log -3]
-别重复踩：[1 行，没有就删]
+Take over [task], working directory [DIR].
+Done: [1–2 lines]
+In progress / blocked: [1 line]
+Next: [1 line]
+Related files / commits: [paths or git log -3]
+Do not repeat: [1 line, delete if none]
 ```
 
 ---
 
-## 3. 分层模型
+## 3. Language: one skill, any library language (new in 2.0.4)
 
-| 层 | 文件 | 放什么 | 改动频率 | 接手必读 |
+2.0.4 ships **one** skill — `SKILL.md`, written in English. Its instruction language is not the library's language, and the two are chosen independently. **Pick the template set by the project's existing documents, not by the operator's language.**
+
+| Situation | Templates | What the agent reads |
+|---|---|---|
+| Chinese project (docs already in Chinese) | `assets/` — the default, `--lang zh` | English skill + Chinese documents |
+| English project (docs already in English) | `assets/en/` — `--lang en` | English skill + English documents |
+| Mixed legacy project | **Keep the dominant language of the existing documents**; convert nothing | English skill + whatever is already there |
+| New project, no documents yet | Ask once, or follow the user's message language | English skill + the chosen template set |
+
+Hard rules:
+
+- **Never auto-translate existing content.** The templates, the protocol status vocabulary (`有效` / `待核` / `已作废`), the reserved filenames (`00_基线.md`, `05_进度仪表盘.md`, …) and the `kb:id` values are protocol data, not prose. An English project still uses the protocol's literal status words and IDs; a Chinese project still gets Chinese filenames.
+- **The instructions stay English whatever the library language is.** An agent maintaining a Chinese library reads English instructions and writes Chinese documents — the two never have to match.
+- **One library, one language for its prose.** Mixing two prose languages inside one library doubles retrieval noise without adding information.
+- **The choice is per library, not global, and almost no CLI flag carries it.** `kb-context` / `kb-check` / `kb-write` are language-agnostic and take no `--lang`; only `kb-init` does, because only scaffolding needs a template set.
+
+`kb-init.py --lang {zh,en}` selects the template set. Both produce the **same 17 files with the same relative paths, the same placeholders and the same `kb:id` set**; a parity test enforces it (`tests/token_language/test_token_language.py::TemplateParity`).
+
+Chinese **reference** editions (`references/*.zh-CN.md`) ship as optional reading, with the same protocol IDs, commands, JSON shapes and exit codes as the English ones. They are reference material, not a second skill: `SKILL.md` is the only discoverable skill document, and a test asserts it.
+
+One consequence worth naming: an English project still gets `新会话启动消息.txt` for its copy-paste startup note, because that path is part of the skeleton's fixed slot. It is not protocol data and no script requires the name; the reason for keeping it uniform is that a language-dependent filename would make the parity test compare slot sets instead of literal paths, and the literal-path check is the one that catches a genuinely missing file. Rename it locally if it bothers you — nothing breaks.
+
+---
+
+## 4. Layered model
+
+| Layer | File | Holds | Change rate | Required on handoff |
 |---|---|---|---|---|
-| L0 入口 | `AGENTS.md`（+ `CLAUDE.md` / `GEMINI.md` 指针） | 读哪份、怎么写。**绝不写当前值** | 极少 | 读 |
-| L1 事实 | `00` 共享页（`K-xx` + 状态 + 证据）+ `10–17` 按线分册 | 当前值 / 判据 / 命令 / 坑 | 少 | 按线读 |
-| L2 现状 | `05_进度仪表盘.md`（`kb:id` 章节） | 现状 / 下一手 / 各线状态 / 待办 / 硬约束 | 常改 | **必读** |
-| L3 流水 | `06_会话日志.md`（历史卷只读）+ `06_流水/<线>.md` | append-only 时间线 | 按线只写自己那份 | 追溯才读 |
-| L4 归档 | `90_过程档案.md` + `归档/` | 过程证据 / 验证快照 / 版本考古 | 折叠时才写 | 非必读 |
+| L0 entry | `AGENTS.md` (+ `CLAUDE.md` / `GEMINI.md` pointers) | what to read, how to write. **Never holds current values** | rare | read |
+| L1 facts | `00` shared page (`K-xx` + status + evidence) + `10–17` per-line books | current values / criteria / commands / pitfalls | occasional | by line |
+| L2 state | `05_进度仪表盘.md` (`kb:id` sections) | state / next step / line status / backlog / hard constraints | frequent | **required** |
+| L3 journal | `06_会话日志.md` (old volumes read-only) + `06_流水/<line>.md` | append-only timeline | each line writes only its own | only for archaeology |
+| L4 archive | `90_过程档案.md` + `归档/` | process evidence / verification snapshots / version archaeology | only when folding | not required |
 
-**编号契约**：`00/05/06/90` 是保留层；新建事实分册用 **10–17**（最多 8 条线）；旧库的 `01–04` 继续合法，**迁移不重命名**。`K-xx` / `G-xxx` 与章节 `kb:id` 作废后保留、永不复用。
+**Numbering contract**: `00/05/06/90` are reserved layers; new fact books use **10–17** (max 8 lines); an old library's `01–04` stays legal, **migration never renames**. `K-xx` / `G-xxx` and section `kb:id` values are retired, never reused.
 
-**一写者一文件**：`06_流水/<线>.md` 从根上消除共享单文件的读-改-写覆盖；冲突信号靠 `git status` + `kb-write.py` 的哈希校验。
-
----
-
-## 4. 一键初始化
-
-**依赖**：Python 3.10+，只用标准库。`tiktoken` 是唯一的可选依赖，只用于「精确 token 计数」，不装也能跑（自动降级为启发式估算并在输出里标注）；`tests/deps_check.py` 会在 CI 里守住这条。
-
-```bash
-KB="$HOME/.skills-manager/skills/handoff-kb"   # 换成你的安装目录
-py "$KB/scripts/kb-init.py" \
-    --target "~/projects/新项目" --project "新项目" \
-    --lines "固件,运行态,服务端,测速"
-```
-
-生成 `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`、`00_基线.md`、`10..17_<线>.md`、`05_进度仪表盘.md`（带 `kb:id`）、`06_会话日志.md` + `06_流水/*.md`、`90_过程档案.md`、启动消息、`.gitignore` / `.gitattributes`、自检脚本占位、`归档/`。
-
-安全边界（不是可选建议）：
-
-- `--plan` 只打印创建/跳过/覆盖清单，**不落盘**。
-- 只有「目标与父目录都没有 git 仓库」时才自动 `git init` + 首次 commit；已有仓库**不嵌套、不自动提交**。
-- 只 `git add -- <本次生成的白名单>`，**从不** `git add -A`；暂存区出现白名单外文件就 `git reset` 并失败。
-- 敏感信息命中 → 拒绝提交、返回非 0；`--force` **不绕过**凭证检查。
-- `.gitignore` / `.gitattributes` / `AGENTS.md` 属于受保护配置，覆盖要 `--force --overwrite-config`。
-- 线名重复（大小写 / Unicode 折叠后）、保留名（`其他`）、`NN_` 前缀、超过 8 条线 → 直接拒绝。
-
-```
---no-git  只生成文件          --force  覆盖模板（不含受保护配置）
---shards auto|none           auto=按线分片（默认）；none=单份 06
---json    机器可读
-```
+**One writer, one file**: `06_流水/<line>.md` removes read-modify-write collisions on a shared single file at the root; the conflict signal is `git status` plus the hash check in `kb-write.py`.
 
 ---
 
-## 5. 旧库迁移（v1 → v2，无损）
+## 5. One-command initialization
+
+**Requirements**: Python 3.10+, **standard library only**. Two optional dependencies exist, both for exact token counting and both imported inside a function under `try/except`:
+
+| Optional | Gives | Without it |
+|---|---|---|
+| `tiktoken` | `--tokenizer cl100k_base` / `o200k_base`, exact BPE counts | requesting one exits **2**; `heuristic` still works |
+| `tokenizers` + DeepSeek's `tokenizer.json` | `--tokenizer deepseek_v4`, exact counts on DeepSeek's own vocabulary | requesting it exits **2**; `deepseek_estimate` applies the documented ratio |
+
+Nothing degrades silently: an explicitly requested encoder either works or exits 2, and `--allow-tokenizer-fallback` is the only way to accept an estimate (which then labels itself `exact=false`). `tests/deps_check.py` walks the full AST of every script and fails on any third-party import outside this table, at module level, behind a `try` that has no handler able to catch `ImportError`, or behind one that names another module's exception (`local_lib.ImportError` is not `ImportError`); `tests/test_deps_check.py` tests the checker itself so a new dependency cannot slip in unnoticed.
 
 ```bash
-py "$KB/scripts/kb-check.py"   --target ./old --loose      # 先只读诊断
-py "$KB/scripts/kb-migrate.py" --target ./old --plan       # 计划写 .kb-migrate-plan.json
-py "$KB/scripts/kb-migrate.py" --target ./old --apply      # 校验源哈希后再写
+KB="$HOME/.skills-manager/skills/handoff-kb"   # your install path
+python "$KB/scripts/kb-init.py" \
+    --target "$HOME/projects/new-project" --project "new-project" \
+    --lines "firmware,runtime,server,throughput" --lang en
 ```
 
-只做**增量**：补 `<!-- kb:schema: 2 -->`、给已知章节补 `kb:id`。不重命名 `01–04`、不重排章节、不改正文、不删证据。计划绑定源文件哈希——文件被别的会话改过就拒绝，重跑 `--plan` 即可。重复迁移幂等。
+```powershell
+# Windows PowerShell 5.1 / 7 -- no Bash, no WSL. Backtick (`) continues a line.
+$KB = "$HOME\.skills-manager\skills\handoff-kb"
+py "$KB\scripts\kb-init.py" --target "$HOME\projects\new-project" --project "new-project" `
+    --lines "firmware,runtime,server,throughput" --lang en
+py "$KB\scripts\kb-init.py" --target "$HOME\projects\新项目" --project "新项目" `
+    --lines "固件,运行态,服务端,测速"            # omit --lang: zh is the default
+```
+
+Generates `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`, `00_基线.md`, `10..17_<line>.md`, `05_进度仪表盘.md` (with `kb:id`), `06_会话日志.md` + `06_流水/*.md`, `90_过程档案.md`, a startup message, `.gitignore` / `.gitattributes`, a self-check script stub, and `归档/`.
+
+Safety boundary (not optional advice):
+
+- `--plan` only prints the create/skip/overwrite list, **writes nothing**.
+- It auto-runs `git init` + first commit **only when neither the target nor its parent is already inside a git repository**; an existing repository is never nested into and never auto-committed.
+- It only ever `git add -- <whitelist generated this run>`, **never** `git add -A`; if a non-whitelisted file appears in the index it `git reset`s and fails.
+- A sensitive-information hit → refuses to commit, returns non-zero; `--force` **does not bypass** the credential check.
+- `.gitignore` / `.gitattributes` / `AGENTS.md` are protected configuration; overwriting them requires `--force --overwrite-config`.
+- Duplicate line names (after case / Unicode folding), reserved names (`其他`), an `NN_` prefix, or more than 8 lines → rejected outright.
+
+```
+--no-git  generate files only      --force  overwrite templates (not protected config)
+--shards auto|none                 auto = one shard per line (default); none = single 06
+--lang zh|en                       template language (default zh); also picks the --lines default
+--lines a,b,c                      workstream names; default 线A,线B,线C,线D / lineA..lineD by --lang
+--json    machine readable
+```
 
 ---
 
-## 6. 新会话恢复：按预算取上下文
+## 6. Migrating an old library (v1 → v2, lossless)
 
 ```bash
-py "$KB/scripts/kb-context.py" --target . --task "排查 NSS 网络问题" --budget 3000 --explain
-py "$KB/scripts/kb-context.py" --target . --loose --task "查看当前项目状态"  # 自有命名项目
+python "$KB/scripts/kb-check.py"   --target ./old --loose      # read-only diagnosis first
+python "$KB/scripts/kb-migrate.py" --target ./old --plan       # writes .kb-migrate-plan.json
+python "$KB/scripts/kb-migrate.py" --target ./old --apply      # verifies source hashes, then writes
 ```
 
-装配顺序（高 → 低）：
-
-```
-P0 硬约束（dashboard.constraints / AGENTS 硬约束段）   ← 任何预算都不裁
-P1 现状 + 下一手（dashboard.current / dashboard.next）
-P2 本线事实（fact.current / fact.commands / fact.pitfalls）
-P3 基线命中行 + 证据指针 + 交叉链（改 A 波及 B）
-P4 其余按相关度补充（≤ 预算 30%、≤3 块，流水/归档降权）
-```
-
-- 默认预算 3000；`--format json` 给 CI / Hook 用，`--explain` 说明每块为什么被选。
-- 预算不足时**必读块仍然保留**，并输出「超额」与 `skipped` 清单——不会静默丢掉硬约束。
-- 没有任何命中 → 输出缺口清单，让你去 `kb-search`，**不虚构上下文**。
-- Token 默认 `heuristic` 估算（CJK 1 字≈1 token，其余 4 字符≈1 token）；装了 `tiktoken` 且指定 `--tokenizer cl100k_base` 才用真实编码，输出里会标明用的是哪个。
+Incremental only: adds `<!-- kb:schema: 2 -->` and `kb:id` to known sections. It does not rename `01–04`, does not reorder sections, does not rewrite prose, does not delete evidence. The plan is bound to source file hashes — if another session changed a file, the apply is refused; re-run `--plan`. Repeating a migration is idempotent.
 
 ---
 
-## 7. 检索与按节精读
+## 7. New-session recovery: context within a budget
 
 ```bash
-py "$KB/scripts/kb-search.py"  --target . --query "NSS 网络问题" --limit 5
-py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboard.next
-py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --find 磁盘
+python "$KB/scripts/kb-context.py" --target . --task "debug NSS network issue" --budget 3000 --explain
+python "$KB/scripts/kb-context.py" --target . --loose --task "current project status"   # custom naming
 ```
 
-- 检索直接扫 Markdown（无索引服务）：中文按「整段 + 二元组」近似，英文不分大小写；打分顺序 = 精确 ID / 事实 ID 行 > 文件名 / 工作线 > 标题 > 正文；流水降权，归档与已作废行默认排除。
-- 只回定位（文件 / 章节 ID / 行号 / 160 字摘要 / 分数 / 哈希 / 估算 token），正文用 `kb-outline.py` 按节读。
-- `--hash` 传了就校验：文档变了就拒绝读（退出码 2），防止按过期目录取到错节。
+Assembly order (high → low):
+
+```
+P0 hard constraints (dashboard.constraints / AGENTS constraints)  ← never trimmed by any budget
+P1 state + next step (dashboard.current / dashboard.next)
+P2 this line's facts  (fact.current / fact.commands / fact.pitfalls)
+P3 baseline hit lines + evidence pointers + cross links (change A, B is affected)
+P4 the rest by relevance (≤ 30% of budget, ≤ 3 blocks; journal/archive down-weighted)
+```
+
+- Default budget 3000; `--format json` for CI / hooks, `--explain` says why each block was chosen.
+- When the budget is short, **mandatory blocks stay** and an "over budget" line plus a `skipped` list is printed — hard constraints are never silently dropped.
+- No hits at all → prints the gap list and points you at `kb-search`; it **never invents context**.
+- Tokens default to the `heuristic` estimate (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token). With `tiktoken` installed and `--tokenizer cl100k_base` you get a real encoding, and the output always names which one was used. `--tokenizer deepseek_v4` uses DeepSeek's official offline tokenizer (see §12).
 
 ---
 
-## 8. 安全写回（哈希 + 锁 + 事务）
+## 8. Search and section-level reading
 
 ```bash
-py "$KB/scripts/kb-write.py" read  --target . --file 05_进度仪表盘.md --json
-py "$KB/scripts/kb-write.py" apply --target . --changes changes.json --dry-run
-py "$KB/scripts/kb-write.py" apply --target . --changes changes.json
-py "$KB/scripts/kb-write.py" recover --target . [--dry-run|--apply] [--break-lock]
+python "$KB/scripts/kb-search.py"  --target . --query "NSS network issue" --limit 5
+python "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboard.next
+python "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --find 磁盘
 ```
 
-`changes.json`（协议固定 `schema_version: 1`）：
+- Search scans Markdown directly (no index service): Chinese approximates by "whole run + bigrams", English is case-insensitive; score order = exact ID / fact ID line > filename / workstream > heading > body; journal down-weighted, archive and retired lines excluded by default.
+- It returns locations only (file / section ID / line / 160-char snippet / score / hash / token estimate); read the body with `kb-outline.py`.
+- If `--hash` is supplied it is verified: a changed document is refused (exit 2), so a stale outline cannot deliver the wrong section.
+
+---
+
+## 9. Safe write-back (hash + lock + transaction)
+
+```bash
+python "$KB/scripts/kb-write.py" read  --target . --file 05_进度仪表盘.md --json
+python "$KB/scripts/kb-write.py" apply --target . --changes changes.json --dry-run
+python "$KB/scripts/kb-write.py" apply --target . --changes changes.json
+python "$KB/scripts/kb-write.py" recover --target . [--dry-run|--apply] [--break-lock]
+```
+
+`changes.json` (protocol-fixed `schema_version: 1`):
 
 ```json
 {
   "schema_version": 1,
   "updates": [
-    {"path": "05_进度仪表盘.md", "expected_sha256": "<64 位>",
+    {"path": "05_进度仪表盘.md", "expected_sha256": "<64 hex>",
      "operation": "replace_section", "section_id": "dashboard.current",
-     "content": "<新章节正文>"},
-    {"path": "06_流水/固件.md", "expected_sha256": "<64 位>",
-     "operation": "append", "content": "- [2026-11-11 01:00] 固件 ... → 下一手"},
-    {"path": "00_基线.md", "expected_sha256": "<64 位>",
+     "content": "<new section body>"},
+    {"path": "06_流水/固件.md", "expected_sha256": "<64 hex>",
+     "operation": "append", "content": "- [2026-11-11 01:00] firmware ... → next"},
+    {"path": "00_基线.md", "expected_sha256": "<64 hex>",
      "operation": "update_fact", "fact_id": "K-02",
-     "content": "| K-02 | 信道 | 157 | 有效 | `iwinfo` | 2026-11-11 |"}
+     "content": "| K-02 | channel | 157 | 有效 | `iwinfo` | 2026-11-11 |"}
   ]
 }
 ```
 
-- 写入必须带**全量 64 位** `expected_sha256`，不符即 `CONFLICT`，不覆盖、报最新哈希、提示重新读。
-- 跨平台目录锁（原子 mkdir + 进程存活判断）：活进程锁不抢占；死进程锁可回收并在 stderr 说明；显式解锁 `recover --break-lock`。
-- 多文件：**先全部校验 → 备份 → 逐个 `os.replace` → 失败回滚**；有 journal，崩溃后 `recover` 逐文件判定「已写入 / 未写入 / 被他人改动」，有冲突就拒绝自动恢复。
-- 单文件写入用同目录临时文件 + `os.replace`，并沿用原文件的换行风格（避免整文件 CRLF 噪声）。
-- 路径限制：只接受工作区内相对路径，拒绝绝对路径 / `..` / 符号链接越界 / 非 `.md`·`.txt`。
+- Every write must carry a **full 64-hex** `expected_sha256`; a mismatch is `CONFLICT` — no overwrite, the current hash is reported, you re-read.
+- Cross-platform directory lock (atomic mkdir + liveness probe): a live process's lock is not stolen; a dead process's lock is reclaimed with a note on stderr; explicit unlock is `recover --break-lock`.
+- Multiple files: **validate all → back up → `os.replace` one by one → roll back on failure**; a journal lets `recover` classify each file afterwards (written / not written / changed by someone else) and refuses to auto-recover when there is a conflict.
+- Single-file writes use a temp file in the same directory plus `os.replace`, preserving the original newline style (no whole-file CRLF churn).
+- Path limits: workspace-relative paths only; absolute paths, `..`, symlink escapes and non-`.md`/`.txt` are rejected.
 
-**诚实声明**：多个 `os.replace()` 不是跨文件原子事务。这里提供的是「全量预检 + 备份 + 失败回滚 + 崩溃后恢复」，Git 仍是最终审计与回滚手段。
+**Honest statement**: several `os.replace()` calls are not a cross-file atomic transaction. What is offered is "full pre-check + backup + rollback on failure + post-crash recovery". Git remains the final audit and rollback mechanism.
 
 ---
 
-## 9. 交接检查（证据优先）
+## 10. Handoff check (evidence first)
 
 ```bash
-py "$KB/scripts/kb-handoff.py" check  --target . --strict
-py "$KB/scripts/kb-handoff.py" check  --target . --loose   # 无 kb:id 时按标题兜底
-py "$KB/scripts/kb-handoff.py" report --target . --json
+python "$KB/scripts/kb-handoff.py" check  --target . --strict
+python "$KB/scripts/kb-handoff.py" check  --target . --loose   # fall back to headings when kb:id is absent
+python "$KB/scripts/kb-handoff.py" report --target . --json
 ```
 
-逐项判定 8 个问题：当前任务 / 确实完成了什么 / 证据 / 未核实项 / 阻塞 / 下一步 / 受影响文件 / 禁止重复的操作。
+Grades eight questions: current task / what was actually completed / evidence / unverified items / blockers / next step / affected files / operations not to repeat.
 
-- 模板占位（`[填` / `TODO`）算**待核**，不算完成。
-- 基线里「有效」却没有证据的条目 → 待核；不会自动升级成已验证。
-- `--strict` 下有待核项即失败（退出码 1），适合放进收尾流程。
+- Template placeholders (`[填]` / `TODO`) count as **unverified**, not done.
+- A baseline entry marked `有效` without evidence → unverified; it is never auto-promoted to "verified".
+- `--strict` fails on any unverified item (exit 1), suitable for a wrap-up pipeline.
 
 ---
 
-## 10. 体检
+## 11. Health check
 
 ```bash
-py "$KB/scripts/kb-check.py" --target .                  # 人读
-py "$KB/scripts/kb-check.py" --target . --strict         # WARN 也算失败
-py "$KB/scripts/kb-check.py" --target . --loose          # 自有命名体系
-py "$KB/scripts/kb-check.py" --target . --json           # CI / Hook
-py "$KB/scripts/kb-check.py" --target . --mode template  # 刚初始化的空模板
+python "$KB/scripts/kb-check.py" --target .                  # human readable
+python "$KB/scripts/kb-check.py" --target . --strict         # WARN also fails
+python "$KB/scripts/kb-check.py" --target . --loose          # custom naming
+python "$KB/scripts/kb-check.py" --target . --json           # CI / hooks
+python "$KB/scripts/kb-check.py" --target . --mode template  # freshly initialized empty template
 ```
 
-检查：必需文件（精确命名优先，不用 `05_*.md` 通配）、各层体积与接手成本、阈值命中、`K-xx` 重复定义 / 未定义引用 / 作废引用 / 循环作废链、`kb:id` 重复与非法格式、事实证据与核实时效、表格列数、残留 TODO、明文凭证、git 未提交改动。ERROR > 0 退出码 1。
+Checks: required files (exact name first, no `05_*.md` globbing), layer sizes and handoff cost, threshold hits, `K-xx` duplicate / undefined-reference / retired-reference / cyclic-retirement, `kb:id` duplicates and illegal formats, fact evidence and verification age, table column counts, leftover TODO, plaintext credentials, uncommitted git changes. ERROR > 0 exits 1.
 
-体积统计**分两层报**：正文（不含 `归档/`）与归档各自计数，接手成本只对正文算；跳过 `AI_files/` / `assets/` / `data/` / `output/` / `evidence/` / `unpack/` / `_tmp/` / `node_modules/` / `build/` 等资料目录与 >2 MB 文本。归档长期大于正文 3 倍会报 WARN——备份该折叠了。
+Size statistics are reported **in two layers**: body (excluding `归档/`) and archive counted separately, with handoff cost computed on the body only; data directories (`AI_files/`, `assets/`, `data/`, `output/`, `evidence/`, `unpack/`, `_tmp/`, `node_modules/`, `build/`, …) and text files over 2 MB are skipped. An archive more than 3× the body size raises a WARN — it is time to fold.
 
-编号检查认「定义位」：标题首、列表首、表格首列，**跨文件**都算（`## G-010 …` 就是定义）；只在句子里提到的算引用。`--loose` 下未定义引用降为 WARN，避免自有命名项目一上来就 10 条 ERR。`--loose` 还把 `20_数据` / `30_mod开发` / `50_死路与坑` 这类数字分册当事实线（别名先判，`60_进度` 等仍按各自角色走）。
-
----
-
-## 11. Hook（默认不安装）
-
-```bash
-py "$KB/scripts/kb-hooks.py" install   --client claude --target . --plan
-py "$KB/scripts/kb-hooks.py" install   --client claude --target . --write
-py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
-```
-
-- 只写**项目级**配置（`.claude/settings.json`、`.codex/hooks.json` + TOML 片段），不动全局。
-- 事件：`SessionStart`（注入小预算上下文）/ `PreCompact`（提醒收尾）/ `Stop`（交接自检，只提醒）/ `SessionEnd`（Claude 侧空响应）。Codex 侧按官方三级结构 `{matcher, hooks:[{type, command}]}` 写，Claude 侧独立结构；**不使用** `decision: block`，任何事件都不阻断会话。
-- 预览是默认行为：`--plan` 与不带 `--write` 都只打印「新增/移除/保留/SHA 前后」，**零写入**；`--write` 才落盘，且写前重校验 SHA，别人改过就放弃。
-- `run` **永远退出 0**：Hook 自己出错也不能破坏会话。不联网、不自动提交、不重写事实文档。
-- 事件名与退出码语义以各客户端当前官方文档为准（见 `references/hooks.md`），`--plan` 先看清楚再 `--write`。
+Numbering checks accept "definition positions": heading start, list start, table first column, **across files** (`## G-010 …` is a definition); a mention inside a sentence is a reference. Under `--loose`, an undefined reference is downgraded to WARN, so a custom-naming project does not open with 10 ERRs. `--loose` also treats numbered books like `20_数据` / `30_mod开发` / `50_死路与坑` as fact lines (aliases are matched first; `60_进度` etc. keep their own roles).
 
 ---
 
-## 12. 测试与 benchmark
+## 12. Tests and benchmarks
 
 ```bash
-python -m unittest discover -s tests        # 341 个用例
-python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
-python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
+python -m unittest discover -s tests        # 428 tests (341 existing + 55 token_language + 32 deps_check)
+python tests/smoke.py                       # end to end: init→check→search→context→handoff→write→migrate
+python tests/deps_check.py                  # scripts/ must not import outside the standard library
 python scripts/kb-benchmark.py --target . --report markdown
+python tests/token_language/run_token_benchmark.py --all --out tests/token_language/out
 ```
 
-- 测试覆盖（341 个）：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底与候选分册降权）、agent 目录不进检索、P4 只按自有正文打分、P4 补入边界与 `p4_facts`、P0 三级兜底（含软链越界与占位符）、围栏内容不进计数、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门、内容级去重与重复装载指标、单事实分册与 `--line` 兜底、容器 599/600/601 边界、P0 去重豁免、P0 两级 dashboard 逐级兜底、h1 导语判定（正文逐句比对 / 短句按任务相关性 / 导语与事实混句）。
-- `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价；`tests/fixtures/plain/` 是普通数字编号库（`00/05/20/30/40/50`，无 `kb:id`、无事实结构），用来验证「编号像分册」不等于「里面是事实」。
-- CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
-- benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平；任务通过率门槛 80% **向上取整**（8 个任务要 7 个过，`round()` 会把 6.4 抹成 6）。
-- 每项测试/CI/客户端集成**实际到什么程度**，写在 §17 而不是这里；本节只保证命令能跑。
+- The existing suite covers lock ownership / dead-lock reclamation / never stealing an incomplete lock, transaction rollback and journal checksums, `recover` three-state, migration plan bound to hashes and `root_id`, path escapes and symlink pruning, the three fact definition positions and index-page pointers, retirement chains and immutable IDs, multi-workstream assembly and budget convergence, P3/P4 containment, `--loose` custom naming (numbered-book fallback and candidate down-weighting), agent directories excluded from retrieval, P4 scoring only on own body text, the P4 insertion boundary and `p4_facts`, the three-level P0 fallback (including symlink escapes and placeholders), fenced content excluded from counts, hook preview writing nothing / multi-file rollback / official event structures, real subprocess concurrency and fault injection, benchmark metrics and quality gates, content-level dedupe and duplicate-loading metrics, single-fact books and the `--line` fallback, container 599/600/601 boundaries, haiku-preamble demotion (sentence-by-sentence body comparison / short sentences by task relevance / preamble-and-fact mixed sentences).
+- `tests/fixtures/ffrs/` is a desensitized "custom naming" fixture (`60_进度.md` / `61_流水.md` / `60_流水/`), all fictional, used to prove `--loose` is equivalent to standard naming; `tests/fixtures/plain/` is an ordinary numbered library (`00/05/20/30/40/50`, no `kb:id`, no fact structure), used to prove "looks like a book" ≠ "contains facts".
+- CI: `.github/workflows/test.yml`, Ubuntu + Windows × Python 3.10 / 3.12 / 3.13, no network, no credentials, standard library only (`tiktoken` and `tokenizers` are the declared optional imports, and must sit inside a function under `try/except`).
+
+### 12.1 Benchmark (routing quality)
+
+Compares A full / B `00+05` / C routed across 10 fixed tasks (one is an error path, listed separately, excluded from the mean); A/B/C go through the same `TokenCounter`; it reports 10 quality metrics of which 5 are hard gates (constraints preserved, error path refused, budget reported honestly, no silent workstream omission, counter consistency), immune to averaging; the task pass threshold (80%) rounds **up** (8 tasks require 7, since `round()` would turn 6.4 into 6).
+
+### 12.2 Bilingual token benchmark (new in 2.0.4)
+
+Three variants: **A** original Chinese v2.0.3 (frozen) · **B** optimized Chinese v2.0.4 — **a benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
+`structure = 1 − B/A`, `language = 1 − C/B`, `total = 1 − C/A`. A zero denominator is reported explicitly, never as 0%.
+
+**The total is a language gain, not a structural one.** `structure` lands at −1.3% / −0.9% / +0.1% across the three exact vocabularies: restructuring the prose into 9 sections did not make the Chinese text smaller. Everything the total shows comes from `language`. Quoting "2.0.4 is 28.1% smaller" as a structural achievement would be wrong — the structure paid for itself in readability and in *not growing*.
+
+B exists for one reason: without a Chinese edition of the *optimized* text, `A → C` would mix restructuring and translation into one number that cannot be attributed. Keeping B lets each term be measured on its own. It lives in `tests/token_language/sample_b/`, its bytes are pinned by a SHA256 assertion, and it is not installable — 2.0.4 ships one skill.
+
+`SKILL.md` (whole file, frontmatter included), measured 2026-11-14:
+
+| Tokenizer | A | C | total saving | 15% target |
+|---|---|---|---|---|
+| `cl100k_base` (tiktoken, exact) | 5,416 | 3,892 | **28.1%** | met |
+| `o200k_base` (tiktoken, exact) | 4,571 | 3,869 | **15.4%** | met |
+| `deepseek_v4` (official offline `tokenizer.json`, exact) | 4,343 | 3,931 | **9.5%** | **not met — reported, not gamed** |
+| `deepseek_estimate` (documented ratio 0.3 / 0.6, **estimate**) | 3,261 | 4,575 | −40.3% | not applicable |
+
+The YAML description on its own — what a client loads before deciding to read anything — is 117 → 69 tokens on `cl100k_base`, 83 → 69 on `o200k_base`, and 63 → 71 on `deepseek_v4`: on DeepSeek the description alone *grows*, because the English trigger sentence needs more of that vocabulary. The body dominates, so the file total still falls.
+
+Reference files, `deepseek_v4`: protocol-v2 5,171 → 4,969 (3.9% smaller), migration 4,675 → 4,452 (4.8%), hooks 2,377 → 2,300 (3.2%), benchmark 5,424 → 5,193 (4.3%). Templates: `AGENTS.md` 1,232 → 1,237, `05_dashboard.md` 784 → 760 — i.e. **templates are language-neutral within noise**, which is the point: a template is mostly placeholders and protocol vocabulary.
+
+Why DeepSeek lands below 15%: its vocabulary is Chinese-heavy, so the Chinese source is already dense (4,343 tokens for ~7.7 k characters), while the English edition needs ~12.4 k characters for the same content. The same restructuring gains 28.1% on a Latin-script-heavy vocabulary and 9.5% on a Chinese-heavy one — which is why the gate is split: **15% on `cl100k_base` / `o200k_base`, "must not grow" on `deepseek_v4`**. Per-section detail, per-task reading paths and the full per-file table are in `tests/token_language/out/token-benchmark-all.md` (JSON alongside it).
+
+Method notes, so nobody reads more into these numbers than they support:
+
+- `cl100k_base` / `o200k_base` are reproducible proxies, not any specific model's billing tokenizer.
+- Every report names the vocabulary it used: `deepseek_v4` records the file name, the `tokenizer.json` SHA256 and the `tokenizers` version, and no report contains a personal path — two numbers can be proved to come from the same vocabulary without publishing anyone's directory layout. The current hash is `89085f12…c9614`.
+- `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is labeled as an estimate everywhere. **The ratio model is invalid for cross-language comparison** — a translation has more characters, so the formula reports a grow where the real tokenizer reports a saving. That comparison is kept in the report on purpose, as evidence of the formula's limit.
+- The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is reported as an estimate only and is never used for a conclusion.
+- A missing tokenizer is an error (exit 2), not a silent downgrade: a report never claims exactness it does not have.
+- Structure is compared through section headings and protocol IDs, not through sentence-by-sentence semantic equivalence; `tests/token_language/test_token_language.py` holds the rule table (19 required rules in the shipped skill).
 
 ---
 
-## 13. 协议兼容
+## 13. Hooks (never installed by default)
 
-| 项目 | v1 | v2 |
+```bash
+python "$KB/scripts/kb-hooks.py" install   --client claude --target . --plan
+python "$KB/scripts/kb-hooks.py" install   --client claude --target . --write
+python "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
+```
+
+- Writes **project-level** configuration only (`.claude/settings.json`, `.codex/hooks.json` + a TOML fragment); never global.
+- Events: `SessionStart` (inject a small budget context) / `PreCompact` (remind to wrap up) / `Stop` (handoff self-check, reminder only) / `SessionEnd` (empty response on the Claude side). Codex uses the official three-level shape `{matcher, hooks:[{type, command}]}`; Claude has its own structure. **No `decision: block`** — no event ever blocks a session.
+- Preview is the default: `--plan` and any call without `--write` only print "add / remove / keep / SHA before-after" and **write nothing**; `--write` persists, re-verifying SHA first and giving up if someone else changed the file.
+- `run` **always exits 0**: a hook's own failure must not break the session. No network, no auto-commit, no rewriting of fact documents.
+- Event names and exit-code semantics follow each client's current official documentation (see `references/hooks.md` / `references/hooks.zh-CN.md`); read `--plan` before `--write`.
+
+---
+
+## 14. Protocol compatibility
+
+| Item | v1 | v2 |
 |---|---|---|
-| 保留层 | `00/05/06/90` | 不变 |
-| 事实分册 | `01–08`（与 05/06 冲突） | 新建 `10–17`；旧 `01–04` 继续合法 |
-| 章节定位 | 标题文字 / `--section N` | 新增 `<!-- kb:id: ... -->`，旧接口保留 |
-| 交接 | 人工看 `05` | `kb-handoff.py` 逐项判定（缺证据=待核） |
-| 写入 | 人肉追加 | `kb-write.py`（哈希 + 锁 + 事务） |
-| 上下文 | 全读或 00+05 | `kb-context.py` 按预算路由 |
-| 哈希 | 12 位文本短哈希 | 写入用全量 64 位，短哈希保留为兼容读取 |
+| Reserved layers | `00/05/06/90` | unchanged |
+| Fact books | `01–08` (collides with 05/06) | new `10–17`; old `01–04` stays legal |
+| Section addressing | heading text / `--section N` | adds `<!-- kb:id: ... -->`, old interface kept |
+| Handoff | human reads `05` | `kb-handoff.py` grades item by item (missing evidence = unverified) |
+| Writing | hand-appended | `kb-write.py` (hash + lock + transaction) |
+| Context | read everything or `00+05` | `kb-context.py` routes within a budget |
+| Hashing | 12-char text short hash | full 64-hex for writes, short hash kept for compatible reads |
 
-旧命令全部可用：`kb-init` / `kb-check` / `kb-outline` 的参数没有删除，只新增。
-
----
-
-## 14. 风险、限制与恢复
-
-- **不做**：向量库 / SQLite 索引 / embedding / MCP 常驻 / 多项目中心 / 知识图谱 / 云同步 / 自动 LLM 总结。
-- 规模上限靠机制（git + 阈值）守，不靠纪律；超过约 8 条线或 `00` 超 150 行该合并或升级，而不是继续加文档。
-- 普通编辑器直接改文件会绕过锁，所以**哈希重校验必须保留**；`kb-write` 会拒绝过期哈希。
-- Hook 依赖客户端事件语义，客户端升级可能改变行为；`run` 出错只打印、不阻断。
-- 崩溃恢复：`kb-write.py recover --dry-run` 先看，再 `--apply`；有他人改动时只报告不覆盖。
-- 凭证：扫描是正则启发式，命中即阻断；但**没命中不等于安全**，`.gitignore` 仍要在第一次 `git add` 之前写好。
+Every old command still works: no `kb-init` / `kb-check` / `kb-outline` argument was removed, only added.
 
 ---
 
-## 15. 文件
+## 15. Risks, limits and recovery
+
+- **Not doing**: vector store / SQLite index / embeddings / resident MCP / multi-project hub / knowledge graph / cloud sync / automatic LLM summarization.
+- Scale is bounded by mechanism (git + thresholds), not discipline; beyond about 8 lines or `00` over 150 lines, merge or upgrade instead of adding more documents.
+- A plain editor saving a file bypasses the lock, so **hash re-verification is mandatory**; `kb-write` refuses stale hashes.
+- Hooks depend on client event semantics, which can change on client upgrade; `run` failures print and never block.
+- Crash recovery: `kb-write.py recover --dry-run` first, then `--apply`; when someone else changed a file it reports and does not overwrite.
+- Credentials: scanning is a regex heuristic, a hit blocks the write — but **no hit is not proof of safety**; `.gitignore` must be in place before the first `git add`.
+
+---
+
+## 16. Files
 
 ```text
-SKILL.md                    技能主体（判定 / 建库 / 迁移 / 接手 / 写回 / 体检 / Hooks）
-references/protocol-v2.md   2.0 协议：编号、章节 ID、changes.json、并发与恢复
-references/protocol.md      v1 设计原理（历史，仍可读）
-references/migration.md     存量改造手册（含 v1 → v2）
-references/hooks.md         Codex / Claude Code Hook 语义与安装
-references/benchmark.md     评测口径、任务集、如何解读
-assets/                     模板（AGENTS / 00 / 05 / 10–17 / 06 / 90 / 启动消息 / git 配置）
-scripts/kb-init.py          脚手架 + 预检查 + 白名单提交 + 凭证阻断
-scripts/kb-check.py         只读体检（--loose / --json / --mode）
-scripts/kb-outline.py       目录树 + 稳定章节 ID + 按节读 + hash 校验
-scripts/kb-write.py         安全写入（哈希 / 锁 / 事务 / recover）
-scripts/kb-migrate.py       v1 → v2 无损迁移（计划绑定哈希）
-scripts/kb-search.py        轻量全文检索（章节级打分）
-scripts/kb-context.py       预算内上下文路由（--explain）
-scripts/kb-handoff.py       交接有效性检查（证据优先）
-scripts/kb-hooks.py         客户端 Hook 适配（默认不安装）
-scripts/kb-benchmark.py     Token 与质量评测
-scripts/lib/                共享库：protocol / scope / markdown / safeio / security / tokens / terms / facts
-tests/                      341 个 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
-tests/make_fixture.py       生成 benchmark 用的合成夹具（README §1 的数字可复现）
-tests/fixtures/ffrs/        脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
-tests/deps_check.py         非标准库导入检查（只允许可选的 tiktoken）
-.github/workflows/test.yml  Ubuntu + Windows × 3 个 Python 版本
+CHANGELOG.md                    short version history; the long chronicle is README.zh-CN.md §17
+SKILL.md                        the skill — English, 9 numbered sections, the only skill document
+references/protocol-v2.md       2.0 protocol: numbering, section IDs, changes.json, concurrency and recovery
+references/protocol-v2.zh-CN.md Chinese edition of the above (optional reading)
+references/protocol.md          v1 design rationale (historical, Chinese only)
+references/migration.md         legacy restructuring manual (incl. v1 → v2)
+references/migration.zh-CN.md   Chinese edition
+references/hooks.md             Codex / Claude Code hook semantics and installation
+references/hooks.zh-CN.md       Chinese edition
+references/benchmark.md         benchmark methodology, task set, how to read it
+references/benchmark.zh-CN.md   Chinese edition
+assets/                         Chinese templates (AGENTS / 00 / 05 / 10–17 / 06 / 90 / startup message / git config)
+assets/en/                      English templates (same placeholders, same kb:id set)
+scripts/kb-init.py              scaffold + pre-checks + whitelisted commit + credential block
+scripts/kb-check.py             read-only health check (--loose / --json / --mode)
+scripts/kb-outline.py           outline + stable section IDs + section reads + hash verification
+scripts/kb-write.py             safe write (hash / lock / transaction / recover)
+scripts/kb-migrate.py           lossless v1 → v2 migration (plan bound to hashes)
+scripts/kb-search.py            lightweight full-text search (section-level scoring)
+scripts/kb-context.py           budget-aware context routing (--explain)
+scripts/kb-handoff.py           handoff validity check (evidence first)
+scripts/kb-hooks.py             client hook adapter (never installed by default)
+scripts/kb-benchmark.py         token and quality benchmark
+scripts/lib/                    shared library: protocol / scope / markdown / safeio / security / tokens / terms / facts
+tests/                          unittest suite + end-to-end smoke + dependency check + fixture generator
+tests/make_fixture.py           synthetic benchmark fixture (the numbers in §1 are reproducible)
+tests/fixtures/ffrs/            desensitized custom-naming fixture (--loose, all fictional)
+tests/token_language/           A/B/C token benchmark, rule and layout tests, frozen v2.0.3 baseline
+tests/token_language/sample_b/  frozen Chinese 2.0.4 text — benchmark sample only, not a skill
+tests/deps_check.py             non-stdlib import check (full AST; only tiktoken / tokenizers allowed)
+.github/workflows/test.yml      Ubuntu + Windows × 3 Python versions
 ```
 
 ---
 
-## 16. 2.0.1-hotfix 修了什么
+## 17. Version history
 
-2.0.1-hotfix 是**修可靠性**的补丁版：不加协议能力，`kb:schema: 2` 与 v1→v2 迁移方式都没变。
-所有改动都能落到一个具体后果上——「这会让谁少踩一次坑」。
+| Version | Focus |
+|---|---|
+| 2.0.1-hotfix | Path/symlink/transaction hardening, hook protocol fixes, fact-ID immutability, P4 containment, withdrawn numbers |
+| 2.0.2 | Quality-gate rounding, "recent records" counting, `--loose` numbered books; six assembly-layer defects (agent dirs, parent-section scoring, file preamble, false P0 gap, `other` weight, small books); five judgment-layer defects (two P0 implementations, fenced content, loose prose books, P4 gap withdrawal, duplicate loading) |
+| 2.0.3 | Four early-return / half-check defects: P0 level-by-level fallback, h1 sentence comparison, short-sentence relevance, preamble-and-fact mixed sentences |
+| 2.0.4 | English skill + bilingual templates + measured token benchmark (this release) |
 
-### 16.1 安全与并发
+The full Chinese chronicle — what each defect did on a real library, before/after numbers, and the withdrawn figures — is in [`README.zh-CN.md`](README.zh-CN.md) §16.
 
-- **路径发现不再信字符串**：绝对路径、盘符、UNC、`..` 一律拒绝。POSIX 上 `PurePath("C:/x").drive`
-  是空的，所以盘符判定改成正则——此前 Linux 上 `C:/Windows/x.md` 能过。
-- **越界判定按路径组成，不按前缀**：`C:\proj` 与 `C:\proj-backup` 不是包含关系；符号链接与 Junction
-  越界会被剪枝，并产出 `dir-outside` / `symlink-outside` 诊断，而不是静默跳过。
-- **事务目录必须在库内**：`.kb-txn/`、备份、journal 逐个核对；journal 里的 `root_id` 与当前目录不符
-  直接判 `manual-recovery-required`（`--force` 也不绕）；写回前二次 `sha256` 校验，冲突就保留现场。
-  （**这不是跨进程 CAS**，见 §17。）
-- **`kb-hooks install` 默认预览**，`--write` 才落盘；写前重校验 SHA；TOML 卸载不留空表头。
+### 17.1 What 2.0.4 changed
 
-### 16.2 Hook 集成
+- `SKILL.md` rewritten in English as **9 numbered sections**: Purpose and Applicability / Architecture and Core Rules / Quick Start and Recovery / Context Routing / Safe Write Rules / Handoff and Validation / Reference Loading Guide / Anti-patterns and Safety / File Index. It states in its opening block that instruction language and library language are independent.
+- **One skill, not two.** The Chinese optimized text is not shipped: it lives at `tests/token_language/sample_b/SKILL.zh-CN.md` as the B sample of the token benchmark, byte-frozen by a SHA256 assertion. A test asserts that `SKILL.md` is the only skill document outside `tests/`.
+- `references/*.md` are English; the Chinese originals moved to `references/*.zh-CN.md` **without wording changes**, kept as optional reading with the same protocol IDs, commands, JSON shapes and exit codes. `references/protocol.md` stays Chinese on purpose (it is a historical design note).
+- `assets/en/` added: 12 templates with the same placeholders and the same `kb:id` set as `assets/`. The Chinese templates are untouched.
+- `scripts/kb-init.py --lang {zh,en}`: selects the template set and localizes the generated table headers, route separator, initial status, shard section, `CLAUDE.md`/`GEMINI.md` pointer and the self-check script stub. `--lang zh` is the default, so existing behaviour is unchanged.
+- `scripts/lib/tokens.py`: `TokenCounter` gains `deepseek_v4` (official offline tokenizer, exact) and `deepseek_estimate` (documented ratio, labeled estimate). Each counter now reports a fingerprint — source, vocabulary file name, vocabulary SHA256, library version — with no personal path, and `is_exact()` recognises both exact prefixes. A missing encoder raises instead of silently downgrading.
+- `tests/deps_check.py`: now walks the **full AST** instead of module-level imports only, and requires optional imports to sit inside a function **and** inside `try/except`. `tokenizers` joined `tiktoken` as a declared optional dependency, which is what the code had been using since the DeepSeek counter landed.
+- `tests/token_language/`: A/B/C measurement, frozen v2.0.3 baseline whose bytes / SHA256 / token counts are re-verified against **all three exact vocabularies**, rule table for the shipped skill, identifier/JSON contract checks against the implementation, template parity, token targets, no-silent-fallback, cross-language scenario tests.
 
-- 安装前预检 `original_exists` + `sha256` 双状态：预览之后文件被别的会话改过，就**放弃整个安装**。
-- 多文件安装要么全做要么全退：逐文件写，失败按字节快照回滚，不留半套配置；
-  回滚本身也走原子字节写（临时文件 → `os.replace`），不会把旧配置写成半截。
-- `SessionStart` 的 matcher 按两家官方语义修正为 `startup|resume|clear|compact|fork`
-  （2.0.1 漏了 `clear`，清空会话后重新开始拿不到接手上下文）。
-- `PreCompact` 的输出按两家协议分开：Claude Code 丢弃 `systemMessage`，非阻断时
-  **stdout 纯文本**才是压缩摘要的指令；Codex 认 `systemMessage`、忽略纯文本。
-- 输出用 `hookSpecificOutput.additionalContext` / `systemMessage`，不用 `decision: block`；
-  `run` 永远退出 0、只读、不联网。Codex 用官方三级结构 `{matcher, hooks:[{type, command}]}`。
+**Pre-release corrections (RC1)** — six verified defects, fixed inside the existing architecture:
 
-### 16.3 事实（`00` 与 `10–17`）
+- `TokenCounter.count()` dispatched on the *requested* tokenizer instead of the effective one. With `deepseek_v4` / `deepseek`, a missing vocabulary and an explicitly allowed fallback, the report said `deepseek_estimate` while the numbers came from `heuristic()`. `requested` is now preserved as-is and `effective_mode` names the algorithm that actually ran. `abcdefghij` is the discriminator: 3 tokens by the documented ratio, 2 by the heuristic.
+- `tests/deps_check.py` treated any import inside a `try` body as guarded, so `try/finally` and `except ValueError` passed. It now inspects the handlers and accepts only those that can catch an import failure.
+- `tomllib` was fully exempt: reported as third-party on 3.10, exempted outright on 3.12+ by `sys.stdlib_module_names`. It is now checked *before* the standard-library exemption — function scope plus an import-error handler — identically on every interpreter version.
+- Exact-tokenizer tests skipped the whole loop when the first vocabulary was missing, so the installed ones were never checked. Each vocabulary is now its own test with its own skip reason.
+- Four Chinese reference documents were only checked for existence; their SHA256 is now compared against the frozen v2.0.3 copies.
+- The dependency checker matched exception names on the last attribute segment only, so `except local_lib.ImportError` counted as a guard. A handler now needs a bare name or an explicit `builtins.` prefix; tuples, bare `except` and `builtins.ImportError` still pass, aliased modules stay rejected on purpose.
+- `kb-init --lang en` without `--lines` generated Chinese workstream file names; the `--lines` default now follows `--lang`, and an explicit list always wins.
 
-- **事实 ID 不可变**：`update_fact(K-01, "## K-99 …")` 直接拒绝——那不是更新，是「用一次更新
-  把 K-01 换成 K-99」，全库引用会指向空气。多行 `content` 也拒绝（只会替换定义行，多出来的会被丢掉）。
-- **三种定义位同权**：标题首 / 列表首 / 表格首列都能定义事实，`kb-check` / `kb-search` /
-  `kb-context` / `kb-handoff` / `kb-write` 共用 `lib/facts.py` 一套判定，不再各写一套正则。
-- **索引页里的条目是指针**：`00_INDEX.md` 的「待核」列表写着同一批 ID，那是导航不是定义。
-  现在标 `pointer`：不算重复定义、不当事实正文、不抢搜索满分。真实库上因此从
-  **ERR 4 → ERR 0**（此前每次体检都报 4 条假重复）。
-- **查不到 ≠ 通过**：解析失败的文件单独报 ERR 并写明「其中的事实未被检查」；全库零定义时报
-  「这不是全部通过」；`counts()` 把定义 / 规范 / 指针 / 有效 / 待核 / 作废 / 未知 / 重复 / 文件失败分开数。
-
-### 16.4 上下文路由
-
-- `kb-search` 与 `kb-context` 真正复用 `lib/facts.py`：作废判定走规范化 `status`，不再看
-  「这一行有没有『已作废』四个字」；被排除的定义进 `superseded` 列表并给出替代 ID。
-- 任务点名 `K-xx` / `G-xxx` 时走 P3 专线：有效 → 给整段定义；作废 → 报缺口 + 替代 ID；
-  待核 → 明说「待核」；库里没有 → 报缺口，不编。
-- **P4 受控**：最多 3 块、最多占预算 30%、且必须命中 ≥2 个关键词或 1 个 ≥4 字符的独特词；
-  任务点名的事实所在文件整份不参与 P4（否则会把已作废的整篇捞回来），事实 ID 也不作 P4 关键词。
-- **只含已作废事实的章节默认不进 P4**（见 §16.7）：任务没在问「以前 / 历史」时，作废内容
-  按行置空（同节有效内容照留），整节相关性都来自作废内容时整节跳过并在缺口里报数。
-- 归档（`90_*`）与流水（`06_流水/`）统一按相对路径定角色降权，`--include-archive` 才升级。
-
-### 16.5 评测
-
-- 10 项质量指标分两级：**5 项必须 100%**（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、
-  计数器口径一致），**5 项仅报告**（章节命中、事实命中、缺口如实、归档未混入、P4 受约束）。
-  把受夹具内容限制的指标写死成 100%，只是把测试调绿。
-- 任务集 10 条，新增「按 ID 定位事实」「作废要指向替代」「待核要标待核」「多工作线召回」。
-  没有可测对象时标 `skip` 且不进分母——「没测到」不许冒充「通过了」。
-- 召回分 完整 / 部分 / 静默，静默遗漏算硬失败。
-
-### 16.6 撤回的数字
-
-- **「C = 89 tokens / 降 77%」**（2.0 文档）：产生于 P2 事实块根本没进装配队列的缺陷版本，
-  少给内容所以数字小，被写成了「路由很省」。
-- **「C = 395.6」（合成夹具）/「C ≈ 1,886」（真实库）**：任务集与指标口径都变了
-  （8 项 → 10 项，任务集换了 4 条），这组数不再可比，已删除。当前口径下的数字见 §1 与
-  `references/benchmark.md`。
-
-### 16.7 PR #1 复审补丁（四处收口）
-
-复审在已经通过六环境 CI 的 `52dcecf` 上又找出四个口子，只修这四处、不扩范围：
-
-1. **`AGENTS.md` 没有路径校验**：`kb-context` 读入口文件前只看 `is_file()`。
-   库里放一个指向库外的符号链接，就能把别人的文件当「本库硬约束」注入。
-   现在先过 `scope.is_within()`（`resolve()` 展开符号链接与 Windows Junction），
-   越界则跳过并写进缺口。`role_files` / `iter_text_files` 早就这么做，只有这处漏了。
-2. **P4 不认 `status: deprecated`**：只含已作废事实的章节会被当成普通「相关补充」捞回来，
-   而 P3 按 ID 查同一条时明明会说「已作废」。现在 P4 用 `lib/facts.py` 的解析结果标注节内事实，
-   与 `kb-search` 用同一口径**按行置空**作废定义：
-   - 混合节 → 保留仍然有效的内容，正文前写「已省略 N 条已作废事实：G-014（替代 G-013）」；
-   - 整节相关性都来自作废内容（或标题行本身就是那条作废定义）→ 整节跳过并在缺口里报数；
-   - 任务在问「以前 / 历史 / 作废」，或显式 `--include-superseded` → 原样带回，
-     正文前标「已作废：G-011（替代 K-04）」。
-   `p4.deprecated_skipped` 计入 JSON，便于基准区分「被过滤」与「没命中」。
-3. **`PreCompact` 用了 Claude 会丢弃的字段**：Claude Code 官方文档写明
-   「discards a PreCompact hook's `systemMessage` and `continue` fields」，非阻断时
-   **stdout 纯文本**才是压缩摘要的指令。现在 Claude 发纯文本、Codex 发 `{"systemMessage": …}`，
-   两家都不发 `decision` / `continue`。此前对 Claude 发 `systemMessage` 等于什么都没说。
-4. **回滚用 `write_bytes()` 直接盖**：写到一半崩掉会把本来完好的旧配置变成半截。
-   改用 `atomic_write_bytes()`（临时文件 → fsync → `os.replace` → fsync 目录），
-   第三方改动的冲突检测保持不变——检测不过就保留现场，不覆盖。
-
-判断依据很简单：`used` 只有 89，而 P0+P1 本身的包装就超过这个量。现在的实现会
-1) 先把 P2 真正装配进去，2) 按**最终渲染**收敛预算，3) 把装不下的线写进 `omitted_lines` 与缺口。
-宁可数字变大，也不把「漏给」记成「省了」。
-
-### 16.8 2.0.2：门槛取整、记录计数、自有命名分册
-
-三处都是「规则写了，实际没生效」，在真实库（FFRS）上各踩到一次：
-
-1. **质量门 80% 被 `round()` 抹成 75%**：`need = int(round(len(graded) * 0.8))`，
-   8 个可评任务时 `round(6.4) = 6`，6/8 = 75% 也能过，报告照样打印「≥80%」。
-   现在改用整数运算向上取整 `max(1, (total*4 + 4) // 5)`：全程不碰浮点，
-   就没有「差一点点算不算进位」的讨论空间。8 个任务现在需要 7 个通过。
-2. **`05 最近记录` 只数 `-` / `*` 行**：全用 `[2026-11-12 09:20] …` 记流水的库恒报「0 条」，
-   ≤5 条的阈值形同虚设（真实库明明有 5 条，一直显示 0 条假绿）。
-   现在列表项、编号项、时间戳开头三种形态都算，表格行 / 引用行 / 代码围栏跳过。
-3. **`--loose` 只把 10–17 当事实分册**：自有命名项目的事实线常是 `20_数据与解包.md` /
-   `30_mod开发.md` / `50_死路与坑.md`，此前全被判成 `other`，P2 永远只有第一条线，
-   「单工作线排障」任务也就永远命中不了 `fact.pitfalls`。
-   现在 loose 下数字分册兜底算 fact——别名先判，`60_进度` / `61_流水` / `00_INDEX` / `90_归档`
-   仍按各自角色走，不会被吞成 fact。标准命名（无 `--loose`）行为不变。
-
-### 16.9 2.0.2：装配层的六处「装错东西」
-
-前一组是「指标算错」，这一组是「内容装错」——都在同一台真实库上量出来的：
-
-1. **agent 记忆目录被当正文检索**：`.workbuddy/memory`、`.shared/memory` 这类目录里放的是
-   agent 的工作日志（当天流水、项目索引卡），`DATA_DIRS` 里没有它们，于是被判成 `other`、
-   权重 1.0，跟分册正文平起平坐。实测「培养表怎么更新」这个任务，P4 装进来的 997 tok
-   全是 11-08 的知识库改造日志，占掉 47% 预算。而且 `.workbuddy/memory` 常是
-   `.shared/memory` 的软链，同一份内容被算两遍、命中分翻倍，更容易挤进名额。
-   现在 `.workbuddy` / `.shared` / `.codex` / `.qoder` / `.trae` / `.claude` / `.cursor`
-   等 15 个客户端目录统一排除。
-
-2. **父节靠子节刷分**：markdown 的 section 是「到下一个同级标题为止」，父节的 body 天然
-   包含所有子节。按 body 算命中数，父节必 ≥ 子节，永远排前面，装进来的却是整棵子树；
-   只有标题的容器节（`## 结论速查`）也能靠标题命中占名额。现在打分与空壳判定只用
-   **本节自有正文**（标题到下一个任意级标题），输出仍是整节，信息不缩水。
-   例外：子树里含**作废事实**的容器节保留——「本节省略了 N 条」只有它能表达。
-
-3. **文件导语抢名额**：第一个 h1 节装的是「本文件讲什么」和适用版本，整份分册的主题词
-   都在里面，按命中个数排序必进前三。现在对 h1 做**条件降权**：子节关键词集合覆盖 h1
-   **且** h1 自有正文逐句比对下来没有子节没提的内容时才丢；h1 里有子节没有的内容——
-   否定结论、「先看这里」的入口——就保留。逐句比对的两个边界：任务相关的短句
-   （`只读`）不按字符数忽略；`适用版本 2.0，生产环境禁止写入` 只剥导语那半，
-   禁令那半照常参与判断。无脑跳过会把这类信息一起丢掉。
-   改完这一条，「机械冲撞伤害公式」才装得进 G-001，而不是整份 `10_游戏事实.md` 的导语。
-
-4. **P0 假缺口**：先查 `dashboard.constraints`，没有就记缺口，然后才退到 `AGENTS.md` 兜底；
-   兜底成功了缺口也没撤回。结果每个任务都带一条「缺少 kb:id: dashboard.constraints」，
-   把人引去补一个并不缺的 id。现在三级兜底走完才判缺口，`kb-check` 同口径（能从 AGENTS
-   兜住就报 OK，不再边注入边 WARN）。
-
-5. **`other` 跟分册正文同权重**：`other` 装的是 `AGENTS.md`、一次性发布稿、检索记录、
-   覆盖率矩阵这类东西——不在知识库结构里。真实库那份 `检索记录_….md` 有 62 KB，
-   任务问什么都可能从里面命中几个词，凭体积压过分册条目，P4 的 3 个名额就被它抢走。
-   现在权重阶梯是：结构内正文 1.0 / 流水与分片 0.4 / 归档 0.3 / 其余 0.5。
-
-6. **小分册被上一刀误伤**：第 2 条「父节只按自有正文打分」上线后，`1–2 KB` 的小分册
-   整条线会消失——`# 02 · 岗位方向与匹配` 只是个名字，三个 h2 各自只出现一次「方向」，
-   父节是空壳、子节又够不上「≥2 个关键词」，两边都不参赛。实测求职库「岗位方向怎么选」
-   从 2 块变 1 块。现在容器节做兜底：**子树里一个够格的节都没有**、且整节 ≤ 600 tok
-   时才整节参赛。大分册（60 KB）的 h1 依然进不来——装整棵子树太贵。
-   600 这个数来自实测：1–2 KB 的中文分册整节约 350–450 tok，装整节比拆成子节更划算。
-
-还有一个连带修正：block 的 `source` 只存文件名，P4 比较的是相对路径，子目录里的同名文件
-会被判成「没用过」而重复装载。现在按 `role_files` 建名字→相对路径映射后对齐。
-
-### 16.10 2.0.2：判定层的五处「判据本身不对」
-
-前两组是「指标算错」「内容装错」，这一组更靠底层——判据把「看起来像」当成了「是」。
-每一处都先在三个真实库（求职 / 路由器和网络 / FFRS）上量到误判，再改判据。
-
-1. **P0 有两条实现，结论能相反**：`kb-context` 看正文有没有字，`kb-check` 只看有没有
-   「硬约束」这个标题。于是
-
-   ```
-   ## 硬约束
-   ```
-
-   （只有标题、正文空）在 check 里报 OK、在 context 里报缺口。同一个库一边说
-   「约束正常注入」、一边说「没有约束」，读者只会去补一个并不缺的东西。
-   现在三级兜底（`dashboard.constraints` → `dashboard.safety` → `AGENTS.md` 的
-   「硬约束」段）收进 `lib/constraints.py`，两个脚本都只调 `resolve()`：
-   - 路径安全：入口文件是符号链接 / Junction 时核对真实路径，越界就拒绝注入并说明原因；
-   - 内容有效：只认「去掉注释、标题、分隔线、表格分隔行、列表符号之后仍有正文」；
-     `[填]` / `TODO` / `TBD` / `待补` 一律算没填；
-   - 兜底链上任何一级「有 ID 但空」都写进结论，不静默当作已配好。
-
-2. **代码围栏里的东西被当成库内容**：文档里贴的示例流水、示例 `## 硬约束`、示例表格
-   都在 ``` 里。此前「最近记录」按行首判断，示例条目全被计数，阈值当场失效；
-   事实占位判定同理。现在 `md.scan_fences()` 是唯一入口：``` 与 ~~~ 都支持、
-   围栏长度要匹配、带走语言标记、CRLF / LF 同样处理；摘要条目、事实填充判定、
-   章节解析三处共用它，围栏内行一律不算。
-
-3. **`--loose` 把散文当事实分册**：`20_会议记录.md` / `40_临时测试.md` 编号是两位数，
-   就按 1.0 权重跟真分册抢 P4 名额、还被 P2 当成工作线去问「本线当前值」——那里根本
-   没有事实条目。现在判据换成**内容**：有 `fact.*` 章节 / ≥2 条 K-G 定义 / ≥2 条项目
-   自有编号条目才算 `structured`；其余是 `candidate`——P2 不装、P4 按 0.5 权重装，
-   缺口写「候选分册补入 N 节，当线索读」。判据里没有任何具体项目的文件名。
-
-4. **P4 补到一节就当成「这条线已加载」**：P2 按线名命中，任务里没线名就空、报一条缺口；
-   P4 随后按内容补进该线的一两节，那条缺口撤回——读者于是以为整条工作线都进来了。
-   现在撤缺口之后必须补一条边界说明：`P4 只补入 N 个事实节（…）：节级补充，不等于该
-   工作线已完整加载`。预算挤掉时另说一句（`已选中但总预算装不下` / `超过 P4 预算占比`），
-   不能把「命中但没装下」说成「已补入」。JSON 同步给出 `p4_facts` 与 `p4_candidates`
-   两个字段，消费方不必去猜哪条是核实过的事实。
-
-5. **两处 `skipTest` 在掩盖断言**：「本夹具下 P4 没补到事实节，另有用例覆盖」——
-   夹具一旦漂移，用例永远绿；改成先断言「必须补到」，漂移就红。
-   另一处「这个夹具没有同时产出基线命中与证据指针」改成「夹具必须产出重复 section_id」。
-   保留的 skip 只剩环境限制（Windows 无 symlink 权限、本机装了 tiktoken），
-   都写明原因，且不影响被测逻辑。
-
-6. **同一段正文装了两遍**：问「K-02 核实过了吗」时，P3 按 ID 给出定义行，
-   P3 的基线命中又把同一行装了一次——两块内容完全相同，`deduped` 之前一个都没有，
-   等于白花一份预算还让读者以为有两处证据。现在 `add()` 做内容级去重（sha256 前 12 位，
-   先装先得，P0 硬约束不受影响），被跳过的块记进 `deduped` 并写明 `kept_in`——
-   去重不静默，事后能查到「本来还有一块」。
-   benchmark 也补了重复装载指标（`duplicates.exact / cross / split_sections`，
-   按 `text_sha` 判，不是只看 section_id）：同节按用途拆两块（基线命中 + 证据指针）
-   是设计，不算重复；真正要抓的是「同位置同内容」和「异位同文」。
-   合成夹具 C 均值 456 → 440，正是任务 4/6 各少装一行。
-
-7. **一条事实的分册被当成散文，「--line」成了空操作**：刚建线只核了一个值的分册
-   （`## G-001 当前 MTU`）过不了「≥2 条」的门槛，被判候选、P4 只给 0.5，缺口还说
-   「只有编号、没有事实条目」——它明明有一条。更糟的是显式 `--line 数据与解包`：
-   真实库那份 20 KB 分册没有 `fact.*` 章节 ID，于是**一块都不给**，只回一句
-   「该线没有可加载的 fact.* 事节」。
-   改：标题位置就是事实 ID 时**一条即算结构化**（列表项/表格行这类弱证据仍要 ≥2 条）；
-   显式 `--line` 在该线没有 `fact.current` 时取它自己的事实节，最多 3 节、按关键词排序。
-   真实库复测：`--line 数据与解包` 从 0 块 → D-011/D-002/D-004 三节（预算 3000 用 2809），
-   预算降到 400 时如实报「未加载（预算不足）」。
-   只在**显式 `--line`** 时兜底：任务里顺带提到两个线名就整节倒进去，会把
-   `baseline.chains` 这类跨线结论挤出预算（这条在真实库 benchmark 上先踩到过一次）。
-   顺带把容器兜底的 600 token 判据改用**同一个 TokenCounter**：原先固定用 heuristic，
-   与 `--tokenizer cl100k_base` 下的总预算不是一套单位。
-
-### 16.11 2.0.3：复审补丁——四处「提前返回」和「只看一半」
-
-2.0.2 合并后复审又量出四处「规则写了没生效」，形状都一样：某一层提前 return，
-或者判据只检查了必要条件。
-
-1. **P0 只兜一级**：`dashboard.constraints` 存在但正文是 `[填]` 时函数直接 return，
-   下面有效的 `dashboard.safety` 永远读不到，最后却报「缺少硬约束」。改成逐级尝试、
-   每级原因都记下来；两级都无效才回退 `AGENTS.md`，缺口诊断同时报出两个 ID。
-   路径越界、空正文、占位符的判定不变，`kb-check` 与 `kb-context` 仍共用 `resolve()`。
-2. **h1 只比关键词**：父节正文更长，几乎必然把子节关键词全命中，「关键词是子集」
-   于是成立，h1 连同「参数 YY 必须禁用」一起被删。判据加一层正文逐句比对：h1
-   自有正文里只要有一句在子节文本里找不到就保留（文件导语句不计入独有内容）。
-3. **短句被长度吞掉**：`len(s) < 4` 无条件跳过，「只读」这类两字操作约束正好被跳。
-   改成看任务相关性——短句里出现本 h1 命中的任务词才算独有正文；`（无）`、`待补`
-   这类无关短句仍不参与判断，正常导语照旧去重。
-4. **导语与事实混在一句**：整句含「适用版本」就跳过，`适用版本 2.0，生产环境禁止写入`
-   的后半句禁令一起消失。现在含导语提示词时按逗号拆开、只丢导语片段；顿号不拆——
-   `本文件讲 A、B、C` 是目录，拆开就成了三条假独有事实。纯版本说明仍正常去重。
-
-用例 333 → 341（constraints +2、context_edges +6），协议仍是 v2，现有库不需要迁移。
+**What did not change**: protocol version stays `2`; document IDs, reserved filenames, section IDs, command arguments, JSON schemas and migration behavior are all untouched; an existing Chinese library needs no migration and is still read correctly. Security, concurrency, transaction, hashing and recovery rules are preserved verbatim in substance — nothing was removed to make the token numbers look better.
 
 ---
 
-## 17. 测试与验证状态（诚实版）
+## 18. Test and verification status (honest version)
 
-写清楚「测过什么、没测什么」，比多写几个 PASS 有用。
+Stating what was and was not tested is worth more than a few more PASS lines.
 
-### 17.1 本地测试
+### 18.1 Local tests
 
-| 项 | 结果 |
+| Item | Result |
 |---|---|
-| `python -m unittest discover -s tests` | **341 passed**（起点 201，累计新增 140；无 skip） |
-| 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
-| `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
-| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |
+| `python -m unittest discover -s tests` | **428 tests, OK (1 skipped)** — 341 existing + 55 `token_language` + 32 `test_deps_check`; the single local skip is an existing degradation test that only applies when `tiktoken` is *absent* |
+| the same suite **with no optional encoder** (what CI sees) | 428 tests, **24 skipped on 3.12 / 3.13, 25 on 3.10**, 0 failures: the numeric token tests need an exact vocabulary. Skips are per vocabulary and per test, so the count is larger than the number of tests — each one names the missing encoder (`cl100k_base` / `o200k_base` / `deepseek_v4`) instead of silently dropping out of the summary. The encoder-free properties — layout, rules, identifiers, JSON contract, templates, cross-language scenarios, fallback exit codes — all still run |
+| Runtime | Windows 11 (10.0.26200) / Python 3.13 (local `G:\Python313`) |
+| `python tests/smoke.py` | all pass: init → read/write → migrate → check → route → benchmark, including exit-code assertions on conflicts and bad paths |
+| `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` and `tokenizers` are the two declared optional exceptions, both function-scoped and `try`-guarded. `tests/test_deps_check.py` (32 cases) tests the checker itself, including `try/finally`, `except ValueError` and `except local_lib.ImportError` around an optional import |
+| `python tests/token_language/run_token_benchmark.py --all` | produces the table in §12.2; `deepseek_v4` requires the offline tokenizer, otherwise exit 2 |
 
-### 17.2 CI（六个环境）
+### 18.2 CI (six environments)
 
-`Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
-每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
+`Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`, see `.github/workflows/test.yml`. Each environment runs: environment info → unit tests (`-v`) → end-to-end smoke → dependency check.
 
-**实跑结果**（run [43451488874](https://github.com/jmwangde3/handoff-kb/actions/runs/43451488874)，2026-11-13，`pull_request`，代码 HEAD `f4a0dfc`；此后的提交只改文档）：
+The 2.0.3 run (run `43451488874`, 2026-11-13) was green in all six environments with 341 tests, no skips.
 
-| 环境 | 结果 | 用时 |
+For 2.0.4: run [43610008565](https://github.com/jmwangde3/handoff-kb/actions/runs/43610008565) (2026-11-14, `pull_request`, HEAD `74e9a59`) is green in all six environments — `Ran 428 tests` in every job, `OK (skipped=24)` on 3.12 / 3.13 and `OK (skipped=25)` on 3.10. The extra 3.10 skip is the regression test proving a late stdlib module cannot bypass the handler rule; it can only run where `tomllib` already exists. Every skip names the vocabulary it could not load — none of them hides a failure, and the numbers are reproducible locally with one command (§12.2).
+
+Earlier on this branch, for the record: run `43604367086` (HEAD `05231b6`) was green with `Ran 421 tests … OK (skipped=24/25)`, and run `43599524607` (HEAD `9529960`) with `Ran 394 tests … OK (skipped=7)`. Commits after `74e9a59` on this branch are documentation-only and leave code and tests untouched; they run the same workflow, and their result is in the PR checks. The authoritative statement for any newer HEAD is still the PR's own CI status, not this file.
+
+> Known noise: GitHub warns about Node 20 deprecation in `actions/checkout@v4` and `setup-python@v5`; that is an action-upgrade reminder and does not affect results.
+
+### 18.3 Client hooks
+
+- **Verified**: configuration shape matches both vendors' official formats, preview writes nothing, a SHA change aborts the install, multi-file rollback (including atomic writes and third-party conflict), all five `SessionStart` sources covered, `PreCompact` output split per vendor (Claude plain text / Codex `systemMessage`, neither carries `decision` / `continue`) — all through simulated events.
+- **Not verified**: the actual injection behavior when a real client starts the process. Tests stop at "configuration shape and event mapping"; no real Claude Code / Codex run was performed. `references/hooks.md` states the same boundary.
+
+### 18.4 Benchmark basis
+
+- The three token counts (A/B/C) go through **one** `TokenCounter` instance; the default is the `heuristic` estimate (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token), **not** an API bill.
+- For real counting install `tiktoken` and pass `--tokenizer cl100k_base` explicitly; if it cannot be installed the tool exits 2 rather than silently downgrading.
+- A includes every searchable text file in the subdirectories (data directories and files over 2 MB excluded), so a real library's A is very large; the percentage varies with the library's size distribution — **do not compare across libraries**.
+- The bilingual benchmark's A is **frozen** at `tests/token_language/baseline/v2.0.3/` with a `MANIFEST.json` (19 files with bytes / chars / sha256 / token counts), so the comparison cannot drift when the working tree changes.
+
+### 18.5 Known residual risks
+
+| Risk | Current state | Impact |
 |---|---|---|
-| py3.10 / ubuntu-latest | pass | 1m1s |
-| py3.12 / ubuntu-latest | pass | 56s |
-| py3.13 / ubuntu-latest | pass | 1m3s |
-| py3.10 / windows-latest | pass | 2m30s |
-| py3.12 / windows-latest | pass | 1m48s |
-| py3.13 / windows-latest | pass | 1m44s |
-
-六环境全部 `Ran 341 tests … OK`（**无 skip**）、冒烟「全部通过」、依赖检查 OK。
-2.0.2 那一轮先红过一次：单元级调用 `p4_candidates()` 时夹具传的是 8.3 短名、
-`iter_text_files()` 回来的是长名，`relative_to` 抛 `ValueError`（只有 Windows runner 有）。
-CLI 走 `scope.resolve_root()` 本来是安全的，改成与 CLI 同口径后六绿。
-更早的记录：2.0.1-hotfix 是 run `43058773827`（269 例）、2.0.2 上一轮是
-`43142107329`（289 例）、合并进 main 后是 `43131692070` / `43364730300`（均六环境全绿）。
-
-> 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
-
-### 17.3 客户端 Hook
-
-- **已验证**：配置结构符合两家官方格式、预览零写入、SHA 变更即放弃、多文件回滚（含原子写与
-  第三方改动冲突）、`SessionStart` 五种来源都被覆盖、`PreCompact` 按两家协议分别输出
-  （Claude 纯文本 / Codex `systemMessage`，都不带 `decision` / `continue`）——均为模拟事件测试。
-- **未验证**：真实客户端启动进程时的实际注入效果。测试只到「配置结构与事件映射」这一层，
-  没有起 Claude Code / Codex 真跑一遍。`references/hooks.md` 里标了同样的边界。
-
-### 17.4 Benchmark 口径
-
-- 三个 token 数（A/B/C）用**同一个** `TokenCounter` 实例；默认是 `heuristic` 估算
-  （CJK 1 字 ≈ 1 token，其余 4 字符 ≈ 1 token），**不是** API 账单。
-- 要真实计数就装 `tiktoken` 并显式 `--tokenizer cl100k_base`；装不上会退出 2，不会静默降级。
-- A 含子目录全部可检索文本（排除资料目录与 >2 MB 文件），所以真实库的 A 会非常大；
-  降幅百分比随库的体积分布变化，**不要跨库比较**。
-
-### 17.5 已知残余风险
-
-| 风险 | 现状 | 影响 |
-|---|---|---|
-| 多文件恢复不是数据库事务 | 逐文件写 + 二次 SHA + 失败保留现场；没有 WAL / 两阶段提交 | 进程在两次写之间被 kill，可能留下「部分已写」的现场；`recover` 会报告并要求人工确认，不会假装成功 |
-| 外部编辑器绕过锁 | 锁只在 `kb-write` 内部生效 | VS Code / Typora 直接保存不会被拦；靠写回前的 `sha256` 比对发现冲突 |
-| 真实大库未压测 | 只读跑过 FFRS（正文 47 份 / 0.6 MB，归档 795 份 / 5.6 MB，物理总量约 36 GB 含素材） | 那是「文件多」不是「单文件大」；>10 MB 单文件或 >500 份参与检索的正文没测过，`kb-context` 仍是全库扫描，可能慢 |
-| 跨进程竞态 | 锁 + 二次校验，非 CAS | 两个 `kb-write` 同时写同一文件，极端时序下可能都要重试；不会静默覆盖 |
-| 客户端启动未端到端验证 | 见 §17.3 | Hook 装了但没生效时，只能靠「没有注入上下文」这个现象发现 |
-| P4 的「在问历史」靠关键词猜 | `历史 / 以前 / 作废 / 沿革…` 命中才带回作废内容 | 换一种说法（「当初」「回滚前」）可能不触发；给人用的显式开关是 `--include-superseded`，模型侧只能看缺口提示 |
-| 作废内容按「定义行」置空 | 只认 `lib/facts.py` 解析出的定义位 | 章节里用自然语言复述旧值（没写成定义位）不会被置空；要靠写库时把旧值标成 `status: deprecated` |
+| Multi-file recovery is not a database transaction | per-file write + second SHA + keep the scene on failure; no WAL / two-phase commit | a kill between two writes can leave a "partially written" scene; `recover` reports it and asks for confirmation instead of pretending success |
+| External editors bypass the lock | the lock only exists inside `kb-write` | a direct save in VS Code / Typora is not intercepted; the `sha256` comparison before write-back detects the conflict |
+| Large real libraries are not stress-tested | read-only runs on FFRS (body 47 files / 0.6 MB, archive 795 files / 5.6 MB, ~36 GB physical including assets) | that is "many files", not "one big file"; a single file over 10 MB or more than 500 searchable body files is untested, and `kb-context` still scans the whole library, so it may be slow |
+| Cross-process race | lock + second verification, not CAS | two `kb-write` runs on the same file may both have to retry in an extreme interleaving; nothing is silently overwritten |
+| Client startup not verified end to end | see §18.3 | a hook that is installed but ineffective is only discoverable by "no context was injected" |
+| P4's "asking about history" is a keyword guess | only `历史 / 以前 / 作废 / 沿革…` bring retired content back | a different phrasing ("back then", "before the rollback") may not trigger it; the explicit switch is `--include-superseded`, and the model side only sees the gap note |
+| Retired content is blanked at the "definition line" | only definition positions parsed by `lib/facts.py` | a section restating an old value in prose (not written as a definition) is not blanked; mark the old value `status: deprecated` when writing |
+| Token numbers are tokenizer-dependent | 28.1% / 15.4% / 9.5% on cl100k / o200k / deepseek_v4 | quoting a single percentage without naming the tokenizer is misleading; the report always names it and records the vocabulary SHA256 |
+| English templates are new | parity tests compare file sets, placeholders and `kb:id`, plus a live `kb-init --lang en` run through `kb-check` | no long-running English library has been produced with them yet, so "reads well after six months" is unproven |
+| English skill over a Chinese library | the **CLI** path is covered by tests (init / check / context on the Chinese fixture) | an **agent** following the English instructions in a real Codex / Claude Code session has not been run; the checklist marks this unverified |
 
 ---
 
 ## License
 
-MIT，见 `LICENSE`。
+MIT, see `LICENSE`.

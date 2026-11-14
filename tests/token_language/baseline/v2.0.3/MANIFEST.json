@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "variant": "A",
+  "label": "Original Chinese v2.0.3",
+  "source_tag": "v2.0.3",
+  "source_commit": "420644ea6898deff2812c1cf2d99c9dd980799bd",
+  "captured_from": "git show 420644e:<path>",
+  "note": "Baseline copies are immutable; the test suite verifies their SHA256.",
+  "tokenizers": {
+    "cl100k_base": {
+      "requested": "cl100k_base",
+      "actual": "tiktoken:cl100k_base",
+      "exact": true,
+      "source": "tiktoken encoder (bundled BPE ranks)",
+      "tokenizer_file": null,
+      "tokenizer_sha256": null,
+      "library": "tiktoken"
+    },
+    "o200k_base": {
+      "requested": "o200k_base",
+      "actual": "tiktoken:o200k_base",
+      "exact": true,
+      "source": "tiktoken encoder (bundled BPE ranks)",
+      "tokenizer_file": null,
+      "tokenizer_sha256": null,
+      "library": "tiktoken"
+    },
+    "deepseek_v4": {
+      "requested": "deepseek_v4",
+      "actual": "tokenizers:deepseek_v4",
+      "exact": true,
+      "source": "DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json)",
+      "tokenizer_file": "tokenizer.json",
+      "tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614",
+      "library": "tokenizers"
+    }
+  },
+  "files": {
+    "assets/00_baseline.md": {
+      "bytes": 1734,
+      "chars": 1027,
+      "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7",
+      "tokens": {
+        "cl100k_base": 667,
+        "o200k_base": 572,
+        "deepseek_v4": 539
+      }
+    },
+    "assets/05_dashboard.md": {
+      "bytes": 2553,
+      "chars": 1605,
+      "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92",
+      "tokens": {
+        "cl100k_base": 971,
+        "o200k_base": 818,
+        "deepseek_v4": 784
+      }
+    },
+    "assets/06_index.md": {
+      "bytes": 443,
+      "chars": 262,
+      "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac",
+      "tokens": {
+        "cl100k_base": 171,
+        "o200k_base": 145,
+        "deepseek_v4": 137
+      }
+    },
+    "assets/06_log.md": {
+      "bytes": 507,
+      "chars": 288,
+      "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9",
+      "tokens": {
+        "cl100k_base": 200,
+        "o200k_base": 156,
+        "deepseek_v4": 152
+      }
+    },
+    "assets/06_shard.md": {
+      "bytes": 527,
+      "chars": 320,
+      "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03",
+      "tokens": {
+        "cl100k_base": 202,
+        "o200k_base": 170,
+        "deepseek_v4": 168
+      }
+    },
+    "assets/90_archive.md": {
+      "bytes": 492,
+      "chars": 279,
+      "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a",
+      "tokens": {
+        "cl100k_base": 190,
+        "o200k_base": 153,
+        "deepseek_v4": 143
+      }
+    },
+    "assets/AGENTS.md": {
+      "bytes": 4198,
+      "chars": 2500,
+      "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3",
+      "tokens": {
+        "cl100k_base": 1558,
+        "o200k_base": 1316,
+        "deepseek_v4": 1232
+      }
+    },
+    "assets/fact_book.md": {
+      "bytes": 829,
+      "chars": 543,
+      "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62",
+      "tokens": {
+        "cl100k_base": 342,
+        "o200k_base": 303,
+        "deepseek_v4": 286
+      }
+    },
+    "assets/gitattributes.txt": {
+      "bytes": 19,
+      "chars": 19,
+      "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c",
+      "tokens": {
+        "cl100k_base": 9,
+        "o200k_base": 9,
+        "deepseek_v4": 9
+      }
+    },
+    "assets/gitignore.txt": {
+      "bytes": 565,
+      "chars": 349,
+      "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc",
+      "tokens": {
+        "cl100k_base": 225,
+        "o200k_base": 196,
+        "deepseek_v4": 184
+      }
+    },
+    "assets/migration-prompt.txt": {
+      "bytes": 2943,
+      "chars": 1559,
+      "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d",
+      "tokens": {
+        "cl100k_base": 1150,
+        "o200k_base": 941,
+        "deepseek_v4": 882
+      }
+    },
+    "assets/启动消息.txt": {
+      "bytes": 1250,
+      "chars": 870,
+      "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0",
+      "tokens": {
+        "cl100k_base": 436,
+        "o200k_base": 379,
+        "deepseek_v4": 370
+      }
+    },
+    "README.md": {
+      "bytes": 45036,
+      "chars": 24866,
+      "sha256": "05f10dcf17e0e805270434007c35375da2771d4b565ffe8ad0de6f29d32b4c53",
+      "tokens": {
+        "cl100k_base": 17275,
+        "o200k_base": 14265,
+        "deepseek_v4": 13125
+      }
+    },
+    "references/benchmark.md": {
+      "bytes": 16899,
+      "chars": 9834,
+      "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd",
+      "tokens": {
+        "cl100k_base": 6809,
+        "o200k_base": 5742,
+        "deepseek_v4": 5424
+      }
+    },
+    "references/hooks.md": {
+      "bytes": 8358,
+      "chars": 5042,
+      "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2",
+      "tokens": {
+        "cl100k_base": 3013,
+        "o200k_base": 2499,
+        "deepseek_v4": 2377
+      }
+    },
+    "references/migration.md": {
+      "bytes": 14997,
+      "chars": 8576,
+      "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d",
+      "tokens": {
+        "cl100k_base": 6012,
+        "o200k_base": 5016,
+        "deepseek_v4": 4675
+      }
+    },
+    "references/protocol-v2.md": {
+      "bytes": 16991,
+      "chars": 9740,
+      "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545",
+      "tokens": {
+        "cl100k_base": 6514,
+        "o200k_base": 5528,
+        "deepseek_v4": 5171
+      }
+    },
+    "references/protocol.md": {
+      "bytes": 8551,
+      "chars": 4350,
+      "sha256": "7ae8e8feafc19af39741cf42f73bf0da9af93e801f7603d09d21d0aad7df930c",
+      "tokens": {
+        "cl100k_base": 3583,
+        "o200k_base": 2893,
+        "deepseek_v4": 2635
+      }
+    },
+    "SKILL.md": {
+      "bytes": 14095,
+      "chars": 8478,
+      "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993",
+      "tokens": {
+        "cl100k_base": 5416,
+        "o200k_base": 4571,
+        "deepseek_v4": 4343
+      }
+    }
+  }
+}

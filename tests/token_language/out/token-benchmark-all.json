@@ -1,0 +1,5259 @@
+{
+  "schema_version": 1,
+  "benchmark": "token_language",
+  "variants": {
+    "A": "Original Chinese v2.0.3 (frozen baseline)",
+    "B": "Optimized Chinese v2.0.4 (benchmark sample, not a shipped skill)",
+    "C": "Optimized English v2.0.4 (the shipped skill)"
+  },
+  "tasks": [
+    {
+      "key": "new-project",
+      "title": "New project initialization",
+      "documents": [
+        "skill"
+      ]
+    },
+    {
+      "key": "diagnose",
+      "title": "Existing project diagnosis",
+      "documents": [
+        "skill"
+      ]
+    },
+    {
+      "key": "migrate",
+      "title": "Legacy project migration",
+      "documents": [
+        "skill",
+        "ref:migration"
+      ]
+    },
+    {
+      "key": "recovery",
+      "title": "New-session context recovery",
+      "documents": [
+        "skill",
+        "ref:protocol-v2"
+      ]
+    },
+    {
+      "key": "safe-write",
+      "title": "Safe document write",
+      "documents": [
+        "skill",
+        "ref:protocol-v2"
+      ]
+    },
+    {
+      "key": "hook-install",
+      "title": "Hook installation",
+      "documents": [
+        "skill",
+        "ref:hooks"
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "tokenizer": "cl100k_base",
+      "counter": {
+        "requested": "cl100k_base",
+        "effective_mode": "tiktoken",
+        "actual": "tiktoken:cl100k_base",
+        "exact": true,
+        "source": "tiktoken encoder (bundled BPE ranks)",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": "tiktoken",
+        "library_version": "0.14.0"
+      },
+      "exact": true,
+      "env": {
+        "python": "3.13.9",
+        "python_impl": "CPython",
+        "platform": "Windows",
+        "machine": "AMD64",
+        "tiktoken": "0.14.0",
+        "tokenizers": "0.23.2",
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
+      },
+      "groups": {
+        "T1_description": {
+          "A": {
+            "tokens": 117,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "B": {
+            "tokens": 117,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "C": {
+            "tokens": 69,
+            "chars": 396,
+            "sha256": "1e0f5d0144dfdf127ea4b956bce27954453237451140550a0df3b4fe929f7569"
+          }
+        },
+        "T2_skill": {
+          "A": {
+            "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+            "bytes": 14095,
+            "chars": 8478,
+            "tokens": 5416,
+            "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+          },
+          "B": {
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+            "bytes": 14227,
+            "chars": 8372,
+            "tokens": 5486,
+            "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+          },
+          "C": {
+            "path": "SKILL.md",
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3892,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+          }
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 6514,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "B": {
+              "path": "references/protocol-v2.zh-CN.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 6514,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "C": {
+              "path": "references/protocol-v2.md",
+              "bytes": 18694,
+              "chars": 18237,
+              "tokens": 4910,
+              "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+            }
+          },
+          "migration": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 6012,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "B": {
+              "path": "references/migration.zh-CN.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 6012,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "C": {
+              "path": "references/migration.md",
+              "bytes": 16651,
+              "chars": 16316,
+              "tokens": 4450,
+              "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+            }
+          },
+          "hooks": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 3013,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "B": {
+              "path": "references/hooks.zh-CN.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 3013,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "C": {
+              "path": "references/hooks.md",
+              "bytes": 9212,
+              "chars": 9170,
+              "tokens": 2235,
+              "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+            }
+          },
+          "benchmark": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/benchmark.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 6809,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "B": {
+              "path": "references/benchmark.zh-CN.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 6809,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "C": {
+              "path": "references/benchmark.md",
+              "bytes": 18508,
+              "chars": 18215,
+              "tokens": 5207,
+              "sha256": "9f69d6e5ad0c9c2298d18ad372b21cc26dca6de6d57f20a0af43d7d66ddee5d0"
+            }
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": {
+              "tokens": 5416,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 5416,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 5486,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 5486,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3892,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": {
+              "tokens": 5416,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 5416,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 5486,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 5486,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3892,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": {
+              "tokens": 11428,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 5416,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 6012,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 11498,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 5486,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.zh-CN.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 6012,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8342,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.md",
+                  "bytes": 16651,
+                  "chars": 16316,
+                  "tokens": 4450,
+                  "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+                }
+              ]
+            },
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": {
+              "tokens": 11930,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 5416,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 6514,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 12000,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 5486,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 6514,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8802,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4910,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": {
+              "tokens": 11930,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 5416,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 6514,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 12000,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 5486,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 6514,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8802,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4910,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": {
+              "tokens": 8429,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 5416,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 3013,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 8499,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 5486,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.zh-CN.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 3013,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 6127,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.md",
+                  "bytes": 9212,
+                  "chars": 9170,
+                  "tokens": 2235,
+                  "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+                }
+              ]
+            },
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1558,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "B": {
+              "path": "assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1558,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "C": {
+              "path": "assets/en/AGENTS.md",
+              "bytes": 4742,
+              "chars": 4658,
+              "tokens": 1220,
+              "sha256": "8b275406326faffb722a49f11fe00ca50707b815fa6440cb17f3af5a19a65a8e"
+            }
+          },
+          "00_baseline.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 667,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "B": {
+              "path": "assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 667,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "C": {
+              "path": "assets/en/00_baseline.md",
+              "bytes": 1975,
+              "chars": 1928,
+              "tokens": 540,
+              "sha256": "47f0e69b7aa591f308b6cc5f14ac0fa085d498c2dda196be1f9de9f43cdff78b"
+            }
+          },
+          "05_dashboard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 971,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "B": {
+              "path": "assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 971,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "C": {
+              "path": "assets/en/05_dashboard.md",
+              "bytes": 2799,
+              "chars": 2775,
+              "tokens": 751,
+              "sha256": "8a920c5b7801ad1c47e374313e61eb625b0ed55654c3d6a6a6dec18dfcc4f5ed"
+            }
+          },
+          "fact_book.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 342,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "B": {
+              "path": "assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 342,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "C": {
+              "path": "assets/en/fact_book.md",
+              "bytes": 970,
+              "chars": 958,
+              "tokens": 266,
+              "sha256": "493c2d3e73e0df22cd0db88354a67ea13fdae383072418ee47e1dd9c18d2a00a"
+            }
+          },
+          "06_index.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 171,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "B": {
+              "path": "assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 171,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "C": {
+              "path": "assets/en/06_index.md",
+              "bytes": 525,
+              "chars": 518,
+              "tokens": 140,
+              "sha256": "8d69ce0ce47c73d4df63f481e91849497caebfd17601fc677f520e3ecac64f51"
+            }
+          },
+          "06_log.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 200,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "B": {
+              "path": "assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 200,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "C": {
+              "path": "assets/en/06_log.md",
+              "bytes": 576,
+              "chars": 563,
+              "tokens": 149,
+              "sha256": "51571fd6981ab49adb89b0ded19804702d5a854fb199ac6241ca8e3b3449320b"
+            }
+          },
+          "06_shard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 202,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "B": {
+              "path": "assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 202,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "C": {
+              "path": "assets/en/06_shard.md",
+              "bytes": 590,
+              "chars": 581,
+              "tokens": 155,
+              "sha256": "4cd9ef51cee2238c3e1a23d303a7938aa89c497754549e5f01ea0402769decae"
+            }
+          },
+          "90_archive.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 190,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "B": {
+              "path": "assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 190,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "C": {
+              "path": "assets/en/90_archive.md",
+              "bytes": 531,
+              "chars": 515,
+              "tokens": 138,
+              "sha256": "4b66b00c2ad9860964a8389900d92502db46d60ac42f2537d493795d8502d4e4"
+            }
+          },
+          "启动消息.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 436,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "B": {
+              "path": "assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 436,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "C": {
+              "path": "assets/en/启动消息.txt",
+              "bytes": 1325,
+              "chars": 1305,
+              "tokens": 361,
+              "sha256": "16e0c35bde16a3b17be2e2e439e245f88bdb468a55df1559cc1bb3027ec199e8"
+            }
+          },
+          "gitignore.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 225,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "B": {
+              "path": "assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 225,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "C": {
+              "path": "assets/en/gitignore.txt",
+              "bytes": 608,
+              "chars": 602,
+              "tokens": 168,
+              "sha256": "d2a9cbeab86f51cf7fc67181af8536f1aad40113b493f39092875040ab7f33b4"
+            }
+          },
+          "gitattributes.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "B": {
+              "path": "assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "C": {
+              "path": "assets/en/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            }
+          },
+          "migration-prompt.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 1150,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "B": {
+              "path": "assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 1150,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "C": {
+              "path": "assets/en/migration-prompt.txt",
+              "bytes": 3398,
+              "chars": 3384,
+              "tokens": 825,
+              "sha256": "70de1648a4be73b68620060fd7b9d0ad120090605e2e8456f0fe30ccf3a10401"
+            }
+          }
+        }
+      },
+      "summary": {
+        "T1_description": {
+          "A": 117,
+          "B": 117,
+          "C": 69,
+          "structure_saving": 0.0,
+          "language_saving": 0.410256,
+          "total_saving": 0.410256
+        },
+        "T2_skill": {
+          "A": 5416,
+          "B": 5486,
+          "C": 3892,
+          "structure_saving": -0.012925,
+          "language_saving": 0.290558,
+          "total_saving": 0.281388
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": 6514,
+            "B": 6514,
+            "C": 4910,
+            "structure_saving": 0.0,
+            "language_saving": 0.246239,
+            "total_saving": 0.246239
+          },
+          "migration": {
+            "A": 6012,
+            "B": 6012,
+            "C": 4450,
+            "structure_saving": 0.0,
+            "language_saving": 0.259814,
+            "total_saving": 0.259814
+          },
+          "hooks": {
+            "A": 3013,
+            "B": 3013,
+            "C": 2235,
+            "structure_saving": 0.0,
+            "language_saving": 0.258214,
+            "total_saving": 0.258214
+          },
+          "benchmark": {
+            "A": 6809,
+            "B": 6809,
+            "C": 5207,
+            "structure_saving": 0.0,
+            "language_saving": 0.235277,
+            "total_saving": 0.235277
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": 5416,
+            "B": 5486,
+            "C": 3892,
+            "structure_saving": -0.012925,
+            "language_saving": 0.290558,
+            "total_saving": 0.281388,
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": 5416,
+            "B": 5486,
+            "C": 3892,
+            "structure_saving": -0.012925,
+            "language_saving": 0.290558,
+            "total_saving": 0.281388,
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": 11428,
+            "B": 11498,
+            "C": 8342,
+            "structure_saving": -0.006125,
+            "language_saving": 0.274483,
+            "total_saving": 0.270039,
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": 11930,
+            "B": 12000,
+            "C": 8802,
+            "structure_saving": -0.005868,
+            "language_saving": 0.2665,
+            "total_saving": 0.262196,
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": 11930,
+            "B": 12000,
+            "C": 8802,
+            "structure_saving": -0.005868,
+            "language_saving": 0.2665,
+            "total_saving": 0.262196,
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": 8429,
+            "B": 8499,
+            "C": 6127,
+            "structure_saving": -0.008305,
+            "language_saving": 0.279092,
+            "total_saving": 0.273105,
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": 1558,
+            "B": 1558,
+            "C": 1220,
+            "structure_saving": 0.0,
+            "language_saving": 0.216945,
+            "total_saving": 0.216945
+          },
+          "00_baseline.md": {
+            "A": 667,
+            "B": 667,
+            "C": 540,
+            "structure_saving": 0.0,
+            "language_saving": 0.190405,
+            "total_saving": 0.190405
+          },
+          "05_dashboard.md": {
+            "A": 971,
+            "B": 971,
+            "C": 751,
+            "structure_saving": 0.0,
+            "language_saving": 0.226571,
+            "total_saving": 0.226571
+          },
+          "fact_book.md": {
+            "A": 342,
+            "B": 342,
+            "C": 266,
+            "structure_saving": 0.0,
+            "language_saving": 0.222222,
+            "total_saving": 0.222222
+          },
+          "06_index.md": {
+            "A": 171,
+            "B": 171,
+            "C": 140,
+            "structure_saving": 0.0,
+            "language_saving": 0.181287,
+            "total_saving": 0.181287
+          },
+          "06_log.md": {
+            "A": 200,
+            "B": 200,
+            "C": 149,
+            "structure_saving": 0.0,
+            "language_saving": 0.255,
+            "total_saving": 0.255
+          },
+          "06_shard.md": {
+            "A": 202,
+            "B": 202,
+            "C": 155,
+            "structure_saving": 0.0,
+            "language_saving": 0.232673,
+            "total_saving": 0.232673
+          },
+          "90_archive.md": {
+            "A": 190,
+            "B": 190,
+            "C": 138,
+            "structure_saving": 0.0,
+            "language_saving": 0.273684,
+            "total_saving": 0.273684
+          },
+          "启动消息.txt": {
+            "A": 436,
+            "B": 436,
+            "C": 361,
+            "structure_saving": 0.0,
+            "language_saving": 0.172018,
+            "total_saving": 0.172018
+          },
+          "gitignore.txt": {
+            "A": 225,
+            "B": 225,
+            "C": 168,
+            "structure_saving": 0.0,
+            "language_saving": 0.253333,
+            "total_saving": 0.253333
+          },
+          "gitattributes.txt": {
+            "A": 9,
+            "B": 9,
+            "C": 9,
+            "structure_saving": 0.0,
+            "language_saving": 0.0,
+            "total_saving": 0.0
+          },
+          "migration-prompt.txt": {
+            "A": 1150,
+            "B": 1150,
+            "C": 825,
+            "structure_saving": 0.0,
+            "language_saving": 0.282609,
+            "total_saving": 0.282609
+          }
+        }
+      }
+    },
+    {
+      "tokenizer": "o200k_base",
+      "counter": {
+        "requested": "o200k_base",
+        "effective_mode": "tiktoken",
+        "actual": "tiktoken:o200k_base",
+        "exact": true,
+        "source": "tiktoken encoder (bundled BPE ranks)",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": "tiktoken",
+        "library_version": "0.14.0"
+      },
+      "exact": true,
+      "env": {
+        "python": "3.13.9",
+        "python_impl": "CPython",
+        "platform": "Windows",
+        "machine": "AMD64",
+        "tiktoken": "0.14.0",
+        "tokenizers": "0.23.2",
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
+      },
+      "groups": {
+        "T1_description": {
+          "A": {
+            "tokens": 83,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "B": {
+            "tokens": 83,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "C": {
+            "tokens": 69,
+            "chars": 396,
+            "sha256": "1e0f5d0144dfdf127ea4b956bce27954453237451140550a0df3b4fe929f7569"
+          }
+        },
+        "T2_skill": {
+          "A": {
+            "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+            "bytes": 14095,
+            "chars": 8478,
+            "tokens": 4571,
+            "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+          },
+          "B": {
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+            "bytes": 14227,
+            "chars": 8372,
+            "tokens": 4612,
+            "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+          },
+          "C": {
+            "path": "SKILL.md",
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3869,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+          }
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 5528,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "B": {
+              "path": "references/protocol-v2.zh-CN.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 5528,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "C": {
+              "path": "references/protocol-v2.md",
+              "bytes": 18694,
+              "chars": 18237,
+              "tokens": 4881,
+              "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+            }
+          },
+          "migration": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 5016,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "B": {
+              "path": "references/migration.zh-CN.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 5016,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "C": {
+              "path": "references/migration.md",
+              "bytes": 16651,
+              "chars": 16316,
+              "tokens": 4418,
+              "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+            }
+          },
+          "hooks": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 2499,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "B": {
+              "path": "references/hooks.zh-CN.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 2499,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "C": {
+              "path": "references/hooks.md",
+              "bytes": 9212,
+              "chars": 9170,
+              "tokens": 2243,
+              "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+            }
+          },
+          "benchmark": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/benchmark.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 5742,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "B": {
+              "path": "references/benchmark.zh-CN.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 5742,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "C": {
+              "path": "references/benchmark.md",
+              "bytes": 18508,
+              "chars": 18215,
+              "tokens": 5177,
+              "sha256": "9f69d6e5ad0c9c2298d18ad372b21cc26dca6de6d57f20a0af43d7d66ddee5d0"
+            }
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": {
+              "tokens": 4571,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4571,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 4612,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4612,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3869,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": {
+              "tokens": 4571,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4571,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 4612,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4612,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3869,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": {
+              "tokens": 9587,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4571,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 5016,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 9628,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4612,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.zh-CN.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 5016,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8287,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.md",
+                  "bytes": 16651,
+                  "chars": 16316,
+                  "tokens": 4418,
+                  "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+                }
+              ]
+            },
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": {
+              "tokens": 10099,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4571,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5528,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 10140,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4612,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5528,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8750,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4881,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": {
+              "tokens": 10099,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4571,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5528,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 10140,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4612,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5528,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8750,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4881,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": {
+              "tokens": 7070,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4571,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 2499,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 7111,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4612,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.zh-CN.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 2499,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 6112,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.md",
+                  "bytes": 9212,
+                  "chars": 9170,
+                  "tokens": 2243,
+                  "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+                }
+              ]
+            },
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1316,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "B": {
+              "path": "assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1316,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "C": {
+              "path": "assets/en/AGENTS.md",
+              "bytes": 4742,
+              "chars": 4658,
+              "tokens": 1212,
+              "sha256": "8b275406326faffb722a49f11fe00ca50707b815fa6440cb17f3af5a19a65a8e"
+            }
+          },
+          "00_baseline.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 572,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "B": {
+              "path": "assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 572,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "C": {
+              "path": "assets/en/00_baseline.md",
+              "bytes": 1975,
+              "chars": 1928,
+              "tokens": 533,
+              "sha256": "47f0e69b7aa591f308b6cc5f14ac0fa085d498c2dda196be1f9de9f43cdff78b"
+            }
+          },
+          "05_dashboard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 818,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "B": {
+              "path": "assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 818,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "C": {
+              "path": "assets/en/05_dashboard.md",
+              "bytes": 2799,
+              "chars": 2775,
+              "tokens": 746,
+              "sha256": "8a920c5b7801ad1c47e374313e61eb625b0ed55654c3d6a6a6dec18dfcc4f5ed"
+            }
+          },
+          "fact_book.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 303,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "B": {
+              "path": "assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 303,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "C": {
+              "path": "assets/en/fact_book.md",
+              "bytes": 970,
+              "chars": 958,
+              "tokens": 266,
+              "sha256": "493c2d3e73e0df22cd0db88354a67ea13fdae383072418ee47e1dd9c18d2a00a"
+            }
+          },
+          "06_index.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 145,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "B": {
+              "path": "assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 145,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "C": {
+              "path": "assets/en/06_index.md",
+              "bytes": 525,
+              "chars": 518,
+              "tokens": 142,
+              "sha256": "8d69ce0ce47c73d4df63f481e91849497caebfd17601fc677f520e3ecac64f51"
+            }
+          },
+          "06_log.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 156,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "B": {
+              "path": "assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 156,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "C": {
+              "path": "assets/en/06_log.md",
+              "bytes": 576,
+              "chars": 563,
+              "tokens": 148,
+              "sha256": "51571fd6981ab49adb89b0ded19804702d5a854fb199ac6241ca8e3b3449320b"
+            }
+          },
+          "06_shard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 170,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "B": {
+              "path": "assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 170,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "C": {
+              "path": "assets/en/06_shard.md",
+              "bytes": 590,
+              "chars": 581,
+              "tokens": 155,
+              "sha256": "4cd9ef51cee2238c3e1a23d303a7938aa89c497754549e5f01ea0402769decae"
+            }
+          },
+          "90_archive.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 153,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "B": {
+              "path": "assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 153,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "C": {
+              "path": "assets/en/90_archive.md",
+              "bytes": 531,
+              "chars": 515,
+              "tokens": 138,
+              "sha256": "4b66b00c2ad9860964a8389900d92502db46d60ac42f2537d493795d8502d4e4"
+            }
+          },
+          "启动消息.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 379,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "B": {
+              "path": "assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 379,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "C": {
+              "path": "assets/en/启动消息.txt",
+              "bytes": 1325,
+              "chars": 1305,
+              "tokens": 359,
+              "sha256": "16e0c35bde16a3b17be2e2e439e245f88bdb468a55df1559cc1bb3027ec199e8"
+            }
+          },
+          "gitignore.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 196,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "B": {
+              "path": "assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 196,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "C": {
+              "path": "assets/en/gitignore.txt",
+              "bytes": 608,
+              "chars": 602,
+              "tokens": 166,
+              "sha256": "d2a9cbeab86f51cf7fc67181af8536f1aad40113b493f39092875040ab7f33b4"
+            }
+          },
+          "gitattributes.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "B": {
+              "path": "assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "C": {
+              "path": "assets/en/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            }
+          },
+          "migration-prompt.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 941,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "B": {
+              "path": "assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 941,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "C": {
+              "path": "assets/en/migration-prompt.txt",
+              "bytes": 3398,
+              "chars": 3384,
+              "tokens": 818,
+              "sha256": "70de1648a4be73b68620060fd7b9d0ad120090605e2e8456f0fe30ccf3a10401"
+            }
+          }
+        }
+      },
+      "summary": {
+        "T1_description": {
+          "A": 83,
+          "B": 83,
+          "C": 69,
+          "structure_saving": 0.0,
+          "language_saving": 0.168675,
+          "total_saving": 0.168675
+        },
+        "T2_skill": {
+          "A": 4571,
+          "B": 4612,
+          "C": 3869,
+          "structure_saving": -0.00897,
+          "language_saving": 0.161101,
+          "total_saving": 0.153577
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": 5528,
+            "B": 5528,
+            "C": 4881,
+            "structure_saving": 0.0,
+            "language_saving": 0.117041,
+            "total_saving": 0.117041
+          },
+          "migration": {
+            "A": 5016,
+            "B": 5016,
+            "C": 4418,
+            "structure_saving": 0.0,
+            "language_saving": 0.119219,
+            "total_saving": 0.119219
+          },
+          "hooks": {
+            "A": 2499,
+            "B": 2499,
+            "C": 2243,
+            "structure_saving": 0.0,
+            "language_saving": 0.102441,
+            "total_saving": 0.102441
+          },
+          "benchmark": {
+            "A": 5742,
+            "B": 5742,
+            "C": 5177,
+            "structure_saving": 0.0,
+            "language_saving": 0.098398,
+            "total_saving": 0.098398
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": 4571,
+            "B": 4612,
+            "C": 3869,
+            "structure_saving": -0.00897,
+            "language_saving": 0.161101,
+            "total_saving": 0.153577,
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": 4571,
+            "B": 4612,
+            "C": 3869,
+            "structure_saving": -0.00897,
+            "language_saving": 0.161101,
+            "total_saving": 0.153577,
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": 9587,
+            "B": 9628,
+            "C": 8287,
+            "structure_saving": -0.004277,
+            "language_saving": 0.139281,
+            "total_saving": 0.1356,
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": 10099,
+            "B": 10140,
+            "C": 8750,
+            "structure_saving": -0.00406,
+            "language_saving": 0.137081,
+            "total_saving": 0.133578,
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": 10099,
+            "B": 10140,
+            "C": 8750,
+            "structure_saving": -0.00406,
+            "language_saving": 0.137081,
+            "total_saving": 0.133578,
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": 7070,
+            "B": 7111,
+            "C": 6112,
+            "structure_saving": -0.005799,
+            "language_saving": 0.140487,
+            "total_saving": 0.135502,
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": 1316,
+            "B": 1316,
+            "C": 1212,
+            "structure_saving": 0.0,
+            "language_saving": 0.079027,
+            "total_saving": 0.079027
+          },
+          "00_baseline.md": {
+            "A": 572,
+            "B": 572,
+            "C": 533,
+            "structure_saving": 0.0,
+            "language_saving": 0.068182,
+            "total_saving": 0.068182
+          },
+          "05_dashboard.md": {
+            "A": 818,
+            "B": 818,
+            "C": 746,
+            "structure_saving": 0.0,
+            "language_saving": 0.08802,
+            "total_saving": 0.08802
+          },
+          "fact_book.md": {
+            "A": 303,
+            "B": 303,
+            "C": 266,
+            "structure_saving": 0.0,
+            "language_saving": 0.122112,
+            "total_saving": 0.122112
+          },
+          "06_index.md": {
+            "A": 145,
+            "B": 145,
+            "C": 142,
+            "structure_saving": 0.0,
+            "language_saving": 0.02069,
+            "total_saving": 0.02069
+          },
+          "06_log.md": {
+            "A": 156,
+            "B": 156,
+            "C": 148,
+            "structure_saving": 0.0,
+            "language_saving": 0.051282,
+            "total_saving": 0.051282
+          },
+          "06_shard.md": {
+            "A": 170,
+            "B": 170,
+            "C": 155,
+            "structure_saving": 0.0,
+            "language_saving": 0.088235,
+            "total_saving": 0.088235
+          },
+          "90_archive.md": {
+            "A": 153,
+            "B": 153,
+            "C": 138,
+            "structure_saving": 0.0,
+            "language_saving": 0.098039,
+            "total_saving": 0.098039
+          },
+          "启动消息.txt": {
+            "A": 379,
+            "B": 379,
+            "C": 359,
+            "structure_saving": 0.0,
+            "language_saving": 0.05277,
+            "total_saving": 0.05277
+          },
+          "gitignore.txt": {
+            "A": 196,
+            "B": 196,
+            "C": 166,
+            "structure_saving": 0.0,
+            "language_saving": 0.153061,
+            "total_saving": 0.153061
+          },
+          "gitattributes.txt": {
+            "A": 9,
+            "B": 9,
+            "C": 9,
+            "structure_saving": 0.0,
+            "language_saving": 0.0,
+            "total_saving": 0.0
+          },
+          "migration-prompt.txt": {
+            "A": 941,
+            "B": 941,
+            "C": 818,
+            "structure_saving": 0.0,
+            "language_saving": 0.130712,
+            "total_saving": 0.130712
+          }
+        }
+      }
+    },
+    {
+      "tokenizer": "deepseek_v4",
+      "counter": {
+        "requested": "deepseek_v4",
+        "effective_mode": "deepseek_v4",
+        "actual": "tokenizers:deepseek_v4",
+        "exact": true,
+        "source": "DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json)",
+        "tokenizer_file": "tokenizer.json",
+        "tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614",
+        "library": "tokenizers",
+        "library_version": "0.23.2"
+      },
+      "exact": true,
+      "env": {
+        "python": "3.13.9",
+        "python_impl": "CPython",
+        "platform": "Windows",
+        "machine": "AMD64",
+        "tiktoken": "0.14.0",
+        "tokenizers": "0.23.2",
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
+      },
+      "groups": {
+        "T1_description": {
+          "A": {
+            "tokens": 63,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "B": {
+            "tokens": 63,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "C": {
+            "tokens": 71,
+            "chars": 396,
+            "sha256": "1e0f5d0144dfdf127ea4b956bce27954453237451140550a0df3b4fe929f7569"
+          }
+        },
+        "T2_skill": {
+          "A": {
+            "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+            "bytes": 14095,
+            "chars": 8478,
+            "tokens": 4343,
+            "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+          },
+          "B": {
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+            "bytes": 14227,
+            "chars": 8372,
+            "tokens": 4338,
+            "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+          },
+          "C": {
+            "path": "SKILL.md",
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3931,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+          }
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 5171,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "B": {
+              "path": "references/protocol-v2.zh-CN.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 5171,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "C": {
+              "path": "references/protocol-v2.md",
+              "bytes": 18694,
+              "chars": 18237,
+              "tokens": 4969,
+              "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+            }
+          },
+          "migration": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 4675,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "B": {
+              "path": "references/migration.zh-CN.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 4675,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "C": {
+              "path": "references/migration.md",
+              "bytes": 16651,
+              "chars": 16316,
+              "tokens": 4452,
+              "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+            }
+          },
+          "hooks": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 2377,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "B": {
+              "path": "references/hooks.zh-CN.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 2377,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "C": {
+              "path": "references/hooks.md",
+              "bytes": 9212,
+              "chars": 9170,
+              "tokens": 2300,
+              "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+            }
+          },
+          "benchmark": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/benchmark.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 5424,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "B": {
+              "path": "references/benchmark.zh-CN.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 5424,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "C": {
+              "path": "references/benchmark.md",
+              "bytes": 18508,
+              "chars": 18215,
+              "tokens": 5193,
+              "sha256": "9f69d6e5ad0c9c2298d18ad372b21cc26dca6de6d57f20a0af43d7d66ddee5d0"
+            }
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": {
+              "tokens": 4343,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4343,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 4338,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4338,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3931,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": {
+              "tokens": 4343,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4343,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 4338,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4338,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3931,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": {
+              "tokens": 9018,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4343,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 4675,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 9013,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4338,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.zh-CN.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 4675,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8383,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.md",
+                  "bytes": 16651,
+                  "chars": 16316,
+                  "tokens": 4452,
+                  "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+                }
+              ]
+            },
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": {
+              "tokens": 9514,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4343,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5171,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 9509,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4338,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5171,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8900,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4969,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": {
+              "tokens": 9514,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4343,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5171,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 9509,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4338,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 5171,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8900,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4969,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": {
+              "tokens": 6720,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 4343,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 2377,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 6715,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 4338,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.zh-CN.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 2377,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 6231,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.md",
+                  "bytes": 9212,
+                  "chars": 9170,
+                  "tokens": 2300,
+                  "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+                }
+              ]
+            },
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1232,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "B": {
+              "path": "assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1232,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "C": {
+              "path": "assets/en/AGENTS.md",
+              "bytes": 4742,
+              "chars": 4658,
+              "tokens": 1237,
+              "sha256": "8b275406326faffb722a49f11fe00ca50707b815fa6440cb17f3af5a19a65a8e"
+            }
+          },
+          "00_baseline.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 539,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "B": {
+              "path": "assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 539,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "C": {
+              "path": "assets/en/00_baseline.md",
+              "bytes": 1975,
+              "chars": 1928,
+              "tokens": 525,
+              "sha256": "47f0e69b7aa591f308b6cc5f14ac0fa085d498c2dda196be1f9de9f43cdff78b"
+            }
+          },
+          "05_dashboard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 784,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "B": {
+              "path": "assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 784,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "C": {
+              "path": "assets/en/05_dashboard.md",
+              "bytes": 2799,
+              "chars": 2775,
+              "tokens": 760,
+              "sha256": "8a920c5b7801ad1c47e374313e61eb625b0ed55654c3d6a6a6dec18dfcc4f5ed"
+            }
+          },
+          "fact_book.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 286,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "B": {
+              "path": "assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 286,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "C": {
+              "path": "assets/en/fact_book.md",
+              "bytes": 970,
+              "chars": 958,
+              "tokens": 265,
+              "sha256": "493c2d3e73e0df22cd0db88354a67ea13fdae383072418ee47e1dd9c18d2a00a"
+            }
+          },
+          "06_index.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 137,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "B": {
+              "path": "assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 137,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "C": {
+              "path": "assets/en/06_index.md",
+              "bytes": 525,
+              "chars": 518,
+              "tokens": 142,
+              "sha256": "8d69ce0ce47c73d4df63f481e91849497caebfd17601fc677f520e3ecac64f51"
+            }
+          },
+          "06_log.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 152,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "B": {
+              "path": "assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 152,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "C": {
+              "path": "assets/en/06_log.md",
+              "bytes": 576,
+              "chars": 563,
+              "tokens": 151,
+              "sha256": "51571fd6981ab49adb89b0ded19804702d5a854fb199ac6241ca8e3b3449320b"
+            }
+          },
+          "06_shard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 168,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "B": {
+              "path": "assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 168,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "C": {
+              "path": "assets/en/06_shard.md",
+              "bytes": 590,
+              "chars": 581,
+              "tokens": 161,
+              "sha256": "4cd9ef51cee2238c3e1a23d303a7938aa89c497754549e5f01ea0402769decae"
+            }
+          },
+          "90_archive.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 143,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "B": {
+              "path": "assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 143,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "C": {
+              "path": "assets/en/90_archive.md",
+              "bytes": 531,
+              "chars": 515,
+              "tokens": 139,
+              "sha256": "4b66b00c2ad9860964a8389900d92502db46d60ac42f2537d493795d8502d4e4"
+            }
+          },
+          "启动消息.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 370,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "B": {
+              "path": "assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 370,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "C": {
+              "path": "assets/en/启动消息.txt",
+              "bytes": 1325,
+              "chars": 1305,
+              "tokens": 371,
+              "sha256": "16e0c35bde16a3b17be2e2e439e245f88bdb468a55df1559cc1bb3027ec199e8"
+            }
+          },
+          "gitignore.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 184,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "B": {
+              "path": "assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 184,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "C": {
+              "path": "assets/en/gitignore.txt",
+              "bytes": 608,
+              "chars": 602,
+              "tokens": 175,
+              "sha256": "d2a9cbeab86f51cf7fc67181af8536f1aad40113b493f39092875040ab7f33b4"
+            }
+          },
+          "gitattributes.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "B": {
+              "path": "assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "C": {
+              "path": "assets/en/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 9,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            }
+          },
+          "migration-prompt.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 882,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "B": {
+              "path": "assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 882,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "C": {
+              "path": "assets/en/migration-prompt.txt",
+              "bytes": 3398,
+              "chars": 3384,
+              "tokens": 834,
+              "sha256": "70de1648a4be73b68620060fd7b9d0ad120090605e2e8456f0fe30ccf3a10401"
+            }
+          }
+        }
+      },
+      "summary": {
+        "T1_description": {
+          "A": 63,
+          "B": 63,
+          "C": 71,
+          "structure_saving": 0.0,
+          "language_saving": -0.126984,
+          "total_saving": -0.126984
+        },
+        "T2_skill": {
+          "A": 4343,
+          "B": 4338,
+          "C": 3931,
+          "structure_saving": 0.001151,
+          "language_saving": 0.093822,
+          "total_saving": 0.094865
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": 5171,
+            "B": 5171,
+            "C": 4969,
+            "structure_saving": 0.0,
+            "language_saving": 0.039064,
+            "total_saving": 0.039064
+          },
+          "migration": {
+            "A": 4675,
+            "B": 4675,
+            "C": 4452,
+            "structure_saving": 0.0,
+            "language_saving": 0.047701,
+            "total_saving": 0.047701
+          },
+          "hooks": {
+            "A": 2377,
+            "B": 2377,
+            "C": 2300,
+            "structure_saving": 0.0,
+            "language_saving": 0.032394,
+            "total_saving": 0.032394
+          },
+          "benchmark": {
+            "A": 5424,
+            "B": 5424,
+            "C": 5193,
+            "structure_saving": 0.0,
+            "language_saving": 0.042588,
+            "total_saving": 0.042588
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": 4343,
+            "B": 4338,
+            "C": 3931,
+            "structure_saving": 0.001151,
+            "language_saving": 0.093822,
+            "total_saving": 0.094865,
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": 4343,
+            "B": 4338,
+            "C": 3931,
+            "structure_saving": 0.001151,
+            "language_saving": 0.093822,
+            "total_saving": 0.094865,
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": 9018,
+            "B": 9013,
+            "C": 8383,
+            "structure_saving": 0.000554,
+            "language_saving": 0.069899,
+            "total_saving": 0.070415,
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": 9514,
+            "B": 9509,
+            "C": 8900,
+            "structure_saving": 0.000526,
+            "language_saving": 0.064045,
+            "total_saving": 0.064536,
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": 9514,
+            "B": 9509,
+            "C": 8900,
+            "structure_saving": 0.000526,
+            "language_saving": 0.064045,
+            "total_saving": 0.064536,
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": 6720,
+            "B": 6715,
+            "C": 6231,
+            "structure_saving": 0.000744,
+            "language_saving": 0.072077,
+            "total_saving": 0.072768,
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": 1232,
+            "B": 1232,
+            "C": 1237,
+            "structure_saving": 0.0,
+            "language_saving": -0.004058,
+            "total_saving": -0.004058
+          },
+          "00_baseline.md": {
+            "A": 539,
+            "B": 539,
+            "C": 525,
+            "structure_saving": 0.0,
+            "language_saving": 0.025974,
+            "total_saving": 0.025974
+          },
+          "05_dashboard.md": {
+            "A": 784,
+            "B": 784,
+            "C": 760,
+            "structure_saving": 0.0,
+            "language_saving": 0.030612,
+            "total_saving": 0.030612
+          },
+          "fact_book.md": {
+            "A": 286,
+            "B": 286,
+            "C": 265,
+            "structure_saving": 0.0,
+            "language_saving": 0.073427,
+            "total_saving": 0.073427
+          },
+          "06_index.md": {
+            "A": 137,
+            "B": 137,
+            "C": 142,
+            "structure_saving": 0.0,
+            "language_saving": -0.036496,
+            "total_saving": -0.036496
+          },
+          "06_log.md": {
+            "A": 152,
+            "B": 152,
+            "C": 151,
+            "structure_saving": 0.0,
+            "language_saving": 0.006579,
+            "total_saving": 0.006579
+          },
+          "06_shard.md": {
+            "A": 168,
+            "B": 168,
+            "C": 161,
+            "structure_saving": 0.0,
+            "language_saving": 0.041667,
+            "total_saving": 0.041667
+          },
+          "90_archive.md": {
+            "A": 143,
+            "B": 143,
+            "C": 139,
+            "structure_saving": 0.0,
+            "language_saving": 0.027972,
+            "total_saving": 0.027972
+          },
+          "启动消息.txt": {
+            "A": 370,
+            "B": 370,
+            "C": 371,
+            "structure_saving": 0.0,
+            "language_saving": -0.002703,
+            "total_saving": -0.002703
+          },
+          "gitignore.txt": {
+            "A": 184,
+            "B": 184,
+            "C": 175,
+            "structure_saving": 0.0,
+            "language_saving": 0.048913,
+            "total_saving": 0.048913
+          },
+          "gitattributes.txt": {
+            "A": 9,
+            "B": 9,
+            "C": 9,
+            "structure_saving": 0.0,
+            "language_saving": 0.0,
+            "total_saving": 0.0
+          },
+          "migration-prompt.txt": {
+            "A": 882,
+            "B": 882,
+            "C": 834,
+            "structure_saving": 0.0,
+            "language_saving": 0.054422,
+            "total_saving": 0.054422
+          }
+        }
+      }
+    },
+    {
+      "tokenizer": "deepseek_estimate",
+      "counter": {
+        "requested": "deepseek_estimate",
+        "effective_mode": "deepseek_estimate",
+        "actual": "deepseek_estimate（官方比例：1 英文字符≈0.3、1 中文字符≈0.6）",
+        "exact": false,
+        "source": "documented ratio (0.3 / 0.6)",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": null,
+        "library_version": null
+      },
+      "exact": false,
+      "env": {
+        "python": "3.13.9",
+        "python_impl": "CPython",
+        "platform": "Windows",
+        "machine": "AMD64",
+        "tiktoken": "0.14.0",
+        "tokenizers": "0.23.2",
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
+      },
+      "groups": {
+        "T1_description": {
+          "A": {
+            "tokens": 62,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "B": {
+            "tokens": 62,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "C": {
+            "tokens": 119,
+            "chars": 396,
+            "sha256": "1e0f5d0144dfdf127ea4b956bce27954453237451140550a0df3b4fe929f7569"
+          }
+        },
+        "T2_skill": {
+          "A": {
+            "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+            "bytes": 14095,
+            "chars": 8478,
+            "tokens": 3261,
+            "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+          },
+          "B": {
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+            "bytes": 14227,
+            "chars": 8372,
+            "tokens": 3266,
+            "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+          },
+          "C": {
+            "path": "SKILL.md",
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 4575,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+          }
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 3830,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "B": {
+              "path": "references/protocol-v2.zh-CN.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 3830,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "C": {
+              "path": "references/protocol-v2.md",
+              "bytes": 18694,
+              "chars": 18237,
+              "tokens": 5522,
+              "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+            }
+          },
+          "migration": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 3386,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "B": {
+              "path": "references/migration.zh-CN.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 3386,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "C": {
+              "path": "references/migration.md",
+              "bytes": 16651,
+              "chars": 16316,
+              "tokens": 4925,
+              "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+            }
+          },
+          "hooks": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 1938,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "B": {
+              "path": "references/hooks.zh-CN.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 1938,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "C": {
+              "path": "references/hooks.md",
+              "bytes": 9212,
+              "chars": 9170,
+              "tokens": 2753,
+              "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+            }
+          },
+          "benchmark": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/benchmark.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 3850,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "B": {
+              "path": "references/benchmark.zh-CN.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 3850,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "C": {
+              "path": "references/benchmark.md",
+              "bytes": 18508,
+              "chars": 18215,
+              "tokens": 5496,
+              "sha256": "9f69d6e5ad0c9c2298d18ad372b21cc26dca6de6d57f20a0af43d7d66ddee5d0"
+            }
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": {
+              "tokens": 3261,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3261,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 3266,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3266,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 4575,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": {
+              "tokens": 3261,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3261,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 3266,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3266,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 4575,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": {
+              "tokens": 6647,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3261,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 3386,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 6652,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3266,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.zh-CN.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 3386,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 9500,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.md",
+                  "bytes": 16651,
+                  "chars": 16316,
+                  "tokens": 4925,
+                  "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+                }
+              ]
+            },
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": {
+              "tokens": 7091,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3261,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 3830,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 7096,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3266,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 3830,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 10097,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 5522,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": {
+              "tokens": 7091,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3261,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 3830,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 7096,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3266,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 3830,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 10097,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 5522,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": {
+              "tokens": 5199,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3261,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 1938,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 5204,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3266,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.zh-CN.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 1938,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 7328,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.md",
+                  "bytes": 9212,
+                  "chars": 9170,
+                  "tokens": 2753,
+                  "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+                }
+              ]
+            },
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 970,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "B": {
+              "path": "assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 970,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "C": {
+              "path": "assets/en/AGENTS.md",
+              "bytes": 4742,
+              "chars": 4658,
+              "tokens": 1407,
+              "sha256": "8b275406326faffb722a49f11fe00ca50707b815fa6440cb17f3af5a19a65a8e"
+            }
+          },
+          "00_baseline.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 396,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "B": {
+              "path": "assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 396,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "C": {
+              "path": "assets/en/00_baseline.md",
+              "bytes": 1975,
+              "chars": 1928,
+              "tokens": 584,
+              "sha256": "47f0e69b7aa591f308b6cc5f14ac0fa085d498c2dda196be1f9de9f43cdff78b"
+            }
+          },
+          "05_dashboard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 602,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "B": {
+              "path": "assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 602,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "C": {
+              "path": "assets/en/05_dashboard.md",
+              "bytes": 2799,
+              "chars": 2775,
+              "tokens": 834,
+              "sha256": "8a920c5b7801ad1c47e374313e61eb625b0ed55654c3d6a6a6dec18dfcc4f5ed"
+            }
+          },
+          "fact_book.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 200,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "B": {
+              "path": "assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 200,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "C": {
+              "path": "assets/en/fact_book.md",
+              "bytes": 970,
+              "chars": 958,
+              "tokens": 288,
+              "sha256": "493c2d3e73e0df22cd0db88354a67ea13fdae383072418ee47e1dd9c18d2a00a"
+            }
+          },
+          "06_index.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 101,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "B": {
+              "path": "assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 101,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "C": {
+              "path": "assets/en/06_index.md",
+              "bytes": 525,
+              "chars": 518,
+              "tokens": 156,
+              "sha256": "8d69ce0ce47c73d4df63f481e91849497caebfd17601fc677f520e3ecac64f51"
+            }
+          },
+          "06_log.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 113,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "B": {
+              "path": "assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 113,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "C": {
+              "path": "assets/en/06_log.md",
+              "bytes": 576,
+              "chars": 563,
+              "tokens": 170,
+              "sha256": "51571fd6981ab49adb89b0ded19804702d5a854fb199ac6241ca8e3b3449320b"
+            }
+          },
+          "06_shard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 120,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "B": {
+              "path": "assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 120,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "C": {
+              "path": "assets/en/06_shard.md",
+              "bytes": 590,
+              "chars": 581,
+              "tokens": 174,
+              "sha256": "4cd9ef51cee2238c3e1a23d303a7938aa89c497754549e5f01ea0402769decae"
+            }
+          },
+          "90_archive.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 110,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "B": {
+              "path": "assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 110,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "C": {
+              "path": "assets/en/90_archive.md",
+              "bytes": 531,
+              "chars": 515,
+              "tokens": 155,
+              "sha256": "4b66b00c2ad9860964a8389900d92502db46d60ac42f2537d493795d8502d4e4"
+            }
+          },
+          "启动消息.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 307,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "B": {
+              "path": "assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 307,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "C": {
+              "path": "assets/en/启动消息.txt",
+              "bytes": 1325,
+              "chars": 1305,
+              "tokens": 394,
+              "sha256": "16e0c35bde16a3b17be2e2e439e245f88bdb468a55df1559cc1bb3027ec199e8"
+            }
+          },
+          "gitignore.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 133,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "B": {
+              "path": "assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 133,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "C": {
+              "path": "assets/en/gitignore.txt",
+              "bytes": 608,
+              "chars": 602,
+              "tokens": 181,
+              "sha256": "d2a9cbeab86f51cf7fc67181af8536f1aad40113b493f39092875040ab7f33b4"
+            }
+          },
+          "gitattributes.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 6,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "B": {
+              "path": "assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 6,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "C": {
+              "path": "assets/en/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 6,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            }
+          },
+          "migration-prompt.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 639,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "B": {
+              "path": "assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 639,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "C": {
+              "path": "assets/en/migration-prompt.txt",
+              "bytes": 3398,
+              "chars": 3384,
+              "tokens": 1016,
+              "sha256": "70de1648a4be73b68620060fd7b9d0ad120090605e2e8456f0fe30ccf3a10401"
+            }
+          }
+        }
+      },
+      "summary": {
+        "T1_description": {
+          "A": 62,
+          "B": 62,
+          "C": 119,
+          "structure_saving": 0.0,
+          "language_saving": -0.919355,
+          "total_saving": -0.919355
+        },
+        "T2_skill": {
+          "A": 3261,
+          "B": 3266,
+          "C": 4575,
+          "structure_saving": -0.001533,
+          "language_saving": -0.400796,
+          "total_saving": -0.402944
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": 3830,
+            "B": 3830,
+            "C": 5522,
+            "structure_saving": 0.0,
+            "language_saving": -0.441775,
+            "total_saving": -0.441775
+          },
+          "migration": {
+            "A": 3386,
+            "B": 3386,
+            "C": 4925,
+            "structure_saving": 0.0,
+            "language_saving": -0.454519,
+            "total_saving": -0.454519
+          },
+          "hooks": {
+            "A": 1938,
+            "B": 1938,
+            "C": 2753,
+            "structure_saving": 0.0,
+            "language_saving": -0.420537,
+            "total_saving": -0.420537
+          },
+          "benchmark": {
+            "A": 3850,
+            "B": 3850,
+            "C": 5496,
+            "structure_saving": 0.0,
+            "language_saving": -0.427532,
+            "total_saving": -0.427532
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": 3261,
+            "B": 3266,
+            "C": 4575,
+            "structure_saving": -0.001533,
+            "language_saving": -0.400796,
+            "total_saving": -0.402944,
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": 3261,
+            "B": 3266,
+            "C": 4575,
+            "structure_saving": -0.001533,
+            "language_saving": -0.400796,
+            "total_saving": -0.402944,
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": 6647,
+            "B": 6652,
+            "C": 9500,
+            "structure_saving": -0.000752,
+            "language_saving": -0.428142,
+            "total_saving": -0.429216,
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": 7091,
+            "B": 7096,
+            "C": 10097,
+            "structure_saving": -0.000705,
+            "language_saving": -0.422914,
+            "total_saving": -0.423918,
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": 7091,
+            "B": 7096,
+            "C": 10097,
+            "structure_saving": -0.000705,
+            "language_saving": -0.422914,
+            "total_saving": -0.423918,
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": 5199,
+            "B": 5204,
+            "C": 7328,
+            "structure_saving": -0.000962,
+            "language_saving": -0.408148,
+            "total_saving": -0.409502,
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": 970,
+            "B": 970,
+            "C": 1407,
+            "structure_saving": 0.0,
+            "language_saving": -0.450515,
+            "total_saving": -0.450515
+          },
+          "00_baseline.md": {
+            "A": 396,
+            "B": 396,
+            "C": 584,
+            "structure_saving": 0.0,
+            "language_saving": -0.474747,
+            "total_saving": -0.474747
+          },
+          "05_dashboard.md": {
+            "A": 602,
+            "B": 602,
+            "C": 834,
+            "structure_saving": 0.0,
+            "language_saving": -0.385382,
+            "total_saving": -0.385382
+          },
+          "fact_book.md": {
+            "A": 200,
+            "B": 200,
+            "C": 288,
+            "structure_saving": 0.0,
+            "language_saving": -0.44,
+            "total_saving": -0.44
+          },
+          "06_index.md": {
+            "A": 101,
+            "B": 101,
+            "C": 156,
+            "structure_saving": 0.0,
+            "language_saving": -0.544554,
+            "total_saving": -0.544554
+          },
+          "06_log.md": {
+            "A": 113,
+            "B": 113,
+            "C": 170,
+            "structure_saving": 0.0,
+            "language_saving": -0.504425,
+            "total_saving": -0.504425
+          },
+          "06_shard.md": {
+            "A": 120,
+            "B": 120,
+            "C": 174,
+            "structure_saving": 0.0,
+            "language_saving": -0.45,
+            "total_saving": -0.45
+          },
+          "90_archive.md": {
+            "A": 110,
+            "B": 110,
+            "C": 155,
+            "structure_saving": 0.0,
+            "language_saving": -0.409091,
+            "total_saving": -0.409091
+          },
+          "启动消息.txt": {
+            "A": 307,
+            "B": 307,
+            "C": 394,
+            "structure_saving": 0.0,
+            "language_saving": -0.283388,
+            "total_saving": -0.283388
+          },
+          "gitignore.txt": {
+            "A": 133,
+            "B": 133,
+            "C": 181,
+            "structure_saving": 0.0,
+            "language_saving": -0.360902,
+            "total_saving": -0.360902
+          },
+          "gitattributes.txt": {
+            "A": 6,
+            "B": 6,
+            "C": 6,
+            "structure_saving": 0.0,
+            "language_saving": 0.0,
+            "total_saving": 0.0
+          },
+          "migration-prompt.txt": {
+            "A": 639,
+            "B": 639,
+            "C": 1016,
+            "structure_saving": 0.0,
+            "language_saving": -0.589984,
+            "total_saving": -0.589984
+          }
+        }
+      }
+    },
+    {
+      "tokenizer": "heuristic",
+      "counter": {
+        "requested": "heuristic",
+        "effective_mode": "heuristic",
+        "actual": "heuristic（CJK 1 字≈1 token，其余 4 字符≈1 token）",
+        "exact": false,
+        "source": "heuristic",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": null,
+        "library_version": null
+      },
+      "exact": false,
+      "env": {
+        "python": "3.13.9",
+        "python_impl": "CPython",
+        "platform": "Windows",
+        "machine": "AMD64",
+        "tiktoken": "0.14.0",
+        "tokenizers": "0.23.2",
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
+      },
+      "groups": {
+        "T1_description": {
+          "A": {
+            "tokens": 99,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "B": {
+            "tokens": 99,
+            "chars": 114,
+            "sha256": "a73d3505a58213a57ecabcb210c7b68c139a28cad758dbd02f76268d426f8f71"
+          },
+          "C": {
+            "tokens": 99,
+            "chars": 396,
+            "sha256": "1e0f5d0144dfdf127ea4b956bce27954453237451140550a0df3b4fe929f7569"
+          }
+        },
+        "T2_skill": {
+          "A": {
+            "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+            "bytes": 14095,
+            "chars": 8478,
+            "tokens": 3913,
+            "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+          },
+          "B": {
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+            "bytes": 14227,
+            "chars": 8372,
+            "tokens": 3980,
+            "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+          },
+          "C": {
+            "path": "SKILL.md",
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3842,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+          }
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 4704,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "B": {
+              "path": "references/protocol-v2.zh-CN.md",
+              "bytes": 16991,
+              "chars": 9740,
+              "tokens": 4704,
+              "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+            },
+            "C": {
+              "path": "references/protocol-v2.md",
+              "bytes": 18694,
+              "chars": 18237,
+              "tokens": 4686,
+              "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+            }
+          },
+          "migration": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 4176,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "B": {
+              "path": "references/migration.zh-CN.md",
+              "bytes": 14997,
+              "chars": 8576,
+              "tokens": 4176,
+              "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+            },
+            "C": {
+              "path": "references/migration.md",
+              "bytes": 16651,
+              "chars": 16316,
+              "tokens": 4156,
+              "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+            }
+          },
+          "hooks": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 2324,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "B": {
+              "path": "references/hooks.zh-CN.md",
+              "bytes": 8358,
+              "chars": 5042,
+              "tokens": 2324,
+              "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+            },
+            "C": {
+              "path": "references/hooks.md",
+              "bytes": 9212,
+              "chars": 9170,
+              "tokens": 2298,
+              "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+            }
+          },
+          "benchmark": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/references/benchmark.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 4709,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "B": {
+              "path": "references/benchmark.zh-CN.md",
+              "bytes": 16899,
+              "chars": 9834,
+              "tokens": 4709,
+              "sha256": "e645378cedc7ddec2c36d428693214ed5034b6fca522e149a7701f16cc5e23dd"
+            },
+            "C": {
+              "path": "references/benchmark.md",
+              "bytes": 18508,
+              "chars": 18215,
+              "tokens": 4632,
+              "sha256": "9f69d6e5ad0c9c2298d18ad372b21cc26dca6de6d57f20a0af43d7d66ddee5d0"
+            }
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": {
+              "tokens": 3913,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3913,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 3980,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3980,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3842,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": {
+              "tokens": 3913,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3913,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 3980,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3980,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 3842,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                }
+              ]
+            },
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": {
+              "tokens": 8089,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3913,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "tests/token_language/baseline/v2.0.3/references/migration.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 4176,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 8156,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3980,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.zh-CN.md",
+                  "bytes": 14997,
+                  "chars": 8576,
+                  "tokens": 4176,
+                  "sha256": "ee6a4a2696024eb5fc45a38fcb7d85ca3f39fb599c9a20bfdeb9501f1e5c235d"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 7998,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:migration",
+                  "path": "references/migration.md",
+                  "bytes": 16651,
+                  "chars": 16316,
+                  "tokens": 4156,
+                  "sha256": "6f8f836bf1696c4e5f7823b43a655b9b9fd049ad0a0eb8a5534524e02d78417d"
+                }
+              ]
+            },
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": {
+              "tokens": 8617,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3913,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 4704,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 8684,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3980,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 4704,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8528,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4686,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": {
+              "tokens": 8617,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3913,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "tests/token_language/baseline/v2.0.3/references/protocol-v2.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 4704,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 8684,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3980,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.zh-CN.md",
+                  "bytes": 16991,
+                  "chars": 9740,
+                  "tokens": 4704,
+                  "sha256": "06ee612c782fe644b596163f8ae8d538c4e463461827902cecc3c1f4f940c545"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 8528,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:protocol-v2",
+                  "path": "references/protocol-v2.md",
+                  "bytes": 18694,
+                  "chars": 18237,
+                  "tokens": 4686,
+                  "sha256": "42781e7e79eea0bb2c6838d22c6cd8ad8baa50c4f193ab4f977460e0acc76918"
+                }
+              ]
+            },
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": {
+              "tokens": 6237,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/baseline/v2.0.3/SKILL.md",
+                  "bytes": 14095,
+                  "chars": 8478,
+                  "tokens": 3913,
+                  "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "tests/token_language/baseline/v2.0.3/references/hooks.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 2324,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "B": {
+              "tokens": 6304,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
+                  "bytes": 14227,
+                  "chars": 8372,
+                  "tokens": 3980,
+                  "sha256": "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.zh-CN.md",
+                  "bytes": 8358,
+                  "chars": 5042,
+                  "tokens": 2324,
+                  "sha256": "01b27c71877e715b26ab936ec8b1fa3a95bdf81aa658bafa00ad507f84453ae2"
+                }
+              ]
+            },
+            "C": {
+              "tokens": 6140,
+              "files": [
+                {
+                  "key": "skill",
+                  "path": "SKILL.md",
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
+                },
+                {
+                  "key": "ref:hooks",
+                  "path": "references/hooks.md",
+                  "bytes": 9212,
+                  "chars": 9170,
+                  "tokens": 2298,
+                  "sha256": "f7ba7fed95670399ab5cb494ffd550ec8026795c410bbfefccb8130d9b18f706"
+                }
+              ]
+            },
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1175,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "B": {
+              "path": "assets/AGENTS.md",
+              "bytes": 4198,
+              "chars": 2500,
+              "tokens": 1175,
+              "sha256": "f3bd77d95e80e9207af25e8d49f76d32702baf3d5c2a8d75fc3b2abaae8a8ec3"
+            },
+            "C": {
+              "path": "assets/en/AGENTS.md",
+              "bytes": 4742,
+              "chars": 4658,
+              "tokens": 1188,
+              "sha256": "8b275406326faffb722a49f11fe00ca50707b815fa6440cb17f3af5a19a65a8e"
+            }
+          },
+          "00_baseline.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 476,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "B": {
+              "path": "assets/00_baseline.md",
+              "bytes": 1734,
+              "chars": 1027,
+              "tokens": 476,
+              "sha256": "b0a8741df4f7413ac1a45e6f22f62bef5f53395791bbf75b5ee71e25c6a6a2a7"
+            },
+            "C": {
+              "path": "assets/en/00_baseline.md",
+              "bytes": 1975,
+              "chars": 1928,
+              "tokens": 496,
+              "sha256": "47f0e69b7aa591f308b6cc5f14ac0fa085d498c2dda196be1f9de9f43cdff78b"
+            }
+          },
+          "05_dashboard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 701,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "B": {
+              "path": "assets/05_dashboard.md",
+              "bytes": 2553,
+              "chars": 1605,
+              "tokens": 701,
+              "sha256": "56735878e199ea44cb18df07a38768450cdb443bb72f4fa9892514e042be6f92"
+            },
+            "C": {
+              "path": "assets/en/05_dashboard.md",
+              "bytes": 2799,
+              "chars": 2775,
+              "tokens": 697,
+              "sha256": "8a920c5b7801ad1c47e374313e61eb625b0ed55654c3d6a6a6dec18dfcc4f5ed"
+            }
+          },
+          "fact_book.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 228,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "B": {
+              "path": "assets/fact_book.md",
+              "bytes": 829,
+              "chars": 543,
+              "tokens": 228,
+              "sha256": "d5a72c829fa7e5168529f050d968a93c64d30f28b139c9e0b9690679b651ee62"
+            },
+            "C": {
+              "path": "assets/en/fact_book.md",
+              "bytes": 970,
+              "chars": 958,
+              "tokens": 241,
+              "sha256": "493c2d3e73e0df22cd0db88354a67ea13fdae383072418ee47e1dd9c18d2a00a"
+            }
+          },
+          "06_index.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 122,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "B": {
+              "path": "assets/06_index.md",
+              "bytes": 443,
+              "chars": 262,
+              "tokens": 122,
+              "sha256": "f585ce633c705b71ecabecc97f85179013cd6b8451da8fc6d0341bda81f113ac"
+            },
+            "C": {
+              "path": "assets/en/06_index.md",
+              "bytes": 525,
+              "chars": 518,
+              "tokens": 131,
+              "sha256": "8d69ce0ce47c73d4df63f481e91849497caebfd17601fc677f520e3ecac64f51"
+            }
+          },
+          "06_log.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 140,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "B": {
+              "path": "assets/06_log.md",
+              "bytes": 507,
+              "chars": 288,
+              "tokens": 140,
+              "sha256": "78c162f00c84ff7d9032fe3948377c84b5966b9ef800b1945293a330b6a772c9"
+            },
+            "C": {
+              "path": "assets/en/06_log.md",
+              "bytes": 576,
+              "chars": 563,
+              "tokens": 144,
+              "sha256": "51571fd6981ab49adb89b0ded19804702d5a854fb199ac6241ca8e3b3449320b"
+            }
+          },
+          "06_shard.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 140,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "B": {
+              "path": "assets/06_shard.md",
+              "bytes": 527,
+              "chars": 320,
+              "tokens": 140,
+              "sha256": "315d93604b4e6ecf087ed4838718d1d974f7f89429996f4a0b1362a461c7ac03"
+            },
+            "C": {
+              "path": "assets/en/06_shard.md",
+              "bytes": 590,
+              "chars": 581,
+              "tokens": 145,
+              "sha256": "4cd9ef51cee2238c3e1a23d303a7938aa89c497754549e5f01ea0402769decae"
+            }
+          },
+          "90_archive.md": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 135,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "B": {
+              "path": "assets/90_archive.md",
+              "bytes": 492,
+              "chars": 279,
+              "tokens": 135,
+              "sha256": "29ee2f0bb17d37a74df4e6639d8a7507cde795907c398eafdeafe880d14bf10a"
+            },
+            "C": {
+              "path": "assets/en/90_archive.md",
+              "bytes": 531,
+              "chars": 515,
+              "tokens": 130,
+              "sha256": "4b66b00c2ad9860964a8389900d92502db46d60ac42f2537d493795d8502d4e4"
+            }
+          },
+          "启动消息.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 333,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "B": {
+              "path": "assets/启动消息.txt",
+              "bytes": 1250,
+              "chars": 870,
+              "tokens": 333,
+              "sha256": "13ff95d3ab705fdb08dad7d9d5589bfd95b8759736083b97ee454e90303559e0"
+            },
+            "C": {
+              "path": "assets/en/启动消息.txt",
+              "bytes": 1325,
+              "chars": 1305,
+              "tokens": 332,
+              "sha256": "16e0c35bde16a3b17be2e2e439e245f88bdb468a55df1559cc1bb3027ec199e8"
+            }
+          },
+          "gitignore.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 157,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "B": {
+              "path": "assets/gitignore.txt",
+              "bytes": 565,
+              "chars": 349,
+              "tokens": 157,
+              "sha256": "9282779b8fb607928d4b5ac35f60e7ab834bfd75f611a9deae066adeec2d34fc"
+            },
+            "C": {
+              "path": "assets/en/gitignore.txt",
+              "bytes": 608,
+              "chars": 602,
+              "tokens": 152,
+              "sha256": "d2a9cbeab86f51cf7fc67181af8536f1aad40113b493f39092875040ab7f33b4"
+            }
+          },
+          "gitattributes.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 5,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "B": {
+              "path": "assets/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 5,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            },
+            "C": {
+              "path": "assets/en/gitattributes.txt",
+              "bytes": 19,
+              "chars": 19,
+              "tokens": 5,
+              "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+            }
+          },
+          "migration-prompt.txt": {
+            "A": {
+              "path": "tests/token_language/baseline/v2.0.3/assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 818,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "B": {
+              "path": "assets/migration-prompt.txt",
+              "bytes": 2943,
+              "chars": 1559,
+              "tokens": 818,
+              "sha256": "341304097b4e5c3ebb492490c22b42b10ce9be8eb3eb54e7eb707bc7b10d704d"
+            },
+            "C": {
+              "path": "assets/en/migration-prompt.txt",
+              "bytes": 3398,
+              "chars": 3384,
+              "tokens": 848,
+              "sha256": "70de1648a4be73b68620060fd7b9d0ad120090605e2e8456f0fe30ccf3a10401"
+            }
+          }
+        }
+      },
+      "summary": {
+        "T1_description": {
+          "A": 99,
+          "B": 99,
+          "C": 99,
+          "structure_saving": 0.0,
+          "language_saving": 0.0,
+          "total_saving": 0.0
+        },
+        "T2_skill": {
+          "A": 3913,
+          "B": 3980,
+          "C": 3842,
+          "structure_saving": -0.017122,
+          "language_saving": 0.034673,
+          "total_saving": 0.018145
+        },
+        "T3_references": {
+          "protocol-v2": {
+            "A": 4704,
+            "B": 4704,
+            "C": 4686,
+            "structure_saving": 0.0,
+            "language_saving": 0.003827,
+            "total_saving": 0.003827
+          },
+          "migration": {
+            "A": 4176,
+            "B": 4176,
+            "C": 4156,
+            "structure_saving": 0.0,
+            "language_saving": 0.004789,
+            "total_saving": 0.004789
+          },
+          "hooks": {
+            "A": 2324,
+            "B": 2324,
+            "C": 2298,
+            "structure_saving": 0.0,
+            "language_saving": 0.011188,
+            "total_saving": 0.011188
+          },
+          "benchmark": {
+            "A": 4709,
+            "B": 4709,
+            "C": 4632,
+            "structure_saving": 0.0,
+            "language_saving": 0.016352,
+            "total_saving": 0.016352
+          }
+        },
+        "T4_task_paths": {
+          "new-project": {
+            "A": 3913,
+            "B": 3980,
+            "C": 3842,
+            "structure_saving": -0.017122,
+            "language_saving": 0.034673,
+            "total_saving": 0.018145,
+            "title": "New project initialization",
+            "required": [
+              "skill"
+            ]
+          },
+          "diagnose": {
+            "A": 3913,
+            "B": 3980,
+            "C": 3842,
+            "structure_saving": -0.017122,
+            "language_saving": 0.034673,
+            "total_saving": 0.018145,
+            "title": "Existing project diagnosis",
+            "required": [
+              "skill"
+            ]
+          },
+          "migrate": {
+            "A": 8089,
+            "B": 8156,
+            "C": 7998,
+            "structure_saving": -0.008283,
+            "language_saving": 0.019372,
+            "total_saving": 0.01125,
+            "title": "Legacy project migration",
+            "required": [
+              "skill",
+              "ref:migration"
+            ]
+          },
+          "recovery": {
+            "A": 8617,
+            "B": 8684,
+            "C": 8528,
+            "structure_saving": -0.007775,
+            "language_saving": 0.017964,
+            "total_saving": 0.010328,
+            "title": "New-session context recovery",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "safe-write": {
+            "A": 8617,
+            "B": 8684,
+            "C": 8528,
+            "structure_saving": -0.007775,
+            "language_saving": 0.017964,
+            "total_saving": 0.010328,
+            "title": "Safe document write",
+            "required": [
+              "skill",
+              "ref:protocol-v2"
+            ]
+          },
+          "hook-install": {
+            "A": 6237,
+            "B": 6304,
+            "C": 6140,
+            "structure_saving": -0.010742,
+            "language_saving": 0.026015,
+            "total_saving": 0.015552,
+            "title": "Hook installation",
+            "required": [
+              "skill",
+              "ref:hooks"
+            ]
+          }
+        },
+        "T5_templates": {
+          "AGENTS.md": {
+            "A": 1175,
+            "B": 1175,
+            "C": 1188,
+            "structure_saving": 0.0,
+            "language_saving": -0.011064,
+            "total_saving": -0.011064
+          },
+          "00_baseline.md": {
+            "A": 476,
+            "B": 476,
+            "C": 496,
+            "structure_saving": 0.0,
+            "language_saving": -0.042017,
+            "total_saving": -0.042017
+          },
+          "05_dashboard.md": {
+            "A": 701,
+            "B": 701,
+            "C": 697,
+            "structure_saving": 0.0,
+            "language_saving": 0.005706,
+            "total_saving": 0.005706
+          },
+          "fact_book.md": {
+            "A": 228,
+            "B": 228,
+            "C": 241,
+            "structure_saving": 0.0,
+            "language_saving": -0.057018,
+            "total_saving": -0.057018
+          },
+          "06_index.md": {
+            "A": 122,
+            "B": 122,
+            "C": 131,
+            "structure_saving": 0.0,
+            "language_saving": -0.07377,
+            "total_saving": -0.07377
+          },
+          "06_log.md": {
+            "A": 140,
+            "B": 140,
+            "C": 144,
+            "structure_saving": 0.0,
+            "language_saving": -0.028571,
+            "total_saving": -0.028571
+          },
+          "06_shard.md": {
+            "A": 140,
+            "B": 140,
+            "C": 145,
+            "structure_saving": 0.0,
+            "language_saving": -0.035714,
+            "total_saving": -0.035714
+          },
+          "90_archive.md": {
+            "A": 135,
+            "B": 135,
+            "C": 130,
+            "structure_saving": 0.0,
+            "language_saving": 0.037037,
+            "total_saving": 0.037037
+          },
+          "启动消息.txt": {
+            "A": 333,
+            "B": 333,
+            "C": 332,
+            "structure_saving": 0.0,
+            "language_saving": 0.003003,
+            "total_saving": 0.003003
+          },
+          "gitignore.txt": {
+            "A": 157,
+            "B": 157,
+            "C": 152,
+            "structure_saving": 0.0,
+            "language_saving": 0.031847,
+            "total_saving": 0.031847
+          },
+          "gitattributes.txt": {
+            "A": 5,
+            "B": 5,
+            "C": 5,
+            "structure_saving": 0.0,
+            "language_saving": 0.0,
+            "total_saving": 0.0
+          },
+          "migration-prompt.txt": {
+            "A": 818,
+            "B": 818,
+            "C": 848,
+            "structure_saving": 0.0,
+            "language_saving": -0.036675,
+            "total_saving": -0.036675
+          }
+        }
+      }
+    }
+  ]
+}

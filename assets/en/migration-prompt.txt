@@ -1,0 +1,41 @@
+Take over the "[project] documentation restructuring" line. Working directory [project directory].
+
+Read-only first; change no file:
+1. Run the diagnosis (built in, read-only):
+   py "$HOME/.skills-manager/skills/handoff-kb/scripts/kb-check.py" --target "[project directory]" --loose
+2. Inspect git state and file sizes:
+   cd "[project directory]" && git status --short && git log --oneline -5
+   find . -maxdepth 2 -type f \( -name "*.md" -o -name "*.txt" \) -printf "%s %p\n" | sort -rn | head -20
+3. Read the full SOP: $HOME/.skills-manager/skills/handoff-kb/references/migration.md
+   (step 0 diagnosis -> five steps in detail: goal / criterion / command / artifact / pitfall -> acceptance -> rollback -> real case)
+
+Background (fill in truthfully, delete what does not apply):
+- [N] documents / about [X] KB; progress and state scattered across [which files]; git [present / absent].
+- [count] parallel sessions, main division of labour [fill].
+- This round is structure only: **change no business conclusion, no configuration value, no machine and no VPS**.
+- Existing cross-document numbers / IDs: [fill, e.g. G-xxx, §1–§9, K-xx]; write "none" if there are none.
+
+Follow the five steps in migration.md; do not skip, do not split early:
+  1) git init -- write .gitignore before add, snapshot verbatim (P0: without it nothing later can be rolled back)
+  2) sink process into 90 / archive -- delete narrative only; pitfalls and conclusions all stay; leave "see 90 §X" in the main document
+  3) create the 05 dashboard -- pull state and todo into one place, delete same-source copies
+  4) split 06 only when a threshold is crossed -- one entry > 3 lines, or 05 reaching ~70 lines; with several sessions prefer per-line shards 06_流水/<line>.md
+  5) add mechanisms -- three AGENTS.md entries, K-xx numbers with status, the 05 §5 threshold table, a closing commit, a self-check script
+
+Hard constraints:
+- .gitignore before git add; large files ([fill type, e.g. mp4/logs]) and plaintext credentials must be excluded first,
+  verified with git ls-files; credentials already committed move to environment variables or out of history.
+- Delete only "closed background / verification snapshots / version archaeology / long timestamp runs / resolved contradictions";
+  **keep the current baseline, configuration, pitfalls, conclusions and command references without exception**, and archive every deleted passage into 90.
+- Keep existing numbers / IDs; never reorder, never reuse; cite IDs instead of restating values.
+- Never overwrite a whole file; commit at the end of each step with the step named in the message.
+- Look at git status for files another session is editing; append only, never edit their lines, never commit for them.
+- Touch no machine / VPS / production config; the self-check script only echoes.
+
+Acceptance:
+- From 05 alone you can answer the four questions: per-line status / next step / pending and in progress / which files to read before changing a given config.
+- py kb-check.py --target . --strict -> 0 ERR (give a reading for each WARN).
+- git status clean; git log shows one commit per step.
+- Handoff cost (00+05) is < 15% of the library.
+
+Review read-only first and tell me in 3–5 lines: the diagnosis, which of the five steps carries risk, what the risk is, and how you will avoid it — then start. Never read the whole document set into context at once.

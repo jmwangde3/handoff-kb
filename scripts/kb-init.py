@@ -13,6 +13,7 @@ v2 关键变化
 
 用法：
   py kb-init.py --target ./demo --project Demo --lines "固件,运行态,服务端"
+  py kb-init.py --target ./demo --project Demo --lang en          # 英文模板 + 英文默认线名
   py kb-init.py --target ./demo --plan
   py kb-init.py --target ./demo --lines "固件" --no-git --force
   py kb-init.py --target ./demo --overwrite-config --force
@@ -42,6 +43,14 @@ ASSETS = ROOT / "assets"
 
 PROTECTED = set(protocol.ENTRY_FILES) | {".gitignore", ".gitattributes"}
 ILLEGAL = re.compile(r'[\\/:*?"<>|\r\n\t]')
+
+# `--lines` 的默认值跟 `--lang` 走：默认中文名，`--lang en` 时用英文名。
+# 不这么写的话，`--lang en` 不显式给 `--lines` 就会生成 `10_线A.md`——模板是英文的，
+# 文件名和内容却是中文的，用户还得回头改名。
+DEFAULT_LINES = {
+    "zh": "线A,线B,线C,线D",
+    "en": "lineA,lineB,lineC,lineD",
+}
 
 
 class Refused(Exception):
@@ -96,20 +105,27 @@ def normalize_name(raw: str):
 
 
 def build_plan(target: Path, project: str, lines, shards: str, force: bool,
-               overwrite_config: bool):
+               overwrite_config: bool, lang: str = "zh"):
     """生成 {rel: content} 与元信息；不写盘。"""
     today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    en = lang == "en"
+    assets = (ASSETS / "en") if en else ASSETS
+    fill = "[fill]" if en else "[填]"
     lo, hi = protocol.FACT_RANGE
     route_rows, file_rows, status_rows, route_inline, shard_rows = [], [], [], [], []
     for i, name in enumerate(lines):
         num = lo + i
         fn = "%02d_%s.md" % (num, name)
         route_rows.append("| %s | `%s` + `00` |" % (name, fn))
-        file_rows.append("| `%s` | %s（事实层） |" % (fn, name))
-        status_rows.append("| %s | 稳定 | [填] | %s |" % (name, today))
+        file_rows.append(("| `%s` | %s (fact layer) |" if en else "| `%s` | %s（事实层） |")
+                         % (fn, name))
+        status_rows.append(("| %s | stable | %s | %s |" if en else "| %s | 稳定 | %s | %s |")
+                           % (name, fill, today))
         route_inline.append("%s → `%s`" % (name, fn))
-        shard_rows.append("| `06_流水/%s.md` | %s线 |" % (name, name))
-    shard_rows.append("| `06_流水/其他.md` | 无法归类 / 跨线交叉点 |")
+        shard_rows.append(("| `06_流水/%s.md` | %s line |" if en else "| `06_流水/%s.md` | %s线 |")
+                          % (name, name))
+    shard_rows.append("| `06_流水/其他.md` | uncategorised / cross-line |" if en
+                      else "| `06_流水/其他.md` | 无法归类 / 跨线交叉点 |")
 
     ctx = {
         "PROJECT": project,
@@ -118,25 +134,38 @@ def build_plan(target: Path, project: str, lines, shards: str, force: bool,
         "SCHEMA": protocol.SCHEMA_VERSION,
         "FACT_RANGE": protocol.fact_shard_range_text(),
         "ID": "%02d" % lo,
-        "LINE_NAME": lines[0] if lines else "线A",
+        "LINE_NAME": lines[0] if lines else ("lineA" if en else "线A"),
         "ROUTE_TABLE": "\n".join(route_rows),
         "FILE_TABLE": "\n".join(file_rows),
         "LINE_STATUS": "\n".join(status_rows),
-        "ROUTE_INLINE": "；".join(route_inline),
-        "INITIAL_STATUS": "- [填：一句话现状，例如「XX 已上线，YY 观察中」]",
+        "ROUTE_INLINE": ("; " if en else "；").join(route_inline),
+        "INITIAL_STATUS": ('- [fill: one line, e.g. "XX is live, YY under observation"]' if en
+                           else "- [填：一句话现状，例如「XX 已上线，YY 观察中」]"),
         "SHARD_TABLE": "\n".join(shard_rows),
     }
 
     if shards == "auto":
-        ctx["SHARD_SECTION"] = (
-            "## 流水分片\n\n每条线**只写自己那一份**，从根上消除共享单文件的并发覆盖：\n\n"
-            "| 分片 | 归它写 |\n|---|---|\n" + ctx["SHARD_TABLE"] + "\n\n"
-            "- 每条 1–3 行；**单分片**超 200 行 / 60 KB 才折叠进 `90`（触线再拆）。\n"
-            "- `06_会话日志.md` 是历史卷 + 索引，**只读、不追加流水**。\n"
-            "- 与 `05` §5 同源，改一处必须同步另一处。\n"
-        )
+        if en:
+            ctx["SHARD_SECTION"] = (
+                "## Log shards\n\nEach line **writes only its own file**, which removes shared-file "
+                "concurrent overwrites at the root:\n\n"
+                "| Shard | Its writer |\n|---|---|\n" + ctx["SHARD_TABLE"] + "\n\n"
+                "- 1–3 lines per entry; a **single shard** is folded into `90` only beyond 200 lines / 60 KB.\n"
+                "- `06_会话日志.md` is the history volume + index: **read-only, no log entries**.\n"
+                "- Same source as `05` §5: change one, sync the other.\n"
+            )
+        else:
+            ctx["SHARD_SECTION"] = (
+                "## 流水分片\n\n每条线**只写自己那一份**，从根上消除共享单文件的并发覆盖：\n\n"
+                "| 分片 | 归它写 |\n|---|---|\n" + ctx["SHARD_TABLE"] + "\n\n"
+                "- 每条 1–3 行；**单分片**超 200 行 / 60 KB 才折叠进 `90`（触线再拆）。\n"
+                "- `06_会话日志.md` 是历史卷 + 索引，**只读、不追加流水**。\n"
+                "- 与 `05` §5 同源，改一处必须同步另一处。\n"
+            )
     else:
         ctx["SHARD_SECTION"] = (
+            "## Log\n\n- `06_会话日志.md` is a single append-only log; "
+            "fold into `90` beyond 200 lines / 60 KB.\n" if en else
             "## 流水\n\n- `06_会话日志.md` 单份 append-only 流水；"
             "超 200 行 / 60 KB 折叠进 `90`（触线再拆）。\n")
 
@@ -146,10 +175,12 @@ def build_plan(target: Path, project: str, lines, shards: str, force: bool,
         c = dict(ctx)
         if extra:
             c.update(extra)
-        files[rel] = render(read(ASSETS / src), c)
+        files[rel] = render(read(assets / src), c)
 
     put("AGENTS.md", "AGENTS.md")
-    pointer = ("按 `AGENTS.md` 执行 —— 本工作区唯一的客户端无关入口，"
+    pointer = ("Follow `AGENTS.md` — the only client-agnostic entry for this workspace; "
+               "handoff order, write-back rules and hard constraints live there.\n" if en else
+               "按 `AGENTS.md` 执行 —— 本工作区唯一的客户端无关入口，"
                "接手顺序、写回规则与硬约束都在那里。\n")
     files["CLAUDE.md"] = pointer
     files["GEMINI.md"] = pointer
@@ -167,9 +198,14 @@ def build_plan(target: Path, project: str, lines, shards: str, force: bool,
         put("06_会话日志.md", "06_log.md")
     put("90_过程档案.md", "90_archive.md")
     put("新会话启动消息.txt", "启动消息.txt")
-    files[".gitignore"] = read(ASSETS / "gitignore.txt")
-    files[".gitattributes"] = read(ASSETS / "gitattributes.txt")
+    files[".gitignore"] = read(assets / "gitignore.txt")
+    files[".gitattributes"] = read(assets / "gitattributes.txt")
     files["scripts/handoff-check.sh"] = (
+        "#!/bin/sh\n"
+        "# read-only self-check stub -- fill per project: compare documented current values\n"
+        "# against the real machine/remote, echo only, change nothing.\n"
+        "# e.g. uci get passwall.@global[0].node / ssh HOST 'app --version' / query an API\n"
+        'echo "[handoff-check] TODO: fill in read-only checks for this project"\n' if en else
         "#!/bin/sh\n"
         "# 只读自检模板 —— 按项目填充：把文档里的当前值与实机/远端核对，只 echo，不改任何东西。\n"
         "# 例：uci get passwall.@global[0].node / ssh HOST 'app --version' / 查询 API\n"
@@ -205,8 +241,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="生成分层交接库骨架（v2：10–17 编号 + 安全预检）")
     ap.add_argument("--target", required=True, help="目标目录（绝对或相对）")
     ap.add_argument("--project", default=None, help="项目名，默认取目录名")
-    ap.add_argument("--lines", default="线A,线B,线C,线D",
-                    help="事实层分册名，逗号分隔，决定 10..17（最多 8）")
+    ap.add_argument("--lines", default=None,
+                    help=("事实层分册名，逗号分隔，决定 10..17（最多 8）。"
+                          "默认随 --lang 走：zh=线A,线B,线C,线D；en=lineA,lineB,lineC,lineD"))
     ap.add_argument("--no-git", action="store_true", help="只生成文件，不初始化 git")
     ap.add_argument("--force", action="store_true",
                     help="覆盖同名模板文件（不绕过敏感信息检查与受保护配置）")
@@ -215,8 +252,15 @@ def main() -> int:
     ap.add_argument("--shards", choices=["auto", "none"], default="auto",
                     help="auto=按 --lines 生成 06_流水/<线>.md 分片（默认）；none=单份 06_会话日志.md")
     ap.add_argument("--plan", action="store_true", help="只输出计划，不写任何文件")
+    ap.add_argument("--lang", choices=["zh", "en"], default="zh",
+                    help=("模板语言：zh=中文模板（默认）；en=英文模板（assets/en/，"
+                          "占位符与协议 ID 与中文一致）"))
     ap.add_argument("--json", action="store_true", help="机器可读输出")
     args = ap.parse_args()
+
+    # `--lines` 的默认值依赖 `--lang`，只能在解析之后补。
+    if args.lines is None:
+        args.lines = DEFAULT_LINES[args.lang]
 
     target = Path(args.target).expanduser().resolve()
     project = args.project or target.name or "project"
@@ -229,7 +273,7 @@ def main() -> int:
     # ---- 预检查 2：线名 ----
     raw = [x.strip() for x in args.lines.split(",") if x.strip()]
     if not raw:
-        raw = ["线A"]
+        raw = [DEFAULT_LINES[args.lang].split(",")[0]]
     if len(raw) > protocol.MAX_LINES:
         print("ERR: 事实分册最多 %d 个（编号 %s；00/05/06/90 是保留层）"
               % (protocol.MAX_LINES, protocol.fact_shard_range_text()), file=sys.stderr)
@@ -252,7 +296,7 @@ def main() -> int:
         lines.append(name)
 
     files, buckets = build_plan(target, project, lines, args.shards,
-                                args.force, args.overwrite_config)
+                                args.force, args.overwrite_config, args.lang)
 
     # ---- 预检查 3：git 现状 ----
     repo = find_git_repo(target)
