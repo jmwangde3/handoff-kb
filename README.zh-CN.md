@@ -692,7 +692,7 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
    （只针对发布的那份英文技能）、标识符与 JSON 契约对照实现、模板一致性、
    token 目标、不静默降级、跨语言场景（中文库跑英文技能、英文库跑英文任务）、基线清单的
    字节/哈希/token 复现，共 55 例。数字化的 token 门槛需要精确词表，CI 不装可选依赖，
-   所以相关的 24 条会带原因 skip——**每条点名缺哪个词表、哪条用例**，而不是整块消失
+   所以相关的 24 条（3.10 上 25 条）会带原因 skip——**每条点名缺哪个词表、哪条用例**，而不是整块消失
    （三套词表各自独立成一个用例，缺一个不影响另外两个）；其余用例在 CI 照常跑，
    一条命令可本地复现全部：`python tests/token_language/run_token_benchmark.py --all`。
 
@@ -729,7 +729,7 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 | 项 | 结果 |
 |---|---|
 | `python -m unittest discover -s tests` | **421 例，OK（1 skip）**——341 例既有 + 55 例 `token_language` + 25 例 `test_deps_check`；本机唯一的 skip 是一条既有降级用例，它只在**没装** `tiktoken` 时才适用 |
-| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 421 例，**24 skip**，0 失败：数字化的 token 用例必须有精确词表才能算。skip 按「词表 × 用例」计数，所以条数多于用例数——每条都在原因里点名缺哪个词表（`cl100k_base` / `o200k_base` / `deepseek_v4`），而不是从汇总里静默消失。不依赖编码器的性质——布局、规则、标识符、JSON 契约、模板、跨语言场景、降级退出码——照常跑 |
+| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 421 例，**3.12 / 3.13 上 24 skip、3.10 上 25 skip**，0 失败：数字化的 token 用例必须有精确词表才能算。skip 按「词表 × 用例」计数，所以条数多于用例数——每条都在原因里点名缺哪个词表（`cl100k_base` / `o200k_base` / `deepseek_v4`），而不是从汇总里静默消失。不依赖编码器的性质——布局、规则、标识符、JSON 契约、模板、跨语言场景、降级退出码——照常跑 |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
 | `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`；`tiktoken` 与 `tokenizers` 是两个已声明的可选例外，都在函数内且包 `try/except`。`tests/test_deps_check.py`（25 例）测检查器本身，含「可选导入包在 `try/finally` 或 `except ValueError` 里」这两个曾漏过的写法 |
@@ -741,11 +741,15 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
 2.0.3 那一轮（run `43451488874`，2026-11-13）六环境全绿、341 例无 skip。
-2.0.4 这一轮：run [43599244790](https://github.com/jmwangde3/handoff-kb/actions/runs/43599244790)
-（2026-11-14，`pull_request`，HEAD `0c5e43d`）六环境全绿，每个 job 都是
-`Ran 394 tests … OK (skipped=7)`。那 7 条 skip 是数字化的 token 用例——它们需要精确词表，
-而 CI 故意不装可选依赖。**它们不是在掩盖失败**：数字本身一条命令可本地复现（§12.1）。
-若 HEAD 比 `0c5e43d` 更新，仍以 PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5)
+2.0.4 这一轮：run [43604367086](https://github.com/jmwangde3/handoff-kb/actions/runs/43604367086)
+（2026-11-14，`pull_request`，HEAD `05231b6`）六环境全绿，每个 job 都是 `Ran 421 tests`，
+其中 3.12 / 3.13 是 `OK (skipped=24)`、3.10 是 `OK (skipped=25)`。3.10 多出来的那一条是
+「迟到的标准库不能绕过 handler 规则」的回归用例——它只有在 `tomllib` 已经存在的解释器上才跑得起来。
+每条 skip 都点名它没加载到的词表，**没有一条在掩盖失败**；数字本身一条命令可本地复现（§12.1）。
+
+同分支早前一轮留档：run `43599524607`（HEAD `9529960`）绿，`Ran 394 tests … OK (skipped=7)`。
+此后在本分支上的提交只改文档，不碰代码与测试；它们同样会跑这套 workflow，结果看 PR 的 checks。
+若 HEAD 比 `05231b6` 更新，仍以 PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5)
 的 CI 状态为准，不以本节为准。
 
 > 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
