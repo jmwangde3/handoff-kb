@@ -681,8 +681,9 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`，见 `.github/workflows/test.yml`。
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
-2.0.3 那一轮（run `43451488874`，2026-11-13）六环境全绿、341 例无 skip。2.0.4 这一轮的结果记在
-PR 上，以 PR 的 CI 状态为准，不在本文件里自述。
+2.0.3 那一轮（run `43451488874`，2026-11-13）六环境全绿、341 例无 skip。
+2.0.4 这一轮（run [43592120170](https://github.com/jmwangde3/handoff-kb/actions/runs/43592120170)，2026-11-14，`pull_request`，HEAD `bb19552`）同样六环境全绿，每个 job 都是 `Ran 365 tests … OK (skipped=5)`。
+那 5 条 skip 是数字化的 token 门槛——它需要精确词表，而 CI 故意不装可选依赖。**它们不是在掩盖失败**：数字本身一条命令可本地复现（§12.1）。
 
 > 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
 

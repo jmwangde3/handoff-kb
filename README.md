@@ -422,7 +422,9 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 `Ubuntu × {3.10, 3.12, 3.13}` + `Windows × {3.10, 3.12, 3.13}`, see `.github/workflows/test.yml`. Each environment runs: environment info → unit tests (`-v`) → end-to-end smoke → dependency check.
 
-The 2.0.3 run (run `43451488874`, 2026-11-13) was green in all six environments with 341 tests, no skips. The 2.0.4 run is recorded on the pull request; the authoritative statement is the PR's CI status, not this file.
+The 2.0.3 run (run `43451488874`, 2026-11-13) was green in all six environments with 341 tests, no skips.
+
+The 2.0.4 run (run [43592120170](https://github.com/jmwangde3/handoff-kb/actions/runs/43592120170), 2026-11-14, `pull_request`, HEAD `bb19552`) is green in all six environments too: every job reports `Ran 365 tests … OK (skipped=5)`. The five skips are the numeric token gate, which needs an exact encoder that CI deliberately does not install — they are not hiding a failure, and the numbers themselves are reproducible locally with one command (§12.2).
 
 > Known noise: GitHub warns about Node 20 deprecation in `actions/checkout@v4` and `setup-python@v5`; that is an action-upgrade reminder and does not affect results.
 
