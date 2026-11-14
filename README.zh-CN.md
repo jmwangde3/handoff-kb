@@ -744,13 +744,14 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
 2.0.3 那一轮（run `43451488874`，2026-11-13）六环境全绿、341 例无 skip。
-2.0.4 这一轮：run [43604367086](https://github.com/jmwangde3/handoff-kb/actions/runs/43604367086)
-（2026-11-14，`pull_request`，HEAD `05231b6`）六环境全绿，每个 job 都是 `Ran 421 tests`，
+2.0.4 这一轮：run [43610008565](https://github.com/jmwangde3/handoff-kb/actions/runs/43610008565)
+（2026-11-14，`pull_request`，HEAD `74e9a59`）六环境全绿，每个 job 都是 `Ran 428 tests`，
 其中 3.12 / 3.13 是 `OK (skipped=24)`、3.10 是 `OK (skipped=25)`。3.10 多出来的那一条是
 「迟到的标准库不能绕过 handler 规则」的回归用例——它只有在 `tomllib` 已经存在的解释器上才跑得起来。
 每条 skip 都点名它没加载到的词表，**没有一条在掩盖失败**；数字本身一条命令可本地复现（§12.1）。
 
-同分支早前一轮留档：run `43599524607`（HEAD `9529960`）绿，`Ran 394 tests … OK (skipped=7)`。
+同分支早前留档：run `43604367086`（HEAD `05231b6`）绿，`Ran 421 tests … OK (skipped=24/25)`；
+run `43599524607`（HEAD `9529960`）绿，`Ran 394 tests … OK (skipped=7)`。
 此后在本分支上的提交只改文档，不碰代码与测试；它们同样会跑这套 workflow，结果看 PR 的 checks。
 若 HEAD 比 `05231b6` 更新，仍以 PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5)
 的 CI 状态为准，不以本节为准。

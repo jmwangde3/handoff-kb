@@ -457,9 +457,9 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 The 2.0.3 run (run `43451488874`, 2026-11-13) was green in all six environments with 341 tests, no skips.
 
-For 2.0.4: run [43604367086](https://github.com/jmwangde3/handoff-kb/actions/runs/43604367086) (2026-11-14, `pull_request`, HEAD `05231b6`) is green in all six environments — `Ran 421 tests` in every job, `OK (skipped=24)` on 3.12 / 3.13 and `OK (skipped=25)` on 3.10. The extra 3.10 skip is the regression test proving a late stdlib module cannot bypass the handler rule; it can only run where `tomllib` already exists. Every skip names the vocabulary it could not load — none of them hides a failure, and the numbers are reproducible locally with one command (§12.2).
+For 2.0.4: run [43610008565](https://github.com/jmwangde3/handoff-kb/actions/runs/43610008565) (2026-11-14, `pull_request`, HEAD `74e9a59`) is green in all six environments — `Ran 428 tests` in every job, `OK (skipped=24)` on 3.12 / 3.13 and `OK (skipped=25)` on 3.10. The extra 3.10 skip is the regression test proving a late stdlib module cannot bypass the handler rule; it can only run where `tomllib` already exists. Every skip names the vocabulary it could not load — none of them hides a failure, and the numbers are reproducible locally with one command (§12.2).
 
-Earlier on this branch, for the record: run `43599524607` (HEAD `9529960`) was green with `Ran 394 tests … OK (skipped=7)`. Commits after `05231b6` on this branch are documentation-only and leave code and tests untouched; they run the same workflow, and their result is in the PR checks. The authoritative statement for any newer HEAD is still the PR's own CI status, not this file.
+Earlier on this branch, for the record: run `43604367086` (HEAD `05231b6`) was green with `Ran 421 tests … OK (skipped=24/25)`, and run `43599524607` (HEAD `9529960`) with `Ran 394 tests … OK (skipped=7)`. Commits after `74e9a59` on this branch are documentation-only and leave code and tests untouched; they run the same workflow, and their result is in the PR checks. The authoritative statement for any newer HEAD is still the PR's own CI status, not this file.
 
 > Known noise: GitHub warns about Node 20 deprecation in `actions/checkout@v4` and `setup-python@v5`; that is an action-upgrade reminder and does not affect results.
 
