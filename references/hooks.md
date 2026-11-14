@@ -1,111 +1,99 @@
-# 客户端 Hook（可选，默认不安装）
+# Client Hooks (optional, never installed by default)
 
-> 先读这句：**事件名、JSON 结构、stdout/stderr 语义与退出码含义，各客户端不同，且会随版本变化。**
-> 本仓库只承诺「生成项目级配置 + 只读运行时」，不承诺与某个客户端版本的字节级兼容；
-> 安装前用 `--plan` 看清楚，必要时对照该客户端当前官方文档改一行。
+> Read this first: **event names, JSON shapes, stdout/stderr semantics and exit-code meanings differ per client and change between versions.**
+> This repository only promises "generate project-level config + read-only runtime"; it does not promise byte-level compatibility with any client version.
+> Inspect with `--plan` before installing, and adjust a line against that client's current official docs if needed.
 
-## 1. 设计原则
+Chinese edition: `hooks.zh-CN.md`.
 
-1. **默认关闭**：不装就完全没影响。
-2. **预览优先**：不写 `--write` 一律零写入；只打印「新增 / 移除 / 保留 / SHA 前后」。
-3. **只读**：`run` 不写文档、不 `git commit`、不改配置、不联网、不调 LLM。
-4. **不阻断**：`run` 任何异常都吞掉并退出 0；**不使用** `decision: block`，不阻止压缩或结束任务。
-5. **项目级**：只写 `<target>/.claude/settings.json` 或 `<target>/.codex/…`，绝不改全局。
-6. **可撤销**：`uninstall` 只删自己写入的条目（命令里含 `kb-hooks.py`），保留别人的 Hook；
-   JSON 里被清空的事件表、TOML 里被清空的 `[[hooks.X]]` 表头一起收掉，不留空壳。
+## 1. Design principles
 
-## 2. 事件行为与输出结构
+1. **Off by default**: not installing means zero impact.
+2. **Preview first**: without `--write` nothing is written; only "added / removed / kept / SHA before and after" is printed.
+3. **Read-only**: `run` writes no document, runs no `git commit`, edits no config, makes no network call, invokes no LLM.
+4. **Never blocking**: `run` swallows every exception and exits 0; it **does not use** `decision: block` and never prevents compaction or session end.
+5. **Project level**: writes only `<target>/.claude/settings.json` or `<target>/.codex/…`, never global config.
+6. **Reversible**: `uninstall` removes only entries this tool wrote (command contains `kb-hooks.py`) and keeps other hooks; event tables emptied in JSON and `[[hooks.X]]` headers emptied in TOML are removed as well, leaving no shells.
 
-| 客户端 | 事件 | 行为 | stdout |
+## 2. Event behavior and output shape
+
+| Client | Event | Behavior | stdout |
 |---|---|---|---|
-| Claude / Codex | `SessionStart` | 跑 `kb-context.py --mode handoff --budget 1200` | `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "<上下文>"}}` |
-| Claude | `PreCompact` | 提醒收尾（先 `kb-handoff.py check`、再 `kb-write.py` 写回） | **纯文本**（Claude 会把它作为压缩摘要的指令） |
-| Codex | `PreCompact` | 同上 | `{"systemMessage": "…"}`（Codex 的共享字段） |
-| Claude / Codex | `Stop` | 跑 `kb-handoff.py check`；有不完整项才说话 | 有问题→`{"systemMessage": "…"}`；无问题→`{}` |
-| 仅 Claude | `SessionEnd` | 空响应（占位，明确不做动作） | `{}` |
+| Claude / Codex | `SessionStart` | runs `kb-context.py --mode handoff --budget 1200` | `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "<context>"}}` |
+| Claude | `PreCompact` | reminds to wrap up (first `kb-handoff.py check`, then `kb-write.py`) | **plain text** (Claude uses it as the compaction-summary instruction) |
+| Codex | `PreCompact` | same reminder | `{"systemMessage": "…"}` (Codex shared field) |
+| Claude / Codex | `Stop` | runs `kb-handoff.py check`; speaks only when something is incomplete | problems → `{"systemMessage": "…"}`; clean → `{}` |
+| Claude only | `SessionEnd` | empty response (placeholder, deliberately does nothing) | `{}` |
 
-- 除 `Stop` 外不主动「教育」模型；`Stop` 只在交接真缺内容时提示一次，**不阻断**结束。
-- 未知事件 / 目标不是交接库 / 项目根不可用 → 输出空对象、退出 0，会话不受影响。
-- 两家的 `SessionStart` 来源都是 `startup|resume|clear|compact|fork`，生成器对两家都写全五个
-  （2.0.1 漏了 `clear`，导致「清空会话后重新开始」拿不到接手上下文；2.0.1-hotfix 补上）。
-- 触发来源不影响运行时行为：五种来源都注入同一份按预算裁过的上下文。
-- **`PreCompact` 的输出两家不通用**：Claude Code 明确「discards a PreCompact hook's
-  `systemMessage` and `continue` fields」，非阻断退出 0 时 **stdout 纯文本**才是压缩摘要的指令；
-  Codex 的 `PreCompact` 认共享字段 `systemMessage`，纯文本 stdout 被忽略，也没有
-  `customInstructions`。所以同一句提醒按客户端分别输出，不是一份 JSON 打天下
-  （2.0.1-hotfix 修：此前对 Claude 也发 `systemMessage`，等于什么都没说）。
+- Apart from `Stop`, the hook never "educates" the model; `Stop` nudges once only when the handoff is genuinely incomplete, and **never blocks** the end.
+- Unknown event / target is not a handoff library / project root unusable → emit an empty object and exit 0; the session is unaffected.
+- Both clients list `SessionStart` sources as `startup|resume|clear|compact|fork`; the generator writes all five for both (2.0.1 omitted `clear`, so "clear the session and restart" got no handoff context; fixed in 2.0.1-hotfix).
+- The trigger source does not change runtime behavior: all five inject the same budgeted context.
+- **`PreCompact` output is not portable between clients**: Claude Code explicitly "discards a PreCompact hook's `systemMessage` and `continue` fields", so on a non-blocking exit 0 **plain-text stdout** is the compaction instruction; Codex's `PreCompact` honors the shared `systemMessage` field, ignores plain-text stdout, and has no `customInstructions`. The same reminder is therefore emitted per client rather than one JSON for both (2.0.1-hotfix: previously Claude also received `systemMessage`, which said nothing).
 
-## 2.1 官方依据（2026-11 核对）
+## 2.1 Official references (checked 2026-11)
 
-| 客户端 | 文档 | 本仓库依赖的事实 |
+| Client | Docs | Facts this repository relies on |
 |---|---|---|
-| Codex | `developers.openai.com/codex/hooks`（现跳 `learn.chatgpt.com/docs/hooks`） | 三级结构 `事件 → [{matcher, hooks:[{type,command}]}]`；`SessionStart` 的 `source` 五值；`hookSpecificOutput.additionalContext`；`PreCompact` 存在且认共享字段 `systemMessage`（matcher 是 `trigger`：`manual` / `auto`）；纯文本 stdout 在 `PreCompact` 被忽略；无 `customInstructions`；`additionalContext` 默认约 2500 token 上限（超限写临时文件、只给头尾预览） |
-| Claude Code | `code.claude.com/docs/en/hooks` | 同三级结构；项目级 `.claude/settings.json` 生效但受 workspace trust 约束；`SessionStart` 的 matcher 五值；`PreCompact` 的 matcher 是 `manual` / `auto`；**`PreCompact` 丢弃 `systemMessage` 与 `continue`**，非阻断时 stdout 纯文本 = 压缩摘要指令（上限 10,000 字符）；`additionalContext` 上限约 10,000 字符 |
+| Codex | `developers.openai.com/codex/hooks` (now redirects to `learn.chatgpt.com/docs/hooks`) | three-level structure `event → [{matcher, hooks:[{type,command}]}]`; five `source` values for `SessionStart`; `hookSpecificOutput.additionalContext`; `PreCompact` exists and honors shared `systemMessage` (matcher is `trigger`: `manual` / `auto`); plain-text stdout ignored in `PreCompact`; no `customInstructions`; `additionalContext` caps around 2500 tokens (over the cap it writes a temp file and shows head/tail previews only) |
+| Claude Code | `code.claude.com/docs/en/hooks` | same three-level structure; project-level `.claude/settings.json` applies but is subject to workspace trust; five matcher values for `SessionStart`; `PreCompact` matcher is `manual` / `auto`; **`PreCompact` discards `systemMessage` and `continue`**, so when non-blocking, plain-text stdout is the compaction instruction (cap 10,000 characters); `additionalContext` cap around 10,000 characters |
 
-`--budget 1200` 是刻意压在两家的注入上限之内的：宁可少给一点，也不要被客户端截成头尾预览。
+`--budget 1200` is deliberately below both injection caps: better to give slightly less than to be truncated into a head/tail preview.
 
-## 3. 安装位置与结构
+## 3. Install location and structure
 
-| 客户端 | 文件 | 结构 |
+| Client | File | Structure |
 |---|---|---|
 | Claude Code | `.claude/settings.json` | `hooks.<Event>[{"matcher": "", "hooks": [{"type": "command", "command": "…"}]}]` |
-| Codex | `.codex/hooks.json` | 同上**三级结构** `{matcher, hooks:[{type, command}]}`（2.0.1-hotfix 修正：此前写成扁平 `{type, command}`，官方格式不认） |
-| Codex | `.codex/hooks.snippet.toml.txt` | 供手工并入 `config.toml` 的 `[[hooks.<Event>]]` 片段，写盘前用 `tomllib` 自检 |
+| Codex | `.codex/hooks.json` | the same **three-level** structure `{matcher, hooks:[{type, command}]}` (2.0.1-hotfix: previously written flat as `{type, command}`, which the official format rejects) |
+| Codex | `.codex/hooks.snippet.toml.txt` | an `[[hooks.<Event>]]` snippet to merge manually into `config.toml`, validated with `tomllib` before writing |
 
-生成的命令用**绝对路径**（配置是按机器生成的，`$KB` 之类变量不会展开）：
+Generated commands use **absolute paths** (config is generated per machine; variables such as `$KB` are not expanded):
 
 ```bash
-python "C:/Users/<你>/.skills-manager/skills/handoff-kb/scripts/kb-hooks.py" run \
+python "C:/Users/<you>/.skills-manager/skills/handoff-kb/scripts/kb-hooks.py" run \
   --client claude --event SessionStart --target "C:/proj" [--loose]
 ```
 
-`--loose` 会原样出现在生成的命令里，自有命名项目（`60_进度.md`）必须带上。
+`--loose` appears verbatim in the generated command; custom-naming projects (`60_进度.md`) must include it.
 
-## 4. 运行时如何定位项目根
+## 4. How the runtime locates the project root
 
-1. 从 stdin 读事件 JSON（客户端会把 `cwd` 放进去）。
-2. `--target` 是**绝对路径**（安装时写死）：与事件 `cwd` 交叉校验，两者互相包含才算同一个库；
-   不在范围内就**不注入**，并说明原因——避免在 A 项目里注入 B 项目的上下文。
-3. `--target .`（旧配置）：只信事件 `cwd`，且必须像个交接库（有 `00`/`05`）。
-4. stdin 用**先探测再读**（Windows `PeekNamedPipe` / POSIX `select`）：没有输入时立刻返回，
-   不再像早先那样 `sys.stdin.read()` 挂到超时。
+1. Read the event JSON from stdin (the client puts `cwd` in it).
+2. `--target` is an **absolute path** written at install time: cross-checked against the event `cwd`, and only mutual containment counts as the same library; outside that range **nothing is injected** and the reason is stated — so project A never injects project B's context.
+3. `--target .` (legacy config): trust the event `cwd` only, and it must look like a handoff library (has `00`/`05`).
+4. stdin is **probed before reading** (Windows `PeekNamedPipe` / POSIX `select`): with no input it returns immediately instead of hanging on `sys.stdin.read()` until timeout as before.
 
-## 5. 用法
+## 5. Usage
 
 ```bash
 KB="$HOME/.skills-manager/skills/handoff-kb"
-py "$KB/scripts/kb-hooks.py" install   --client claude --target .            # 预览（默认）
-py "$KB/scripts/kb-hooks.py" install   --client claude --target . --write     # 写盘
+py "$KB/scripts/kb-hooks.py" install   --client claude --target .            # preview (default)
+py "$KB/scripts/kb-hooks.py" install   --client claude --target . --write     # write
 py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 py "$KB/scripts/kb-hooks.py" run --client claude --event SessionStart --target . < event.json
 ```
 
-- `--plan` 与不带 `--write` 都只打印，不落盘。
-- 写盘前**双重预检**：`original_exists` + `sha_before` 都要与预览时一致。
-  只看哈希分不清「本来不存在」和「已存在但内容相同」，于是预览之后新建的用户文件
-  会被当成自己该建的文件覆盖掉——现在这种情形报 CONFLICT，不写。
-- **多文件安装是一个整体**：先对全部目标做预检，全部通过才逐个写；中途失败就把本轮
-  已写的文件恢复到预览前内容；若回滚时发现某文件被第三方改过，**保留现场**并报冲突，
-  不强行覆盖。（这是「预检 + 逐写 + 尽力回滚」，不是跨文件原子事务。）
-- 回滚本身也走**原子字节写**（临时文件 → `os.replace` → fsync 目录）：原来用
-  `write_bytes()` 直接盖，写到一半崩掉会把「本来完好的旧配置」变成半截文件。
-- 目标目录若是符号链接/Junction 指向库外，直接拒绝写入（`ERR … 目录不可用`）。
-- 现有 JSON 不合法时**拒绝改写**（退出码 2），不猜测、不吞掉你的配置。
-- 重复 `install` 幂等（同一事件只保留一条本工具的命令）；`uninstall` 幂等。
+- `--plan` and omitting `--write` both print only; nothing is written.
+- Double pre-check before writing: both `original_exists` and `sha_before` must match the preview. A hash alone cannot distinguish "did not exist" from "exists with identical content", so a user file created after preview would be overwritten as if this tool should create it — that case is now a CONFLICT and nothing is written.
+- **A multi-file install is one unit**: pre-check all targets, write only if all pass; on a mid-way failure, restore the files written in this round to their pre-preview content; if rollback finds a file changed by a third party, **preserve the scene** and report a conflict instead of forcing an overwrite. (This is "pre-check + sequential write + best-effort rollback", not a cross-file atomic transaction.)
+- Rollback itself uses **atomic byte writes** (temp file → `os.replace` → fsync the directory): it previously used `write_bytes()` directly, so a crash mid-write turned a previously intact config into a truncated file.
+- A target directory that is a symlink/junction escaping the library is refused (`ERR … 目录不可用`).
+- Invalid existing JSON is **never rewritten** (exit code 2); the tool neither guesses nor swallows your config.
+- Repeated `install` is idempotent (one command per event for this tool); `uninstall` is idempotent.
 
-## 6. 已知不确定点（按需核对官方文档）
+## 6. Known uncertainties (verify against official docs as needed)
 
-- Claude Code 的 `Stop` / `SessionEnd` 是否支持阻断、stdout 是否作为上下文注入，版本间有差异。
-- Codex 的 `hooks.json` 与 `config.toml` 两种来源**只启用一种**，别同时开；键名以其文档为准。
-- **信任机制**：非托管 Hook 需审阅并按当前 hash 信任；改配置后重新进入待审阅状态，未信任前跳过。
-  没被信任不是故障，降级为手动跑 CLI，功能不缺。
-- 上述文档结论只覆盖到 2026-11；客户端升级后以官方文档为准，本仓库不承诺字节级兼容。
+- Whether Claude Code's `Stop` / `SessionEnd` support blocking, and whether stdout is injected as context, varies between versions.
+- Codex `hooks.json` and `config.toml` are **mutually exclusive sources**; do not enable both. Key names follow its docs.
+- **Trust model**: non-managed hooks must be reviewed and trusted at their current hash; editing config returns them to pending review, and they are skipped until trusted. Not being trusted is not a failure — fall back to running the CLI manually; no functionality is lost.
+- The conclusions above cover up to 2026-11; after a client upgrade the official docs win, and this repository does not promise byte-level compatibility.
 
-> 本仓库做过的验证边界：**结构测试通过、模拟事件通过、真实客户端启动未验证。**
-> 六环境 CI 只跑 Python 单测与冒烟，不启动 Claude/Codex 客户端。
+> Verification boundary of this repository: **structure tests pass, simulated events pass, a real client start was not verified.**
+> The six-environment CI runs Python unit tests and smoke only; it does not launch Claude/Codex clients.
 
-## 7. 出问题怎么退
+## 7. Backing out
 
-1. `uninstall --write` 撤掉条目；
-2. 手动删 `.claude/settings.json` 里含 `kb-hooks.py` 的项；
-3. Hook 报错不影响会话（`run` 永远 0），需要诊断就直接跑同一条 `run` 命令看输出。
+1. `uninstall --write` removes the entries;
+2. or delete the items containing `kb-hooks.py` from `.claude/settings.json` by hand;
+3. a hook error never affects the session (`run` always exits 0); to diagnose, run the same `run` command manually and read the output.

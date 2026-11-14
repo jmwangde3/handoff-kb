@@ -1,0 +1,21 @@
+接手「{{PROJECT}}」的 [填：哪条线 / 什么任务]。工作目录 {{PROJECT_ROOT}}。
+
+工具在 handoff-kb 技能目录（真实目录一份，客户端目录里多为软链）：
+  KB="$HOME/.skills-manager/skills/handoff-kb"
+
+第一步：按 AGENTS.md 接手（唯一客户端无关入口）：
+  1) py "$KB/scripts/kb-context.py" --target . --task "<本次任务>" --budget 3000 --explain
+     —— 按预算给最小上下文：硬约束 → 现状 → 下一手 → 本线事实 → 证据指针
+  2) git status；git log --oneline -5
+  3) 需要细节时：kb-search.py 定位 → kb-outline.py --section-id 精读
+  4) 只读自检：sh scripts/handoff-check.sh
+事实基线在 00_基线.md（K-xx + 状态 + 证据），事实分册 10–17；流水在 06，深归档在 90，两者平时不读。
+
+收尾（不要整文件覆盖写）：
+  py "$KB/scripts/kb-write.py" read  --target . --file 05_进度仪表盘.md --json
+  py "$KB/scripts/kb-write.py" apply --target . --changes changes.json --dry-run
+  py "$KB/scripts/kb-write.py" apply --target . --changes changes.json
+  py "$KB/scripts/kb-handoff.py" check --target . --strict
+  git add -- <本次改的文件> && git commit -m "<线> <做了什么>"
+
+本次任务：[填]

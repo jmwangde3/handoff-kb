@@ -1,0 +1,11 @@
+# 06 · 流水分片 — runtime
+
+> append-only：只写本线（runtime）的记录，**不改别人的行**。
+> 每条 1–3 行：`[YYYY-MM-DD HH:MM] runtime <做了什么 → 下一手>`；超 3 行整条写本文件，`05` 只留摘要 + 指针。
+> **单分片**超 200 行 / 60 KB → 按主题折叠进 `90`，本文件只留标题 + 指针（触线再拆）。
+> 写回走 `kb-write.py apply`（`operation: append`），别整文件覆盖。
+
+<!-- kb:id: shard.log -->
+## 流水
+
+（尚无记录）

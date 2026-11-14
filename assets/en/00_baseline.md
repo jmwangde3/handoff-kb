@@ -1,0 +1,46 @@
+<!-- kb:schema: {{SCHEMA}} -->
+# 00 · Baseline — {{PROJECT}}
+
+> The single shared page: only **current values / invariants / criteria / commands**. Process evidence, verification snapshots and version archaeology go to `90`.
+> Every row carries a status and evidence; references cite IDs instead of restating values.
+
+<!-- kb:id: baseline.facts -->
+## 0. Baseline (K-xx)
+
+| ID | Item | Current value | Status | Evidence | Verified |
+|---|---|---|---|---|---|
+| K-01 | [fill] | [fill] | 有效 (valid) | [command/file/commit] | {{DATE}} |
+| K-02 | [fill] | [fill] | 待核 (unverified) | — | — |
+
+Field notes (missing fields are not errors; `--strict` reports them):
+
+- `status`: `有效` / `待核` / `已作废 → K-xx`. A superseded row **keeps its ID**, and the ID is never reused.
+- `evidence`: a reproducible source (command, file path, test name, commit).
+- `verified_at`: the last verification date; facts with `volatility: dynamic` may carry an expiry reminder (warning only by default).
+- `superseded_by`: which fact replaced it.
+- "The AI said it is done" is never evidence.
+
+<!-- kb:id: baseline.policy -->
+## 1. Policy and conventions
+
+- [fill: rules that must not be broken, e.g. "back up before changing config", "restart only inside the maintenance window"]
+
+<!-- kb:id: baseline.chains -->
+## 2. Cross-links (change A, must also change B)
+
+| Change here | Also touch | Criterion |
+|---|---|---|
+| [fill] | [fill] | [fill] |
+
+<!-- kb:id: baseline.rules -->
+## 3. Maintenance rules
+
+- Store current values only; process and one-off reviews go to `90`.
+- When `00` exceeds 150 lines or `K-xx` exceeds 30 entries, promote it to a conclusion index (`K-xx` + status column) instead of piling up.
+- Every new fact needs evidence; without evidence write `待核`, never present it as confirmed.
+
+<!-- kb:id: baseline.paths -->
+## 4. Where material lives
+
+- Project root: `{{PROJECT_ROOT}}`
+- Deep archive: `90_过程档案.md`; one-off task sheets: `归档/`

@@ -1,102 +1,85 @@
-# handoff-kb 2.0 协议
+# handoff-kb 2.0 Protocol
 
-> 这份文件是**契约**，不含项目事实。脚本、模板、测试都以此为准；改协议要同时改
-> `scripts/lib/protocol.py`、`assets/`、`tests/` 与本文件。
+> This file is a **contract**. It contains no project facts. Scripts, templates and tests follow it;
+> any protocol change must update `scripts/lib/protocol.py`, `assets/`, `tests/` and this file together.
 
-## 1. 版本与兼容
+Chinese edition: `protocol-v2.zh-CN.md`.
 
-| 项 | v1 | v2 |
+## 1. Version and compatibility
+
+| Item | v1 | v2 |
 |---|---|---|
-| schema 标记 | 无 | 文件首行 `<!-- kb:schema: 2 -->` |
-| 事实分册 | `01–08`（与 `05`/`06` 撞号） | 新建 `10–17`；旧 `01–04` 继续合法 |
-| 章节定位 | 标题文字 / 序号 | `<!-- kb:id: ... -->`，旧接口保留 |
-| 写入 | 人工追加 | 全量 `sha256` + 锁 + 事务 |
-| 哈希 | 12 位文本短哈希 | 写入用 64 位；短哈希仅作兼容读取 |
+| Schema marker | none | first line of the file: `<!-- kb:schema: 2 -->` |
+| Fact shards | `01–08` (collides with `05`/`06`) | `10–17`; legacy `01–04` remain valid |
+| Section addressing | heading text / ordinal | `<!-- kb:id: ... -->`, legacy lookups kept |
+| Writes | manual append | full `sha256` + lock + transaction |
+| Hashing | 12-char text short hash | 64-hex for writes; short hash only for compatible reads |
 
-旧库无需改名即可被 v2 工具读取（`kb-check.py --loose`），`kb-migrate.py` 只做增量标注。
+A legacy library needs no renaming to be read by v2 tools (`kb-check.py --loose`); `kb-migrate.py` only adds annotations.
 
-## 2. 文件角色与保留编号
+## 2. File roles and reserved numbers
 
-| 编号 | 角色 | 规范名 | 说明 |
+| Number | Role | Canonical name | Notes |
 |---|---|---|---|
-| — | 入口 | `AGENTS.md` + `CLAUDE.md` / `GEMINI.md` | 只写规则，不写当前值 |
-| `00` | 基线 | `00_基线.md`（`00_baseline.md`） | 唯一共享页：`K-xx` + 状态 + 证据 |
-| `05` | 现状 | `05_进度仪表盘.md` | 接手必读，禁膨胀 |
-| `06` | 流水 | `06_会话日志.md` + `06_流水/<线>.md` | 历史卷只读；分片一写者一文件 |
-| `10–17` | 事实分册 | `10_<线>.md` … `17_<线>.md` | 最多 8 条线 |
-| `01–04` | 旧事实分册 | 原文件名 | 兼容读取，不迁移改名 |
-| `90` | 归档 | `90_过程档案.md` | 非必读 |
+| — | Entry | `AGENTS.md` + `CLAUDE.md` / `GEMINI.md` | Rules only, never current values |
+| `00` | Baseline | `00_基线.md` (`00_baseline.md`) | Single shared page: `K-xx` + status + evidence |
+| `05` | State | `05_进度仪表盘.md` | Required on handoff; must not bloat |
+| `06` | Log | `06_会话日志.md` + `06_流水/<line>.md` | History volume read-only; one writer per shard |
+| `10–17` | Fact shards | `10_<line>.md` … `17_<line>.md` | At most 8 workstreams |
+| `01–04` | Legacy fact shards | original filenames | Read-compatible; never renamed by migration |
+| `90` | Archive | `90_过程档案.md` | Not required reading |
 
-角色判定只看文件名（`scripts/lib/protocol.py: role_of_name`）。体积统计与检索默认跳过
-`AI_files/`、`assets/`、`data/`、`output/`、`evidence/`、`paktools/`、`build/`、`dist/`、
-`vendor/`、`tmp/`、`node_modules/`、`.git`、`.kb-txn`、`.kb.lock`、`unpack/`、`_tmp/`、
-`.trash/`，以及 >2 MB 的文本。
+Role detection uses the file name only (`scripts/lib/protocol.py: role_of_name`). Size accounting and search skip `AI_files/`, `assets/`, `data/`, `output/`, `evidence/`, `paktools/`, `build/`, `dist/`, `vendor/`, `tmp/`, `node_modules/`, `.git`, `.kb-txn`, `.kb.lock`, `unpack/`, `_tmp/`, `.trash/`, and any text file larger than 2 MB.
 
-**AI 客户端目录也默认跳过**：`.workbuddy`、`.shared`、`.codex`、`.qoder`、`.trae`、
-`.claude`、`.cursor`、`.gemini`、`.aider`、`.continue`、`.windsurf`、`.agents`、`.kiro`、
-`.zed`、`.junie`。这些目录里的 md 是 agent 工作日志和项目索引卡，不是交接正文；
-进去检索会拿到「某天做过什么」，把分册结论挤出预算。`.workbuddy/memory` 常是指向
-`.shared/memory` 的软链，同一份内容还会被算两遍、命中分翻倍。
+**AI client directories are skipped too**: `.workbuddy`, `.shared`, `.codex`, `.qoder`, `.trae`, `.claude`, `.cursor`, `.gemini`, `.aider`, `.continue`, `.windsurf`, `.agents`, `.kiro`, `.zed`, `.junie`. Markdown there is agent work logs and project index cards, not handoff body text; searching them returns "what happened on some day" and pushes shard conclusions out of the budget. `.workbuddy/memory` is often a symlink to `.shared/memory`, so the same content would be counted twice and hit scores doubled.
 
-### 2.1 自有命名（`--loose`）
+### 2.1 Custom naming (`--loose`)
 
-老项目不必改名也能被读：`--loose` 下按**别名**认固定层，语义与标准命名完全等价。
+Legacy projects need no renaming: under `--loose`, fixed layers are recognized by **alias**.
 
-| 角色 | 标准 | 别名（正则作用在文件名上，忽略大小写） |
+| Role | Canonical | Alias (regex on file name, case-insensitive) |
 |---|---|---|
-| 基线 | `00_基线.md` | 含 `INDEX` / `索引` / `baseline` / `基线` |
-| 现状 | `05_进度仪表盘.md` | 含 `进度` / `现状` / `dashboard` / `status` |
-| 流水 | `06_会话日志.md` | 含 `流水` / `日志` / `log` / `handoff` |
-| 归档 | `90_过程档案.md` | 含 `归档` / `archive` |
-| 流水分片目录 | `06_流水/` | 目录名匹配 `^(\d{2,3}[_\- ]?)?(流水|会话流水|shards?|sessions?)$`，如 `60_流水/` |
-| 归档目录 | `归档/` | 目录名匹配 `^(\d{2,3}[_\- ]?)?(归档|旧档|历史|archive|archived)$`，如 `90_归档/` |
+| Baseline | `00_基线.md` | contains `INDEX` / `索引` / `baseline` / `基线` |
+| State | `05_进度仪表盘.md` | contains `进度` / `现状` / `dashboard` / `status` |
+| Log | `06_会话日志.md` | contains `流水` / `日志` / `log` / `handoff` |
+| Archive | `90_过程档案.md` | contains `归档` / `archive` |
+| Log shard dir | `06_流水/` | dir matches `^(\d{2,3}[_\- ]?)?(流水|会话流水|shards?|sessions?)$`, e.g. `60_流水/` |
+| Archive dir | `归档/` | dir matches `^(\d{2,3}[_\- ]?)?(归档|旧档|历史|archive|archived)$`, e.g. `90_归档/` |
 
-同时命中多个时**标准名优先**（`role_files()` 里显式择优），不会因为多了一个 `60_进度.md`
-就把 `05_进度仪表盘.md` 挤掉。`06_流水/` 与 `60_流水/` 同时存在时两个都收，且同一目录不会重复收录。
+When several match, the **canonical name wins** (`role_files()` picks explicitly), so an extra `60_进度.md` never displaces `05_进度仪表盘.md`. If both `06_流水/` and `60_流水/` exist, both are collected, without duplicates.
 
-**事实线兜底**：别名判完之后，`--loose` 下任何 `NN_xxx.md`（编号不在保留位 `00/05/06/90`）
-都当事实分册——自有命名项目常用 `20_数据与解包.md` / `30_mod开发.md` / `50_死路与坑.md`
-承载 D/M/O/X 条目，它们和 `10–17` 一样参与 P2 装配与事实解析。别名先判，所以
-`60_进度.md`（dashboard）、`61_流水.md`（log）不会被吞成 fact。标准命名不受影响。
+**Fact-shard fallback**: after alias matching, under `--loose` any `NN_xxx.md` whose number is not reserved (`00/05/06/90`) is treated as a fact shard — custom-naming projects commonly use `20_数据与解包.md` / `30_mod开发.md` / `50_死路与坑.md` for D/M/O/X entries, and these take part in P2 assembly and fact parsing exactly like `10–17`. Aliases match first, so `60_进度.md` (dashboard) and `61_流水.md` (log) are not swallowed as facts. Canonical naming is unaffected.
 
-编号只是入场券，不是判决：`20_会议记录.md` / `40_临时测试.md` 这类散文在
-`--loose` 下同样被收进来，但**内容里没有一条条事实**，按候选分册处理（P2 不当工作线、
-P4 权重 0.5、缺口里明说「当线索读」）。判据在 `facts.fact_confidence()`，
-`01–04` 与 `10–17` 是协议指定的事实位，不参与这套降级——它们缺 `fact.*` 章节是写法问题。
-反过来，标题就是 `G-001` 的单事实分册算结构化：一条也是事实，不是散文。
+A number is an entry ticket, not a verdict: prose files such as `20_会议记录.md` / `40_临时测试.md` are still collected under `--loose`, but since they contain no fact entries they are treated as candidate shards (not a workstream in P2, weight 0.5 in P4, and the gap says "read as leads"). The criterion lives in `facts.fact_confidence()`; `01–04` and `10–17` are protocol-designated fact positions and never take this downgrade — missing `fact.*` sections there is a writing problem. Conversely, a single-fact shard whose heading is `G-001` counts as structured: one fact is still a fact, not prose.
 
-## 3. 章节 ID
+## 3. Section IDs
 
 ```markdown
 <!-- kb:id: dashboard.current -->
 ## 0. 现状
 ```
 
-- 格式：`[A-Za-z0-9][A-Za-z0-9_.:-]*`；建议 `<域>.<节>`，如 `dashboard.next`、`fact.pitfalls`。
-- 绑定：注释必须**紧邻**标题，中间只允许空行；注释写在代码围栏里不算。
-- 唯一性：同一文件内不得重复（`kb-check.py` 报 ERR）。
-- 解耦：ID 与标题文字、行号无关；改标题、插新节都不影响引用。
-- 保留 ID（工具依赖）：`dashboard.current`、`dashboard.next`、`dashboard.lines`、
-  `dashboard.todo`、`dashboard.constraints`（或 `dashboard.safety`）、`dashboard.summary`、
-  `baseline.facts`、`baseline.policy`、`baseline.chains`、`baseline.rules`、
-  `fact.current`、`fact.commands`、`fact.pitfalls`、`fact.refs`。
-- 缺失 ID 时工具退回标题/序号匹配，但**不保证**跨会话稳定；`kb-check.py` 会给 WARN。
+- Format: `[A-Za-z0-9][A-Za-z0-9_.:-]*`; the convention is `<domain>.<section>`, e.g. `dashboard.next`, `fact.pitfalls`.
+- Binding: the comment must be **adjacent** to the heading, only blank lines between; inside a code fence it does not count.
+- Uniqueness: no duplicates within a file (`kb-check.py` reports ERR).
+- Decoupling: an ID is independent of heading text and line numbers; renaming or inserting sections never breaks references.
+- Reserved IDs (tool-dependent): `dashboard.current`, `dashboard.next`, `dashboard.lines`, `dashboard.todo`, `dashboard.constraints` (or `dashboard.safety`), `dashboard.summary`, `baseline.facts`, `baseline.policy`, `baseline.chains`, `baseline.rules`, `fact.current`, `fact.commands`, `fact.pitfalls`, `fact.refs`.
+- When an ID is missing, tools fall back to heading/ordinal matching but **do not guarantee** stability across sessions; `kb-check.py` reports WARN.
 
-## 4. 事实元数据（`00` 基线表）
+## 4. Fact metadata (the `00` baseline table)
 
-| 列 | 含义 | 取值 |
+| Column | Meaning | Values |
 |---|---|---|
-| `ID` | 事实编号 | `K-01` / `G-007`，作废也保留、永不复用 |
-| `状态` | 当前可信度 | `有效` / `待核` / `已作废 → K-xx` |
-| `证据` | 可复现来源 | 命令 / 文件路径 / 测试名 / commit |
-| `核实时间` | 最后核实 | `YYYY-MM-DD`；超 `--max-age-days`（默认 90）只告警 |
+| `ID` | Fact number | `K-01` / `G-007`; kept when superseded, never reused |
+| `状态` | Current trust | `有效` / `待核` / `已作废 → K-xx` |
+| `证据` | Reproducible source | command / file path / test name / commit |
+| `核实时间` | Last verified | `YYYY-MM-DD`; older than `--max-age-days` (default 90) only warns |
 
-可选字段：`owner`（归属线）、`volatility`（`stable` / `dynamic`）、`superseded_by`。
+Optional fields: `owner` (owning workstream), `volatility` (`stable` / `dynamic`), `superseded_by`.
 
-规则：`有效` 但证据为空 → `kb-check.py` WARN、`kb-handoff.py` 判「待核」；
-**不允许**把「AI 说已经完成」当证据；超期不自动改值，只提醒。
+Rules: `有效` with empty evidence → `kb-check.py` WARN and `kb-handoff.py` grades it unverified; **"the AI said it is done" is never evidence**; exceeding the age limit never rewrites the value, it only warns.
 
-## 5. `changes.json`（写入协议）
+## 5. `changes.json` (write protocol)
 
 ```json
 {
@@ -104,148 +87,102 @@ P4 权重 0.5、缺口里明说「当线索读」）。判据在 `facts.fact_con
   "updates": [
     {"path": "05_进度仪表盘.md", "expected_sha256": "<64 hex>",
      "operation": "replace_section", "section_id": "dashboard.current",
-     "content": "<新正文>"},
+     "content": "<new body>"},
     {"path": "06_流水/固件.md", "expected_sha256": "<64 hex>",
-     "operation": "append", "content": "<追加内容>"},
+     "operation": "append", "content": "<appended content>"},
     {"path": "00_基线.md", "expected_sha256": "<64 hex>",
-     "operation": "update_fact", "fact_id": "K-02", "content": "<新表格行>"}
+     "operation": "update_fact", "fact_id": "K-02", "content": "<new table row>"}
   ]
 }
 ```
 
-| 操作 | 语义 | 必需字段 |
+| Operation | Semantics | Required fields |
 |---|---|---|
-| `replace_section` | 替换该 ID 章节的正文；`content` 首行若是标题则连标题一起换 | `section_id`、`content` |
-| `append` | 文件末尾追加，前置一个空行 | `content` |
-| `update_fact` | 定位事实定义位（标题 / 列表 / 表格）并整行替换；找不到即报错，不新增 | `fact_id`、`content` |
+| `replace_section` | Replace the body of that ID's section; if `content` starts with a heading, the heading is replaced too | `section_id`, `content` |
+| `append` | Append at end of file, preceded by one blank line | `content` |
+| `update_fact` | Locate the fact definition (heading / list / table) and replace the whole line; if not found it errors instead of inserting | `fact_id`, `content` |
 
-硬性校验：`schema_version == 1`；`expected_sha256` 必须 64 位；路径必须是工作区内相对路径、
-扩展名 `.md`/`.txt`、不含 `..`、不越符号链接；所有 update 先全部校验通过才写第一个字节。
+Hard validation: `schema_version == 1`; `expected_sha256` must be 64 hex; paths must be relative to the workspace root, extension `.md`/`.txt`, without `..`, without crossing symlinks; all updates are validated before the first byte is written.
 
-**事实定义位**（`update_fact` 与 `kb-check` 共用 `lib/facts.py`）：
+**Fact definition positions** (shared by `update_fact` and `kb-check` via `lib/facts.py`):
 
-| 形式 | 写法 | 说明 |
+| Form | Example | Notes |
 |---|---|---|
-| 标题 | `## K-01 固件版本` | 章节标题的第一个词就是 ID |
-| 列表 | `- K-01：固件 21.02` 或 `- **K-01** 固件 21.02` | 冒号可省，冒号后是描述 |
-| 表格 | `| K-01 | 项 | 值 |` | 表格**首列**为 ID |
+| Heading | `## K-01 固件版本` | the first token of the heading is the ID |
+| List | `- K-01：固件 21.02` or `- **K-01** 固件 21.02` | the colon is optional; text after it is the description |
+| Table | `| K-01 | 项 | 值 |` | the **first column** is the ID |
 
-代码围栏里的同样文本**不算**定义。定义行里提到的其它 ID 算引用（如 `已作废 → K-04`）。
-`update_fact` 遇到同一文件里同一个 ID 有**多处**定义时拒绝改写（歧义），不猜。
+The same text inside a code fence is **not** a definition. Other IDs mentioned on a definition line are references (e.g. `已作废 → K-04`). When one ID has **multiple** definitions in a file, `update_fact` refuses to write (ambiguous) rather than guessing.
 
-## 6. 哈希、锁、事务
+## 6. Hashing, locking, transactions
 
-- **哈希**：`sha256(file bytes)`；`kb-write read` 返回全量值，`kb-outline --hash` 兼容
-  12 位文本短哈希（前缀匹配）。
-- **锁**：`<root>/.kb.lock/`（原子 `mkdir` + `meta.json`，含 `owner_token`(uuid4)、`pid`、
-  `host`、`process_start`、`created`、`session`）。规则：
-  - 活进程 → 等待至超时（`KB_LOCK_TIMEOUT`，默认 5s）后 `LockHeld`，报错里带对方的 pid/host/session；
-  - 死进程 **且同机** → `os.rename` 隔离成 `.kb.lock.reclaim-<uuid>` → 复核 `owner_token` → 才删；
-  - `pid` 活着但 `process_start` 不同（PID 复用）→ 视为原进程已退出，可回收；
-  - `meta.json` 缺失/损坏 → **不抢占**，要求人工确认；
-  - `release()` 校验 `owner_token` 与 `pid`，锁已被别人接管时**拒绝删除**并报 `LockOwnershipError`；
-  - 显式解锁 `kb-write.py recover --break-lock`（默认只预览），`--force` 才真删，删前重验 token。
-- **事务**：`<root>/.kb-txn/`（`journal.json` + `backup/`）。状态机
-  `created → prepared → applying → committed`，失败走 `rolling_back → rolled_back | rollback_conflict`。
-  1) 全部预检（严格 UTF-8、路径、哈希、重复路径）→ 2) 字节级备份 + `backup_sha256`
-  → 3) 写 journal(`prepared`，含 checksum) → 4) 逐个原子替换并回写条目状态
-  → 5) `committed` → 6) 删除事务目录；任一步失败按备份回滚并标 `rolled_back`。
-- **journal schema 2**：带 `checksum`（去掉 checksum 后 `sort_keys` 序列化再 `sha256`）。
-  checksum 不符 / schema 不支持 / 状态非法 → 判为**不可信**，`recover` 只报告
-  `manual-recovery-required`，事务目录与备份**原样保留**，绝不 `rmtree`。
-- **恢复**：`recover` 逐文件比对当前哈希与 journal 的 `sha_before` / `sha_after`：
-  - `now == sha_after` → 已写入，回滚时写回备份；
-  - `now == sha_before` → 没动过，跳过；
-  - 其它 → `changed-by-others`，**不覆盖**，整体转人工。
-  备份哈希不匹配 → `backup-corrupt`，同样保留现场。
-  `recover` 同时认 `.kb-txn/journal.json`（正在进行的现场）与 `.kb-txn/<id>/journal.json`。
-- **原子性边界**：多个 `os.replace()` 不是跨文件原子事务。协议承诺的是
-  「全量预检 + 备份 + 失败回滚 + 崩溃后检测」，Git 仍是最终审计与回滚手段。
+- **Hashing**: `sha256(file bytes)`; `kb-write read` returns the full value, `kb-outline --hash` accepts the legacy 12-char text short hash (prefix match).
+- **Lock**: `<root>/.kb.lock/` (atomic `mkdir` + `meta.json` with `owner_token`(uuid4), `pid`, `host`, `process_start`, `created`, `session`). Rules:
+  - live process → wait until timeout (`KB_LOCK_TIMEOUT`, default 5s), then `LockHeld` with the peer's pid/host/session in the message;
+  - dead process **on the same host** → `os.rename` to `.kb.lock.reclaim-<uuid>` → re-check `owner_token` → only then delete;
+  - `pid` alive but a different `process_start` (PID reuse) → treat as exited and reclaimable;
+  - missing or corrupt `meta.json` → **do not seize**, require manual confirmation;
+  - `release()` verifies `owner_token` and `pid`; if another process took over the lock, it **refuses to delete** and raises `LockOwnershipError`;
+  - explicit unlock is `kb-write.py recover --break-lock` (preview by default), `--force` actually deletes and re-verifies the token first.
+- **Transaction**: `<root>/.kb-txn/` (`journal.json` + `backup/`). State machine `created → prepared → applying → committed`; failure goes `rolling_back → rolled_back | rollback_conflict`. Order: 1) full pre-checks (strict UTF-8, paths, hashes, duplicate paths) → 2) byte-level backup + `backup_sha256` → 3) write journal (`prepared`, with checksum) → 4) atomic replace one by one, writing back each entry's state → 5) `committed` → 6) delete the transaction directory; any failure rolls back from backups and marks `rolled_back`.
+- **Journal schema 2**: carries `checksum` (serialize with `sort_keys` after removing the checksum, then `sha256`). Checksum mismatch, unsupported schema or illegal state makes the journal **untrusted**: `recover` reports `manual-recovery-required` and keeps the transaction directory and backups **exactly as they are** — never `rmtree`.
+- **Recovery**: `recover` compares each file's current hash against `sha_before` / `sha_after`:
+  - `now == sha_after` → already written; rollback restores the backup;
+  - `now == sha_before` → untouched, skip;
+  - anything else → `changed-by-others`, **do not overwrite**, escalate to manual handling.
+  A backup whose hash does not match is `backup-corrupt`, and the scene is preserved likewise. `recover` accepts both `.kb-txn/journal.json` (in-flight) and `.kb-txn/<id>/journal.json`.
+- **Atomicity boundary**: several `os.replace()` calls are not a cross-file atomic transaction. The protocol promises full pre-checks, backups, rollback on failure and post-crash detection; git remains the final audit and rollback mechanism.
 
-## 7. 上下文装配（`kb-context`）
+## 7. Context assembly (`kb-context`)
 
-| 优先级 | 内容 | 预算不足时 |
+| Priority | Content | When the budget is short |
 |---|---|---|
-| P0 | `dashboard.constraints` / `dashboard.safety`（缺失时退回 `AGENTS.md` 硬约束段） | **保留**，并报超额 |
-| P1 | `dashboard.current`、`dashboard.next` | 保留 |
-| P2 | `fact.current`（+ 排障类任务加 `fact.commands` / `fact.pitfalls`） | 可跳过并记入 `skipped` |
-| P3 | 基线命中行、证据指针、`baseline.chains`（跨线或问「影响」时） | 可跳过 |
-| P4 | 其余按相关度（≤ 预算 30% 且 ≤3 块；流水 ×0.4、归档 ×0.3、其他 ×0.5） | 可跳过 |
+| P0 | `dashboard.constraints` / `dashboard.safety` (fallback: the `AGENTS.md` hard-constraints section) | **kept**, and the overrun is reported |
+| P1 | `dashboard.current`, `dashboard.next` | kept |
+| P2 | `fact.current` (plus `fact.commands` / `fact.pitfalls` for troubleshooting tasks) | may be skipped and recorded in `skipped` |
+| P3 | matched baseline rows, evidence pointers, `baseline.chains` (cross-line or "impact" questions) | may be skipped |
+| P4 | the rest by relevance (≤30% of budget and ≤3 blocks; log ×0.4, archive ×0.3, other ×0.5) | may be skipped |
 
-P4 的候选筛选有三道硬闸，都是实测踩出来的：
+P4 candidate filtering has three hard gates, each earned from a real failure:
 
-- **只按自有正文打分**。section 是「到下一个同级标题为止」，父节 body 天然包含所有
-  子节；按 body 算命中数，父节必 ≥ 子节、永远排前面，装进来的却是整棵子树。
-  打分与「空壳」判定只用标题到下一个任意级标题之间的内容，输出仍是整节。
-  例外：子树里含作废事实的容器节保留——「本节省略了 N 条」只有它能表达。
-- **跳过文件导语的重复部分**。第一个 `level==1` 节装的是「本文件讲什么」和适用版本，
-  整份分册的主题词都在里面，按命中个数排序必进前三。但它不是无条件丢：子节关键词集合
-  覆盖 h1 **且** h1 自有正文逐句比对后没有子节没提的内容时才丢；h1 里有子节没有的内容
-  （否定结论、入口指引）就保留。任务相关的短句（`只读`）不按字符数忽略；导语与事实
-  混在一句时（`适用版本 2.0，生产环境禁止写入`）只剥导语那半，禁令仍参与判断。
-- **跳过只含标题的空壳节**（自有正文为空且子树里没有作废事实）。例外是
-  **小分册兜底**：容器节子树里一个够格的节都没有、且整节 ≤ 600 tok 时整节参赛。
-  否则 1–2 KB 的分册会整条线消失（父节是空壳、子节各只命中一个词）。
+- **Score against the section's own body only.** A section runs "to the next heading of the same level", so a parent's body naturally contains all children; scoring on that body makes every parent outrank its children while pulling in the whole subtree. Scoring and "empty shell" detection use only the content between the heading and the next heading of any level; output is still the whole section. Exception: a container section whose subtree holds superseded facts is kept — only it can say "N entries omitted here".
+- **Skip the duplicated part of a file preamble.** The first `level==1` section holds "what this file is about" and the applicable version, so every topic word of the shard is in it and it always ranks top by hit count. It is not dropped unconditionally: it is dropped only when the child keyword set covers the h1 **and** a sentence-by-sentence comparison finds nothing in the h1's own body that the children omit. If the h1 holds something the children do not (negative conclusions, entry pointers), it stays. Task-relevant short phrases (`只读`) are not ignored by character count; when preamble and fact share one sentence (`适用版本 2.0，生产环境禁止写入`), only the preamble half is stripped and the prohibition still participates.
+- **Skip heading-only shells** (empty own body and no superseded facts in the subtree). Exception: the **small-shard fallback** — if no qualifying section exists anywhere in a container's subtree and the section is ≤600 tok, it competes as a whole. Otherwise a 1–2 KB shard disappears entirely (parent is a shell, children each hit only one word).
 
-权重阶梯：结构内正文（`fact` / `baseline` / `dashboard`）1.0，流水与分片 0.4，
-归档 0.3，其余（`other`：入口文件、一次性发布稿、检索记录、覆盖率矩阵）0.5。
-`other` 曾经也是 1.0，结果一份 62 KB 的检索记录能从任何任务里命中几个词，
-凭体积压过分册条目，占掉 P4 只有 3 个的名额。
+Weight ladder: structural body (`fact` / `baseline` / `dashboard`) 1.0, log and shards 0.4, archive 0.3, everything else (`other`: entry files, one-off release notes, search records, coverage matrices) 0.5. `other` used to be 1.0, and a 62 KB search record could hit a few words for any task and outrank shard entries by sheer size, taking one of P4's three slots.
 
-**候选分册**（`--loose` 下编号像分册、内容不像）：判据是内容，按证据强度分两档——
+**Candidate shards** (under `--loose`, numbered like a shard but not shaped like one) are judged by content, in two evidence tiers:
 
-- 强证据：**标题位置就是事实 ID**（`## G-001 当前 MTU` / `### D-011 …`），**一条即算**
-  `structured`。刚建线、只核了一个值的分册是合法状态，不该因为没凑够两条被判成散文。
-- 弱证据：列表项 / 表格首列 / 正文里提到编号，可能只是举例，仍要 **≥2 条**；
-  另有 `fact.*` 章节 ID 时直接算结构化。
+- strong evidence: **the heading itself is a fact ID** (`## G-001 当前 MTU` / `### D-011 …`) — **one is enough** for `structured`. A newly created line with a single verified value is a legitimate state and must not be graded as prose for lacking a second entry.
+- weak evidence: list items / first table column / IDs mentioned in prose may just be examples — still requires **≥2**; a `fact.*` section ID also counts as structured.
 
-其余按 `fact-candidate` 处理：P2 不当工作线装（那里没有事实节），P4 权重 0.5，
-缺口写明「从候选分册补入 N 节：只有编号、没有事实条目，当线索读」。
-判据里没有任何具体项目的文件名，换一个自有命名项目不用改代码。
+Everything else becomes `fact-candidate`: not assembled as a workstream in P2 (there are no fact sections there), weight 0.5 in P4, and the gap states "added N sections from candidate shards: numbers only, no fact entries, read as leads". No project-specific filename appears in the criteria, so another custom-naming project needs no code change.
 
-**`--line` 的兜底**：显式指定工作线时，如果该分册没有 `fact.current` / `fact.commands` /
-`fact.pitfalls`，直接取它自己的事实节（标题即事实 ID，最多 3 节，按任务关键词排序）。
-否则自有命名项目里 `--line 数据与解包` 会 0 块——点名了一条线却什么都没给。
-仅在**显式 `--line`** 时启用；任务里顺带提到线名不走这条路，避免把整节倒进上下文
-挤掉 `baseline.chains` 这类跨线结论。
+**`--line` fallback**: when a workstream is named explicitly and its shard has no `fact.current` / `fact.commands` / `fact.pitfalls`, take its own fact sections (heading is the fact ID, at most 3, ordered by task keywords). Otherwise `--line 数据与解包` in a custom-naming project returns 0 blocks — a line was named and nothing was delivered. This applies only to an **explicit `--line`**; a line name merely mentioned inside the task does not take this path, which keeps a whole section from flushing out cross-line conclusions such as `baseline.chains`.
 
-P4 的 `used_sources` 按相对路径比对，不是文件名：`source` 字段只存文件名给人看，
-子目录里的同名文件会被判成「没用过」而重复装载。另有一道内容哈希去重：
-同一段文字换个路径再来（软链、复制件）不再装第二遍。
+P4's `used_sources` compares relative paths, not file names: the `source` field stores only the file name for humans, so same-named files in subdirectories would be judged unused and loaded twice. A content-hash dedupe additionally prevents the same text arriving by another path (symlink, copy) from being loaded twice.
 
-**补入 ≠ 整线加载**：P2 按线名命中，任务里没线名就空并报缺口；P4 随后按内容补进该线的
-一两节，那条缺口会撤回——但不能让人以为整条工作线都进来了。撤回之后必须补一句边界：
-`P4 只补入 N 个事实节（…）：节级补充，不等于该工作线已完整加载；整线用 --line`。
-预算挤掉时说法不同：`已选中但总预算装不下` / `超过 P4 预算占比`，不能说成「已补入」。
+**Added ≠ whole line loaded**: P2 matches by line name, so a task without a line name leaves it empty and reports a gap; P4 then adds one or two sections of that line by content and the gap is withdrawn — but nobody should conclude the whole workstream came in. After withdrawal the boundary must be stated: `P4 added N fact sections (…): section-level supplement, not a complete load of that workstream; use --line for the whole line`. When the budget drops it, the wording differs: `selected but does not fit the total budget` / `exceeds the P4 budget share` — never "added".
 
-- **多工作线**：`--line 固件,运行态`，或任务里点名多条线时全部加载；只命中关键词时取最高分一条。
-- 预算按**最终渲染文本**收敛：包装（标题 / 来源 / 理由 / 缺口 / 指针）都计入。
-  装不下的线写进 `omitted_lines` 与 `gaps`（「工作线「X」的相关事实未加载…」），
-  没有事实节的线单独说明（「没有 fact.current…」），**不把「没写」说成「预算不够」**。
-- 默认预算 3000；`--format json` 输出 `blocks / skipped / gaps / used / over_budget /
-  selected_lines / omitted_lines / block_tokens / rendered_tokens / required_tokens / exact /
-  p4 / p4_facts / p4_candidates / deduped`。`p4_facts` 只收真事实分册的节，`p4_candidates`
-  收候选分册（只有编号、没有事实条目）的节——消费方不必猜哪条是核实过的。
-- 每个 block 带 `text_sha`（正文 sha256 前 12 位）：JSON 里 blocks 不带正文，要判断
-  「同一段被装两遍」还是「一节按用途拆两块」只能靠它。
-- `deduped` 列出被内容去重跳过的块与 `kept_in`（保留在哪一块）。只在保留的那份真的进了
-  上下文时才列出——那一份也被预算裁掉时，这段内容其实没进来，报「已去重」会误导。
-- `context` 的键是 `section_id`；同一 ID 出现多块（基线命中 + 证据指针）时自动加后缀，不互相覆盖。
-- 找不到任何命中 → `gaps` 说明，**不虚构**。
-- token：`heuristic`（CJK 1 字≈1 token，其余 4 字符≈1 token）默认；`tiktoken` 可用时标注编码器名。
-  指定了 `tiktoken` 编码器却装不上 → 退出 2，必须显式 `--allow-tokenizer-fallback` 才降级（`exact: false`）。
+- **Multiple workstreams**: `--line 固件,运行态`, or all lines named in the task are loaded; keyword-only matches take the single highest score.
+- The budget converges on the **final rendered text**: wrappers (headings / sources / reasons / gaps / pointers) all count. Lines that do not fit go to `omitted_lines` and `gaps` ("relevant facts of workstream X were not loaded…"); a line with no fact sections is explained separately ("no fact.current…"). **Never describe "not written" as "budget too small".**
+- Default budget 3000; `--format json` outputs `blocks / skipped / gaps / used / over_budget / selected_lines / omitted_lines / block_tokens / rendered_tokens / required_tokens / exact / p4 / p4_facts / p4_candidates / deduped`. `p4_facts` holds sections from real fact shards; `p4_candidates` holds sections from candidate shards (numbers only, no fact entries) so consumers need not guess what was verified.
+- Every block carries `text_sha` (first 12 hex of the body sha256): JSON blocks carry no body, so this is the only way to tell "same passage loaded twice" from "one section split into two blocks by purpose".
+- `deduped` lists content-deduped blocks and their `kept_in`. It is listed only when the kept copy actually entered the context — if that copy was also trimmed by the budget, the content never arrived and reporting "deduped" would mislead.
+- Keys of `context` are `section_id`; when one ID yields several blocks (baseline hit + evidence pointer) suffixes are added automatically, so they never overwrite each other.
+- No hit at all → explain in `gaps`; **never invent**.
+- Tokens: `heuristic` (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) by default; when tiktoken is available the encoder name is recorded. A requested tiktoken encoder that cannot be installed → exit 2; only an explicit `--allow-tokenizer-fallback` degrades (`exact: false`).
 
-## 8. 退出码
+## 8. Exit codes
 
-| 码 | 含义 |
+| Code | Meaning |
 |---|---|
-| 0 | 成功 / 无缺失（`--strict` 下 WARN 也返回 1） |
-| 1 | 校验失败、冲突、待核、预算超额、有 ERR |
-| 2 | 用法或环境错误（目标不存在、路径非法、参数冲突） |
+| 0 | success / nothing missing (under `--strict`, a WARN also returns 1) |
+| 1 | validation failure, conflict, unverified item, budget overrun, any ERR |
+| 2 | usage or environment error (missing target, illegal path, conflicting arguments) |
 
-`kb-hooks.py run` 例外：**永远 0**，Hook 不得破坏会话。
+`kb-hooks.py run` is the exception: **always 0**. A hook must never break a session.
 
-## 9. 明确不做
+## 9. Explicitly out of scope
 
-向量库 / SQLite 索引 / embedding / MCP 常驻 / 多项目中心 / 知识图谱 / 云同步 /
-自动 LLM 总结 / 自动提交 / 修改全局配置。规模上限靠机制（git + 阈值）守，不靠纪律。
+Vector stores / SQLite indexes / embeddings / long-running MCP / multi-project hub / knowledge graph / cloud sync / automatic LLM summarization / automatic commits / global config edits. Scale limits are held by mechanisms (git + thresholds), not by discipline.

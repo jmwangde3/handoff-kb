@@ -1,0 +1,68 @@
+<!-- kb:schema: {{SCHEMA}} -->
+# 05 · Progress Dashboard — {{PROJECT}}
+
+> **Required on handoff, must not bloat.** The only place where every session synchronizes state: reading this one file tells you where each line stands and what the next step is.
+> The full log lives in `06_流水/<line>.md`; the deep archive is `90` (not required reading).
+> Section `kb:id`s are stable anchors: `kb-context.py` / `kb-handoff.py` / `kb-write.py` locate by ID, not by heading text.
+
+> Last updated: {{DATE}} (GMT+8)
+
+<!-- kb:id: dashboard.current -->
+## 0. Current state (4 lines maximum)
+
+{{INITIAL_STATUS}}
+
+<!-- kb:id: dashboard.next -->
+## 1. Next step (down to a command or file)
+
+- [fill: the very first thing the next person does — never "keep going"]
+
+<!-- kb:id: dashboard.lines -->
+## 2. Per-line status
+
+| Line | Status | One line | Last action |
+|---|---|---|---|
+{{LINE_STATUS}}
+
+<!-- kb:id: dashboard.todo -->
+## 3. Todo / pending / in progress
+
+| Type | Item | Owner | Evidence / note |
+|---|---|---|---|
+| in progress | [fill] | [fill] | [fill] |
+
+> Move completed items out of this table into `06_流水/<line>.md`; never let history dilute the todo area.
+
+<!-- kb:id: dashboard.cross -->
+## 4. Cross-points (touch one line at a time)
+
+| Action | Also affects | Rule |
+|---|---|---|
+| [fill] | [fill] | After the change, immediately write `05` + the shard + a commit |
+
+<!-- kb:id: dashboard.order -->
+## 5. Handoff order
+
+1. `py "$KB/scripts/kb-context.py" --target . --task "<task>" --budget 3000`
+2. Read by line: {{ROUTE_INLINE}}; for cross-layer baseline always read `00`.
+3. Run `sh scripts/handoff-check.sh` (read-only) before touching anything.
+4. Wrap up: write back with `kb-write.py` → `kb-handoff.py check` → `git add -- <files>` + commit.
+
+<!-- kb:id: dashboard.rules -->
+## 6. Maintenance rules (no bloat allowed)
+
+- **§0 is at most 4 lines**; **keep only 5 summary entries, each ≤3 lines** — overflow goes to the shard in full, leaving one summary line plus a pointer here.
+- `git status` before editing (is another session writing?), `git diff` to self-review after.
+- Write back through `kb-write.py` (with `expected_sha256`); **never overwrite the whole file**.
+- A shard beyond **200 lines / 60 KB** is folded into `90` by topic (act only when crossed).
+
+<!-- kb:id: dashboard.constraints -->
+## 7. Hard constraints (never omitted under any budget)
+
+- [fill: operational boundaries that must never be violated, e.g. "never restart production unasked", "no credentials in the repo"]
+- `kb-context.py` always keeps this section; deleting it strips later sessions of their safety context.
+
+<!-- kb:id: dashboard.summary -->
+## 8. Last 5 entries (full log in the shards)
+
+(No entries yet. One line each: `[YYYY-MM-DD HH:MM] <line> <what was done → next step>`)
