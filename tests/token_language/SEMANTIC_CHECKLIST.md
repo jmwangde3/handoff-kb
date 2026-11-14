@@ -34,6 +34,9 @@ This sheet is the human review that remains after the automated checks.
 - `changes.json` keys and operation names exist in `kb-write.py`.
 - Every cited `dashboard.*` id is either defined by a template or recognised by the P0 resolver as a legacy alias.
 - Chinese project / English project: `kb-check` clean, `kb-context` routes, `kb-init --lang {zh,en}` scaffold the same file set.
+- `--lines` defaults per `--lang` (`线A…` / `lineA…`), an explicit list always wins, and both defaults keep the same `kb:id` set and reserved filenames.
+- The four Chinese references are byte-identical to their v2.0.3 baseline (SHA256), so the A/B/C measurement cannot drift.
+- A fallback counts with the algorithm it reports (`effective_mode`), and a missing vocabulary raises unless fallback is explicit.
 - Vocabulary fingerprint (file name, SHA256, library version) present and free of personal paths; a missing encoder exits 2.
 
 ## Manual review points

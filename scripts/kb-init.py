@@ -13,6 +13,7 @@ v2 关键变化
 
 用法：
   py kb-init.py --target ./demo --project Demo --lines "固件,运行态,服务端"
+  py kb-init.py --target ./demo --project Demo --lang en          # 英文模板 + 英文默认线名
   py kb-init.py --target ./demo --plan
   py kb-init.py --target ./demo --lines "固件" --no-git --force
   py kb-init.py --target ./demo --overwrite-config --force
@@ -42,6 +43,14 @@ ASSETS = ROOT / "assets"
 
 PROTECTED = set(protocol.ENTRY_FILES) | {".gitignore", ".gitattributes"}
 ILLEGAL = re.compile(r'[\\/:*?"<>|\r\n\t]')
+
+# `--lines` 的默认值跟 `--lang` 走：默认中文名，`--lang en` 时用英文名。
+# 不这么写的话，`--lang en` 不显式给 `--lines` 就会生成 `10_线A.md`——模板是英文的，
+# 文件名和内容却是中文的，用户还得回头改名。
+DEFAULT_LINES = {
+    "zh": "线A,线B,线C,线D",
+    "en": "lineA,lineB,lineC,lineD",
+}
 
 
 class Refused(Exception):
@@ -125,7 +134,7 @@ def build_plan(target: Path, project: str, lines, shards: str, force: bool,
         "SCHEMA": protocol.SCHEMA_VERSION,
         "FACT_RANGE": protocol.fact_shard_range_text(),
         "ID": "%02d" % lo,
-        "LINE_NAME": lines[0] if lines else "线A",
+        "LINE_NAME": lines[0] if lines else ("lineA" if en else "线A"),
         "ROUTE_TABLE": "\n".join(route_rows),
         "FILE_TABLE": "\n".join(file_rows),
         "LINE_STATUS": "\n".join(status_rows),
@@ -232,8 +241,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="生成分层交接库骨架（v2：10–17 编号 + 安全预检）")
     ap.add_argument("--target", required=True, help="目标目录（绝对或相对）")
     ap.add_argument("--project", default=None, help="项目名，默认取目录名")
-    ap.add_argument("--lines", default="线A,线B,线C,线D",
-                    help="事实层分册名，逗号分隔，决定 10..17（最多 8）")
+    ap.add_argument("--lines", default=None,
+                    help=("事实层分册名，逗号分隔，决定 10..17（最多 8）。"
+                          "默认随 --lang 走：zh=线A,线B,线C,线D；en=lineA,lineB,lineC,lineD"))
     ap.add_argument("--no-git", action="store_true", help="只生成文件，不初始化 git")
     ap.add_argument("--force", action="store_true",
                     help="覆盖同名模板文件（不绕过敏感信息检查与受保护配置）")
@@ -248,6 +258,10 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="机器可读输出")
     args = ap.parse_args()
 
+    # `--lines` 的默认值依赖 `--lang`，只能在解析之后补。
+    if args.lines is None:
+        args.lines = DEFAULT_LINES[args.lang]
+
     target = Path(args.target).expanduser().resolve()
     project = args.project or target.name or "project"
 
@@ -259,7 +273,7 @@ def main() -> int:
     # ---- 预检查 2：线名 ----
     raw = [x.strip() for x in args.lines.split(",") if x.strip()]
     if not raw:
-        raw = ["线A"]
+        raw = [DEFAULT_LINES[args.lang].split(",")[0]]
     if len(raw) > protocol.MAX_LINES:
         print("ERR: 事实分册最多 %d 个（编号 %s；00/05/06/90 是保留层）"
               % (protocol.MAX_LINES, protocol.fact_shard_range_text()), file=sys.stderr)

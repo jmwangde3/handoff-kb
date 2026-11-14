@@ -101,6 +101,7 @@ def markdown(report: dict) -> str:
     out.append("|---|---|")
     out.append("| tokenizer requested | `%s` |" % report["tokenizer"])
     out.append("| tokenizer actual | `%s` |" % c["actual"])
+    out.append("| counting mode | `%s` |" % c.get("effective_mode", report["tokenizer"]))
     out.append("| exact | %s |" % ("true" if report["exact"] else "false (estimate)"))
     out.append("| source | %s |" % c.get("source"))
     out.append("| vocabulary file | %s |" % (c.get("tokenizer_file") or "n/a"))

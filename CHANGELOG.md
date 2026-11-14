@@ -24,8 +24,30 @@ Still on `feat/2.0.4-english-skill-token-benchmark` (PR #5). No tag, no release.
   have used the same vocabulary.
 - `tests/token_language/` — A/B/C measurement, frozen v2.0.3 baseline reproduced
   against all three exact vocabularies, rule and identifier checks, template parity,
-  token targets, no-silent-fallback, cross-language scenarios (40 cases).
-- `tests/test_deps_check.py` — tests the dependency checker itself (11 cases).
+  token targets, no-silent-fallback, cross-language scenarios (55 cases).
+- `tests/test_deps_check.py` — tests the dependency checker itself (25 cases).
+
+### Fixed
+
+- `TokenCounter` kept the requested tokenizer in `count()` instead of the effective
+  one. With `deepseek_v4` / `deepseek` and an explicitly allowed fallback the report
+  said `deepseek_estimate` while the numbers came from `heuristic()`. `count()` now
+  dispatches on a separate `mode`, and every report carries `effective_mode`
+  alongside the untouched `requested` value.
+- `tests/deps_check.py` treated any import inside a `try` body as guarded, so
+  `try/finally` and `except ValueError` passed. It now inspects the handlers and
+  accepts only those that can catch an import failure.
+- `STDLIB_LATE` (`tomllib`) bypassed both the scope and the handler rule: on 3.10 it
+  was reported as third-party, on 3.12+ it was exempted outright. It is now checked
+  before the standard-library exemption and must sit inside a function behind an
+  import-error handler, on every interpreter version.
+- `tests/token_language` skipped the whole exact-tokenizer loop when the first
+  vocabulary was missing, hiding the vocabularies that were installed; each
+  vocabulary is now its own test with its own skip reason.
+- Four Chinese reference documents were only checked for existence. Their SHA256 is
+  now compared against the frozen v2.0.3 copies.
+- `kb-init --lang en` without `--lines` generated Chinese workstream file names
+  (`10_线A.md`). `--lines` now defaults per `--lang`; an explicit list always wins.
 
 ### Changed
 
@@ -52,10 +74,10 @@ Still on `feat/2.0.4-english-skill-token-benchmark` (PR #5). No tag, no release.
   arguments, `changes.json` schema and migration behaviour are untouched.
 - An existing Chinese library needs no migration and is read exactly as before;
   `--lang zh` remains the default for `kb-init`.
-- Measured gains (`SKILL.md` body): 27.9% on `cl100k_base`, 15.2% on `o200k_base`,
-  9.2% on `deepseek_v4`. The 15% target is defined on the first two; DeepSeek's
-  Chinese-heavy vocabulary is held to "must not grow". Reported as measured, not
-  rounded up.
+- Measured gains (whole `SKILL.md`, frontmatter included): 28.1% on `cl100k_base`,
+  15.4% on `o200k_base`, 9.5% on `deepseek_v4`. The 15% target is defined on the
+  first two; DeepSeek's Chinese-heavy vocabulary is held to "must not grow".
+  Reported as measured, not rounded up.
 
 ## 2.0.3
 

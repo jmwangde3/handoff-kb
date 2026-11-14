@@ -110,13 +110,25 @@ def deepseek_estimate(text: str) -> int:
 
 
 class TokenCounter:
-    """统一计数器。`count()` 是唯一入口。"""
+    """统一计数器。`count()` 是唯一入口。
+
+    两个名字必须分开：
+
+    - `requested`：用户要的是什么（原样进报告，不因回退而改写）
+    - `mode`：**实际**用来计数的算法（`heuristic` / `deepseek_estimate` /
+      `deepseek_v4` / `tiktoken`）
+
+    两者只在「请求精确词表、词表缺失、且显式允许回退」时不同。早先 `count()`
+    判的是 `requested`，于是回退后报告写着 `deepseek_estimate`、算出来的却是
+    heuristic——元数据与结果对不上。现在 `count()` 只看 `mode`。
+    """
 
     def __init__(self, requested: str = "heuristic", allow_fallback: bool = False):
         self.requested = (requested or "heuristic").strip()
         self.allow_fallback = allow_fallback
         self.encoder = None
         self.exact = False
+        self.mode = "heuristic"
         self.desc = HEURISTIC_DESC
         # 可复现性指纹：来源 + 词表文件 + 词表 SHA256 + 库版本。
         # 只写名称与哈希，不写本机路径——报告要能公开。
@@ -128,6 +140,7 @@ class TokenCounter:
         if self.requested == "heuristic":
             return
         if self.requested == "deepseek_estimate":
+            self.mode = "deepseek_estimate"
             self.desc = DEEPSEEK_DESC
             self.source = "documented ratio (0.3 / 0.6)"
             return
@@ -136,6 +149,7 @@ class TokenCounter:
             if enc is not None:
                 self.encoder = enc
                 self.exact = True
+                self.mode = "deepseek_v4"
                 self.desc = "tokenizers:deepseek_v4"
                 self.source = DEEPSEEK_SOURCE
                 self.tokenizer_file = os.path.basename(path)
@@ -151,6 +165,8 @@ class TokenCounter:
                     "  选项：1) 装好再跑；2) 用 --tokenizer deepseek_estimate（官方比例估算）；\n"
                     "        3) 明确接受估算并加 --allow-tokenizer-fallback"
                     % (self.requested, deepseek_tokenizer_dir(), DEEPSEEK_ENV))
+            # 回退走 DeepSeek 官方比例，不是 heuristic：这是请求 deepseek 的唯一合理降级。
+            self.mode = "deepseek_estimate"
             self.desc = ("deepseek_estimate（请求 %s 不可用，已按 --allow-tokenizer-fallback "
                          "回退；exact=false）" % self.requested)
             self.source = "estimate (fallback)"
@@ -159,6 +175,7 @@ class TokenCounter:
         if enc is not None:
             self.encoder = enc
             self.exact = True
+            self.mode = "tiktoken"
             self.desc = "tiktoken:%s" % self.requested
             self.source = TIKTOKEN_SOURCE
             self.library = "tiktoken"
@@ -170,6 +187,7 @@ class TokenCounter:
                 "        3) 明确接受估算并加 --allow-tokenizer-fallback"
                 % self.requested)
         else:
+            self.mode = "heuristic"
             self.desc = ("heuristic（请求 %s 不可用，已按 --allow-tokenizer-fallback "
                          "回退；exact=false）" % self.requested)
             self.source = "estimate (fallback)"
@@ -179,13 +197,13 @@ class TokenCounter:
             return 0
         if self.encoder is not None:
             try:
-                if self.requested in ("deepseek_v4", "deepseek"):
+                if self.mode == "deepseek_v4":
                     return len(self.encoder.encode(text, add_special_tokens=False).ids)
                 return len(self.encoder.encode(text))
             except Exception:
                 raise TokenizerError("tokenizer 编码失败（%s）；重跑或改用 heuristic"
-                                     % self.requested)
-        if self.requested == "deepseek_estimate":
+                                     % self.desc)
+        if self.mode == "deepseek_estimate":
             return deepseek_estimate(text)
         return heuristic(text)
 
@@ -193,6 +211,7 @@ class TokenCounter:
         """报告用结构：无绝对路径，带足以判定「两次是否同一套词表」的指纹。"""
         return {
             "requested": self.requested,
+            "effective_mode": self.mode,
             "actual": self.desc,
             "exact": self.exact,
             "source": self.source,

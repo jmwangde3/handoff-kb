@@ -4,6 +4,7 @@
 |---|---|
 | tokenizer requested | `cl100k_base` |
 | tokenizer actual | `tiktoken:cl100k_base` |
+| counting mode | `tiktoken` |
 | exact | true |
 | source | tiktoken encoder (bundled BPE ranks) |
 | vocabulary file | n/a |
@@ -30,7 +31,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 5416 | 5486 | 3903 | -1.3% | +28.9% | +27.9% |
+| SKILL.md | 5416 | 5486 | 3892 | -1.3% | +29.1% | +28.1% |
 
 ## T3 · Reference files (each read alone)
 
@@ -45,12 +46,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 5416 | 5486 | 3903 | -1.3% | +28.9% | +27.9% |
-| Existing project diagnosis | 5416 | 5486 | 3903 | -1.3% | +28.9% | +27.9% |
-| Legacy project migration | 11428 | 11498 | 8353 | -0.6% | +27.4% | +26.9% |
-| New-session context recovery | 11930 | 12000 | 8813 | -0.6% | +26.6% | +26.1% |
-| Safe document write | 11930 | 12000 | 8813 | -0.6% | +26.6% | +26.1% |
-| Hook installation | 8429 | 8499 | 6138 | -0.8% | +27.8% | +27.2% |
+| New project initialization | 5416 | 5486 | 3892 | -1.3% | +29.1% | +28.1% |
+| Existing project diagnosis | 5416 | 5486 | 3892 | -1.3% | +29.1% | +28.1% |
+| Legacy project migration | 11428 | 11498 | 8342 | -0.6% | +27.4% | +27.0% |
+| New-session context recovery | 11930 | 12000 | 8802 | -0.6% | +26.7% | +26.2% |
+| Safe document write | 11930 | 12000 | 8802 | -0.6% | +26.7% | +26.2% |
+| Hook installation | 8429 | 8499 | 6127 | -0.8% | +27.9% | +27.3% |
 
 ## T5 · Project templates (each file alone)
 
@@ -71,12 +72,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 5416 / B 5486 / C 3903 tokens, total +27.9%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 5416 / B 5486 / C 3903 tokens, total +27.9%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 11428 / B 11498 / C 8353 tokens, total +26.9%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8813 tokens, total +26.1%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8813 tokens, total +26.1%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 8429 / B 8499 / C 6138 tokens, total +27.2%
+- **New project initialization** (`new-project`): reads `skill` — A 5416 / B 5486 / C 3892 tokens, total +28.1%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 5416 / B 5486 / C 3892 tokens, total +28.1%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 11428 / B 11498 / C 8342 tokens, total +27.0%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8802 tokens, total +26.2%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8802 tokens, total +26.2%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 8429 / B 8499 / C 6127 tokens, total +27.3%
 
 ## Limitations
 
@@ -93,6 +94,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 |---|---|
 | tokenizer requested | `o200k_base` |
 | tokenizer actual | `tiktoken:o200k_base` |
+| counting mode | `tiktoken` |
 | exact | true |
 | source | tiktoken encoder (bundled BPE ranks) |
 | vocabulary file | n/a |
@@ -119,7 +121,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 4571 | 4612 | 3878 | -0.9% | +15.9% | +15.2% |
+| SKILL.md | 4571 | 4612 | 3869 | -0.9% | +16.1% | +15.4% |
 
 ## T3 · Reference files (each read alone)
 
@@ -134,12 +136,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 4571 | 4612 | 3878 | -0.9% | +15.9% | +15.2% |
-| Existing project diagnosis | 4571 | 4612 | 3878 | -0.9% | +15.9% | +15.2% |
-| Legacy project migration | 9587 | 9628 | 8296 | -0.4% | +13.8% | +13.5% |
-| New-session context recovery | 10099 | 10140 | 8759 | -0.4% | +13.6% | +13.3% |
-| Safe document write | 10099 | 10140 | 8759 | -0.4% | +13.6% | +13.3% |
-| Hook installation | 7070 | 7111 | 6121 | -0.6% | +13.9% | +13.4% |
+| New project initialization | 4571 | 4612 | 3869 | -0.9% | +16.1% | +15.4% |
+| Existing project diagnosis | 4571 | 4612 | 3869 | -0.9% | +16.1% | +15.4% |
+| Legacy project migration | 9587 | 9628 | 8287 | -0.4% | +13.9% | +13.6% |
+| New-session context recovery | 10099 | 10140 | 8750 | -0.4% | +13.7% | +13.4% |
+| Safe document write | 10099 | 10140 | 8750 | -0.4% | +13.7% | +13.4% |
+| Hook installation | 7070 | 7111 | 6112 | -0.6% | +14.0% | +13.6% |
 
 ## T5 · Project templates (each file alone)
 
@@ -160,12 +162,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 4571 / B 4612 / C 3878 tokens, total +15.2%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4571 / B 4612 / C 3878 tokens, total +15.2%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9587 / B 9628 / C 8296 tokens, total +13.5%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8759 tokens, total +13.3%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8759 tokens, total +13.3%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 7070 / B 7111 / C 6121 tokens, total +13.4%
+- **New project initialization** (`new-project`): reads `skill` — A 4571 / B 4612 / C 3869 tokens, total +15.4%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4571 / B 4612 / C 3869 tokens, total +15.4%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9587 / B 9628 / C 8287 tokens, total +13.6%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8750 tokens, total +13.4%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8750 tokens, total +13.4%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 7070 / B 7111 / C 6112 tokens, total +13.6%
 
 ## Limitations
 
@@ -182,6 +184,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 |---|---|
 | tokenizer requested | `deepseek_v4` |
 | tokenizer actual | `tokenizers:deepseek_v4` |
+| counting mode | `deepseek_v4` |
 | exact | true |
 | source | DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json) |
 | vocabulary file | tokenizer.json |
@@ -208,7 +211,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 4343 | 4338 | 3943 | +0.1% | +9.1% | +9.2% |
+| SKILL.md | 4343 | 4338 | 3931 | +0.1% | +9.4% | +9.5% |
 
 ## T3 · Reference files (each read alone)
 
@@ -223,12 +226,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 4343 | 4338 | 3943 | +0.1% | +9.1% | +9.2% |
-| Existing project diagnosis | 4343 | 4338 | 3943 | +0.1% | +9.1% | +9.2% |
-| Legacy project migration | 9018 | 9013 | 8395 | +0.1% | +6.9% | +6.9% |
-| New-session context recovery | 9514 | 9509 | 8912 | +0.1% | +6.3% | +6.3% |
-| Safe document write | 9514 | 9509 | 8912 | +0.1% | +6.3% | +6.3% |
-| Hook installation | 6720 | 6715 | 6243 | +0.1% | +7.0% | +7.1% |
+| New project initialization | 4343 | 4338 | 3931 | +0.1% | +9.4% | +9.5% |
+| Existing project diagnosis | 4343 | 4338 | 3931 | +0.1% | +9.4% | +9.5% |
+| Legacy project migration | 9018 | 9013 | 8383 | +0.1% | +7.0% | +7.0% |
+| New-session context recovery | 9514 | 9509 | 8900 | +0.1% | +6.4% | +6.5% |
+| Safe document write | 9514 | 9509 | 8900 | +0.1% | +6.4% | +6.5% |
+| Hook installation | 6720 | 6715 | 6231 | +0.1% | +7.2% | +7.3% |
 
 ## T5 · Project templates (each file alone)
 
@@ -249,12 +252,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 4343 / B 4338 / C 3943 tokens, total +9.2%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4343 / B 4338 / C 3943 tokens, total +9.2%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9018 / B 9013 / C 8395 tokens, total +6.9%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8912 tokens, total +6.3%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8912 tokens, total +6.3%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6720 / B 6715 / C 6243 tokens, total +7.1%
+- **New project initialization** (`new-project`): reads `skill` — A 4343 / B 4338 / C 3931 tokens, total +9.5%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4343 / B 4338 / C 3931 tokens, total +9.5%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9018 / B 9013 / C 8383 tokens, total +7.0%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8900 tokens, total +6.5%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8900 tokens, total +6.5%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6720 / B 6715 / C 6231 tokens, total +7.3%
 
 ## Limitations
 
@@ -271,6 +274,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 |---|---|
 | tokenizer requested | `deepseek_estimate` |
 | tokenizer actual | `deepseek_estimate（官方比例：1 英文字符≈0.3、1 中文字符≈0.6）` |
+| counting mode | `deepseek_estimate` |
 | exact | false (estimate) |
 | source | documented ratio (0.3 / 0.6) |
 | vocabulary file | n/a |
@@ -297,7 +301,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 3261 | 3266 | 4583 | -0.2% | -40.3% | -40.5% |
+| SKILL.md | 3261 | 3266 | 4575 | -0.2% | -40.1% | -40.3% |
 
 ## T3 · Reference files (each read alone)
 
@@ -312,12 +316,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 3261 | 3266 | 4583 | -0.2% | -40.3% | -40.5% |
-| Existing project diagnosis | 3261 | 3266 | 4583 | -0.2% | -40.3% | -40.5% |
-| Legacy project migration | 6647 | 6652 | 9508 | -0.1% | -42.9% | -43.0% |
-| New-session context recovery | 7091 | 7096 | 10105 | -0.1% | -42.4% | -42.5% |
-| Safe document write | 7091 | 7096 | 10105 | -0.1% | -42.4% | -42.5% |
-| Hook installation | 5199 | 5204 | 7336 | -0.1% | -41.0% | -41.1% |
+| New project initialization | 3261 | 3266 | 4575 | -0.2% | -40.1% | -40.3% |
+| Existing project diagnosis | 3261 | 3266 | 4575 | -0.2% | -40.1% | -40.3% |
+| Legacy project migration | 6647 | 6652 | 9500 | -0.1% | -42.8% | -42.9% |
+| New-session context recovery | 7091 | 7096 | 10097 | -0.1% | -42.3% | -42.4% |
+| Safe document write | 7091 | 7096 | 10097 | -0.1% | -42.3% | -42.4% |
+| Hook installation | 5199 | 5204 | 7328 | -0.1% | -40.8% | -41.0% |
 
 ## T5 · Project templates (each file alone)
 
@@ -338,12 +342,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 3261 / B 3266 / C 4583 tokens, total -40.5%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3261 / B 3266 / C 4583 tokens, total -40.5%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 6647 / B 6652 / C 9508 tokens, total -43.0%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10105 tokens, total -42.5%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10105 tokens, total -42.5%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 5199 / B 5204 / C 7336 tokens, total -41.1%
+- **New project initialization** (`new-project`): reads `skill` — A 3261 / B 3266 / C 4575 tokens, total -40.3%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3261 / B 3266 / C 4575 tokens, total -40.3%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 6647 / B 6652 / C 9500 tokens, total -42.9%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10097 tokens, total -42.4%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10097 tokens, total -42.4%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 5199 / B 5204 / C 7328 tokens, total -41.0%
 
 ## Limitations
 
@@ -360,6 +364,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 |---|---|
 | tokenizer requested | `heuristic` |
 | tokenizer actual | `heuristic（CJK 1 字≈1 token，其余 4 字符≈1 token）` |
+| counting mode | `heuristic` |
 | exact | false (estimate) |
 | source | heuristic |
 | vocabulary file | n/a |
@@ -386,7 +391,7 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 3913 | 3980 | 3848 | -1.7% | +3.3% | +1.7% |
+| SKILL.md | 3913 | 3980 | 3842 | -1.7% | +3.5% | +1.8% |
 
 ## T3 · Reference files (each read alone)
 
@@ -401,12 +406,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 3913 | 3980 | 3848 | -1.7% | +3.3% | +1.7% |
-| Existing project diagnosis | 3913 | 3980 | 3848 | -1.7% | +3.3% | +1.7% |
-| Legacy project migration | 8089 | 8156 | 8004 | -0.8% | +1.9% | +1.1% |
-| New-session context recovery | 8617 | 8684 | 8534 | -0.8% | +1.7% | +1.0% |
-| Safe document write | 8617 | 8684 | 8534 | -0.8% | +1.7% | +1.0% |
-| Hook installation | 6237 | 6304 | 6146 | -1.1% | +2.5% | +1.5% |
+| New project initialization | 3913 | 3980 | 3842 | -1.7% | +3.5% | +1.8% |
+| Existing project diagnosis | 3913 | 3980 | 3842 | -1.7% | +3.5% | +1.8% |
+| Legacy project migration | 8089 | 8156 | 7998 | -0.8% | +1.9% | +1.1% |
+| New-session context recovery | 8617 | 8684 | 8528 | -0.8% | +1.8% | +1.0% |
+| Safe document write | 8617 | 8684 | 8528 | -0.8% | +1.8% | +1.0% |
+| Hook installation | 6237 | 6304 | 6140 | -1.1% | +2.6% | +1.6% |
 
 ## T5 · Project templates (each file alone)
 
@@ -427,12 +432,12 @@ Neither the paths above nor the environment block contain a personal directory; 
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 3913 / B 3980 / C 3848 tokens, total +1.7%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3913 / B 3980 / C 3848 tokens, total +1.7%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 8089 / B 8156 / C 8004 tokens, total +1.1%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8534 tokens, total +1.0%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8534 tokens, total +1.0%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6237 / B 6304 / C 6146 tokens, total +1.5%
+- **New project initialization** (`new-project`): reads `skill` — A 3913 / B 3980 / C 3842 tokens, total +1.8%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3913 / B 3980 / C 3842 tokens, total +1.8%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 8089 / B 8156 / C 7998 tokens, total +1.1%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8528 tokens, total +1.0%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8528 tokens, total +1.0%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6237 / B 6304 / C 6140 tokens, total +1.6%
 
 ## Limitations
 

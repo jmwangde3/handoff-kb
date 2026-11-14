@@ -246,6 +246,25 @@ class SingleSkillLayout(unittest.TestCase):
         self.assertIn("*.zh-CN.md", skill,
                       "the skill must tell the agent that Chinese reference editions exist")
 
+    def test_chinese_references_are_byte_identical_to_v203(self):
+        """The Chinese references are the B half of the A/B/C measurement.
+
+        They were carried over unchanged; only existence used to be checked, so an
+        accidental edit would silently invalidate every published B → C number.
+        The frozen copies stay untouched — a failing test means the live file moved.
+        """
+        for name in tl.REF_NAMES:
+            live = ROOT / "references" / ("%s.zh-CN.md" % name)
+            frozen = tl.BASELINE / "references" / ("%s.md" % name)
+            with self.subTest(reference=name):
+                self.assertTrue(live.is_file(), "Chinese reference missing: %s" % live.name)
+                self.assertTrue(frozen.is_file(), "frozen baseline missing: %s" % frozen.name)
+                self.assertEqual(
+                    hashlib.sha256(live.read_bytes()).hexdigest(),
+                    hashlib.sha256(frozen.read_bytes()).hexdigest(),
+                    "references/%s.zh-CN.md no longer matches its v2.0.3 baseline; "
+                    "the benchmark assumes identical reference text" % name)
+
 
 class BaselineIntegrity(unittest.TestCase):
     def test_manifest_matches_files(self):
@@ -467,11 +486,25 @@ class TokenTargets(unittest.TestCase):
     BASELINE_TOKENIZERS = tl.BASELINE_TOKENIZERS
 
     def available(self, names):
-        """Return the usable counters, or skip naming exactly what is missing."""
-        usable = {n: self.counters[n] for n in names if self.counters.get(n) is not None}
+        """Return the usable counters, recording one skip per missing vocabulary.
+
+        A single `skipTest` for the whole list would discard the tokenizers that are
+        available; a bare `continue` would drop the missing ones from the summary
+        without a trace. Each missing vocabulary gets its own skip record, naming
+        the vocabulary — so "3 skipped" always says which three and why.
+        """
+        usable = {}
+        for name in names:
+            counter = self.counters.get(name)
+            if counter is None:
+                with self.subTest(tokenizer=name):
+                    self.skipTest("exact vocabulary %s is not installed — its numbers are not "
+                                  "reproduced here (see run_token_benchmark.py)" % name)
+                continue
+            usable[name] = counter
         if not usable:
-            self.skipTest("optional encoder(s) not installed: %s — the numeric gate needs an "
-                          "exact tokenizer, see run_token_benchmark.py" % ", ".join(names))
+            self.skipTest("no exact tokenizer installed among %s — the numeric gate is "
+                          "reproduced by run_token_benchmark.py" % ", ".join(names))
         return usable
 
     def test_skill_default_loading_saving(self):
@@ -544,19 +577,48 @@ class TokenTargets(unittest.TestCase):
 class TokenizerFingerprint(unittest.TestCase):
     """A count is only evidence if the vocabulary behind it can be identified."""
 
-    def test_is_exact_matches_every_counter(self):
-        cases = [("cl100k_base", True), ("o200k_base", True),
-                 ("deepseek_v4", True), ("deepseek_estimate", False),
-                 ("heuristic", False)]
-        for name, expected in cases:
-            try:
-                counter = tokenlib.TokenCounter(name)
-            except tokenlib.TokenizerError:
-                self.skipTest("encoder %s not installed in this environment" % name)
-            with self.subTest(tokenizer=name):
-                self.assertEqual(counter.exact, expected)
-                self.assertEqual(tokenlib.is_exact(counter.desc), expected,
-                                 "is_exact() disagrees with the counter for %r" % name)
+    def exact_counter(self, name):
+        """A counter for exactly `name`, or a skip naming exactly that vocabulary."""
+        try:
+            return tokenlib.TokenCounter(name)
+        except tokenlib.TokenizerError as exc:
+            self.skipTest("exact vocabulary %s unavailable in this environment: %s"
+                          % (name, str(exc).splitlines()[0]))
+            raise  # unreachable; keeps linters calm about a missing return
+
+    def assertCounterIsExact(self, name):
+        counter = self.exact_counter(name)
+        self.assertTrue(counter.exact, "%s: counter.exact is False" % name)
+        self.assertTrue(tokenlib.is_exact(counter.desc),
+                        "%s: is_exact(%r) is False" % (name, counter.desc))
+        self.assertEqual(counter.mode, "tiktoken" if name in ("cl100k_base", "o200k_base")
+                         else "deepseek_v4",
+                         "%s: unexpected effective counting mode %r" % (name, counter.mode))
+
+    # One method per vocabulary on purpose: a missing encoder used to abort the whole
+    # loop with a single skip, so the other two were never checked at all.
+    def test_cl100k_counter_is_exact(self):
+        self.assertCounterIsExact("cl100k_base")
+
+    def test_o200k_counter_is_exact(self):
+        self.assertCounterIsExact("o200k_base")
+
+    def test_deepseek_counter_is_exact(self):
+        self.assertCounterIsExact("deepseek_v4")
+
+    def test_heuristic_is_not_exact(self):
+        counter = tokenlib.TokenCounter("heuristic")
+        self.assertFalse(counter.exact)
+        self.assertFalse(tokenlib.is_exact(counter.desc))
+        self.assertEqual(counter.mode, "heuristic")
+
+    def test_deepseek_estimate_is_not_exact(self):
+        """No optional dependency is needed for this path — it must never skip."""
+        counter = tokenlib.TokenCounter("deepseek_estimate")
+        self.assertFalse(counter.exact)
+        self.assertFalse(tokenlib.is_exact(counter.desc))
+        self.assertEqual(counter.mode, "deepseek_estimate")
+        self.assertEqual(counter.count("中文字符"), tokenlib.deepseek_estimate("中文字符"))
 
     def test_is_exact_rejects_estimates_by_prefix(self):
         self.assertFalse(tokenlib.is_exact(tokenlib.HEURISTIC_DESC))
@@ -568,11 +630,12 @@ class TokenizerFingerprint(unittest.TestCase):
     def test_no_absolute_path_in_counter_description(self):
         home = os.path.expanduser("~")
         for name in tl.TOKENIZERS:
-            try:
-                counter = tokenlib.TokenCounter(name)
-            except tokenlib.TokenizerError:
-                continue
             with self.subTest(tokenizer=name):
+                try:
+                    counter = tokenlib.TokenCounter(name)
+                except tokenlib.TokenizerError:
+                    self.skipTest("exact vocabulary %s unavailable; its metadata was not "
+                                  "inspected" % name)
                 blob = json.dumps(counter.as_dict(), ensure_ascii=False)
                 self.assertNotIn(home, blob, "counter metadata leaked the home directory")
                 self.assertNotIn(":\\", blob, "counter metadata leaked a drive path")
@@ -595,11 +658,11 @@ class TokenizerFingerprint(unittest.TestCase):
         import run_token_benchmark
         home = os.path.expanduser("~")
         for name in ("heuristic", "deepseek_v4"):
-            try:
-                report = run_token_benchmark.measure(name)
-            except tokenlib.TokenizerError:
-                continue
             with self.subTest(tokenizer=name):
+                try:
+                    report = run_token_benchmark.measure(name)
+                except tokenlib.TokenizerError:
+                    self.skipTest("exact vocabulary %s unavailable; no report to inspect" % name)
                 text = run_token_benchmark.markdown(report)
                 self.assertNotIn(home, text)
                 self.assertIn("exact", text)
@@ -641,6 +704,85 @@ class NoSilentFallback(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr[-400:])
         self.assertIn("exact=false", proc.stdout,
                       "a fallback must label itself as an estimate in the output")
+
+
+class DeepSeekFallback(unittest.TestCase):
+    """A fallback must compute with the algorithm its metadata claims.
+
+    Discriminator string: `abcdefghij` — 10 ASCII characters. The documented DeepSeek
+    ratio gives 3 tokens (10 × 0.3); the heuristic gives 2 (10 ÷ 4, rounded). So a
+    counter that reports `deepseek_estimate` but returns 2 is lying, which is exactly
+    what happened while `count()` dispatched on the *requested* name.
+
+    Nothing here needs an optional dependency: the tokenizer directory is pointed at
+    a path that does not exist, so the encoder is missing by construction.
+    """
+
+    SAMPLE = "abcdefghij"
+    DOCUMENTED_RATIO = 3
+    HEURISTIC = 2
+
+    def setUp(self):
+        self._saved = os.environ.get(tokenlib.DEEPSEEK_ENV)
+        os.environ[tokenlib.DEEPSEEK_ENV] = str(HERE / "missing-deepseek-tokenizer")
+        self.addCleanup(self.restore)
+
+    def restore(self):
+        if self._saved is None:
+            os.environ.pop(tokenlib.DEEPSEEK_ENV, None)
+        else:
+            os.environ[tokenlib.DEEPSEEK_ENV] = self._saved
+
+    def test_the_two_algorithms_actually_differ(self):
+        self.assertEqual(tokenlib.deepseek_estimate(self.SAMPLE), self.DOCUMENTED_RATIO)
+        self.assertEqual(tokenlib.heuristic(self.SAMPLE), self.HEURISTIC)
+        self.assertNotEqual(self.DOCUMENTED_RATIO, self.HEURISTIC,
+                            "pick another sample: this one cannot tell the algorithms apart")
+
+    def test_fallback_counts_with_the_documented_ratio(self):
+        for requested in ("deepseek_v4", "deepseek"):
+            with self.subTest(requested=requested):
+                counter = tokenlib.TokenCounter(requested, allow_fallback=True)
+                counted = counter.count(self.SAMPLE)
+                self.assertEqual(counted, self.DOCUMENTED_RATIO,
+                                 "%s fell back to %d tokens; the documented ratio gives %d"
+                                 % (requested, counted, self.DOCUMENTED_RATIO))
+                self.assertNotEqual(counted, self.HEURISTIC,
+                                    "%s reported an estimate but computed the heuristic"
+                                    % requested)
+                self.assertFalse(counter.exact)
+                self.assertEqual(counter.mode, "deepseek_estimate")
+
+    def test_fallback_metadata_names_the_actual_algorithm(self):
+        for requested in ("deepseek_v4", "deepseek"):
+            with self.subTest(requested=requested):
+                info = tokenlib.TokenCounter(requested, allow_fallback=True).as_dict()
+                self.assertEqual(info["requested"], requested,
+                                 "the user's request must survive in the report")
+                self.assertEqual(info["effective_mode"], "deepseek_estimate")
+                self.assertFalse(info["exact"])
+                self.assertEqual(info["source"], "estimate (fallback)")
+                self.assertIn("estimate", info["actual"].lower())
+                self.assertFalse(tokenlib.is_exact(info["actual"]))
+
+    def test_missing_vocabulary_raises_without_explicit_fallback(self):
+        for requested in ("deepseek_v4", "deepseek"):
+            with self.subTest(requested=requested):
+                with self.assertRaises(tokenlib.TokenizerError):
+                    tokenlib.TokenCounter(requested)
+
+    def test_installed_vocabulary_is_still_exact(self):
+        os.environ.pop(tokenlib.DEEPSEEK_ENV, None)   # use the real cache directory
+        try:
+            counter = tokenlib.TokenCounter("deepseek_v4")
+        except tokenlib.TokenizerError:
+            self.skipTest("deepseek_v4 tokenizer not installed; exact path not exercised")
+        self.assertTrue(counter.exact)
+        self.assertEqual(counter.mode, "deepseek_v4")
+        self.assertEqual(counter.desc, "tokenizers:deepseek_v4")
+        self.assertGreater(counter.count(self.SAMPLE), 0)
+        self.assertEqual(counter.count(self.SAMPLE),
+                         len(counter.encoder.encode(self.SAMPLE, add_special_tokens=False).ids))
 
 
 class CrossLanguageScenarios(unittest.TestCase):
@@ -720,6 +862,62 @@ class CrossLanguageScenarios(unittest.TestCase):
         self.assertEqual(en_files, zh_files,
                          "both --lang values must scaffold the same file set")
 
+    # --- `--lines` default follows `--lang` -------------------------------------
+
+    def scaffold(self, label, *extra):
+        """Run kb-init into a fresh temp dir; return (target, sorted root entries)."""
+        tmp = Path(tempfile.mkdtemp(prefix="kblines-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        target = tmp / label
+        proc = self.run_script("kb-init.py", "--target", target, "--project", "Demo",
+                               "--no-git", *extra)
+        self.assertEqual(proc.returncode, 0, proc.stderr[-800:])
+        return target, sorted(p.name for p in target.iterdir())
+
+    @staticmethod
+    def fact_shards(entries):
+        return [name for name in entries if name.startswith(("10_", "11_", "12_", "13_"))]
+
+    def test_lang_en_without_lines_uses_english_line_names(self):
+        target, entries = self.scaffold("en", "--lang", "en")
+        self.assertEqual(self.fact_shards(entries),
+                         ["10_lineA.md", "11_lineB.md", "12_lineC.md", "13_lineD.md"],
+                         "`--lang en` with no `--lines` must not produce Chinese file names")
+        self.assertIn("lineA", read(target / "05_进度仪表盘.md"))
+        self.assertNotIn("{{", read(target / "10_lineA.md"))
+        self.assertTrue((target / "00_基线.md").is_file(),
+                        "reserved protocol filenames stay literal under --lang en")
+
+    def test_lang_zh_without_lines_keeps_chinese_line_names(self):
+        target, entries = self.scaffold("zh")
+        self.assertEqual(self.fact_shards(entries),
+                         ["10_线A.md", "11_线B.md", "12_线C.md", "13_线D.md"])
+        self.assertIn("线A", read(target / "05_进度仪表盘.md"))
+
+    def test_lang_en_with_explicit_lines_respects_them(self):
+        target, entries = self.scaffold("en-x", "--lang", "en", "--lines", "alfa,beta")
+        self.assertEqual(self.fact_shards(entries), ["10_alfa.md", "11_beta.md"])
+        self.assertIn("alfa", read(target / "05_进度仪表盘.md"))
+
+    def test_lang_zh_with_explicit_lines_respects_them(self):
+        target, entries = self.scaffold("zh-x", "--lang", "zh", "--lines", "固件,运行态")
+        self.assertEqual(self.fact_shards(entries), ["10_固件.md", "11_运行态.md"])
+        self.assertIn("固件", read(target / "05_进度仪表盘.md"))
+
+    def test_default_scaffolds_share_protocol_ids(self):
+        """Line names differ; protocol IDs and placeholders must not."""
+        en_target, en_entries = self.scaffold("en-ids", "--lang", "en")
+        zh_target, zh_entries = self.scaffold("zh-ids", "--lang", "zh")
+        self.assertEqual(len(en_entries), len(zh_entries))
+        for rel in ("00_基线.md", "05_进度仪表盘.md", "AGENTS.md"):
+            with self.subTest(document=rel):
+                en_text = read(en_target / rel)
+                zh_text = read(zh_target / rel)
+                self.assertEqual(kb_ids(en_text), kb_ids(zh_text),
+                                 "kb:id sets differ between the two --lang defaults in %s" % rel)
+                self.assertNotIn("{{", en_text)
+                self.assertNotIn("{{", zh_text)
+
 
 def emit_checklist() -> str:
     skill = norm(read(ROOT / "SKILL.md"))
@@ -743,6 +941,12 @@ def emit_checklist() -> str:
               "recognised by the P0 resolver as a legacy alias.",
               "- Chinese project / English project: `kb-check` clean, `kb-context` routes, "
               "`kb-init --lang {zh,en}` scaffold the same file set.",
+              "- `--lines` defaults per `--lang` (`线A…` / `lineA…`), an explicit list always "
+              "wins, and both defaults keep the same `kb:id` set and reserved filenames.",
+              "- The four Chinese references are byte-identical to their v2.0.3 baseline "
+              "(SHA256), so the A/B/C measurement cannot drift.",
+              "- A fallback counts with the algorithm it reports (`effective_mode`), and a "
+              "missing vocabulary raises unless fallback is explicit.",
               "- Vocabulary fingerprint (file name, SHA256, library version) present and "
               "free of personal paths; a missing encoder exits 2.",
               "",

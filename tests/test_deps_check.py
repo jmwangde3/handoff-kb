@@ -6,6 +6,13 @@
 没测过就等于没有。这里既测判据（各种写法该红还是该绿），也测仓库现状
 （scripts/ 当前是干净的），还钉住「可选依赖清单只能是 tiktoken 与 tokenizers」
 ——这样以后有人往清单里加第三个包，测试会先响。
+
+两条曾经真实漏过的判据，各自有专门用例：
+
+- `try/finally` 与 `except ValueError` 曾被当成「已兜底」。它们接不住缺包。
+- `tomllib` 曾整条豁免，于是 3.10 的 ImportError 没人管；在 3.12 上
+  `sys.stdlib_module_names` 又会让它直接过——两种版本两种错法。现在它按
+  「函数内 + 能被 ImportError 接住」判，且判据与当前解释器版本无关。
 """
 
 from __future__ import annotations
@@ -43,17 +50,71 @@ class Allowed(unittest.TestCase):
         )
         self.assertEqual(problems(source), [])
 
+    def test_optional_with_import_error_handler(self):
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except ImportError:\n"
+            "        return None\n"
+        )
+        self.assertEqual(problems(source), [])
+
+    def test_optional_with_module_not_found_handler(self):
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except ModuleNotFoundError:\n"
+            "        return None\n"
+        )
+        self.assertEqual(problems(source), [])
+
+    def test_optional_with_tuple_of_import_errors(self):
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tiktoken\n"
+            "    except (ImportError, OSError):\n"
+            "        return None\n"
+        )
+        self.assertEqual(problems(source), [])
+
+    def test_optional_with_bare_except(self):
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tiktoken\n"
+            "    except:\n"
+            "        return None\n"
+        )
+        self.assertEqual(problems(source), [])
+
+    def test_outer_try_may_guard_inner_try(self):
+        """An inner `except ValueError` is harmless if an outer handler catches imports."""
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        try:\n"
+            "            import tokenizers\n"
+            "        except ValueError:\n"
+            "            pass\n"
+            "    except ImportError:\n"
+            "        return None\n"
+        )
+        self.assertEqual(problems(source), [])
+
     def test_both_optional_packages_are_declared(self):
         self.assertEqual(deps_check.OPTIONAL, {"tiktoken", "tokenizers"},
                          "可选依赖清单变了：新增第三方包必须先改文档与理由，"
                          "并同步 README 的依赖声明")
 
-    def test_late_stdlib_is_not_third_party(self):
-        """`tomllib` 是 3.11 才进标准库的，`sys.stdlib_module_names` 在 3.10 里没有它。
+    def test_late_stdlib_with_proper_handling(self):
+        """`tomllib` 是 3.11 才进标准库的，3.10 上 `import tomllib` 会 ImportError。
 
         3.10 的 CI 曾把 `kb-hooks.py` 里那句受控的 `import tomllib` 判成第三方依赖，
-        于是六个环境里两个红。判据改成「当前版本标准库 ∪ 迟到的标准库」，
-        且迟到的那些仍必须满足函数内 + try/except（kb-hooks 就是这么写的）。
+        于是六个环境里两个红。现在它不在标准库豁免里，而是按可选依赖同款规则检查：
+        函数内 + 能被 ImportError 接住。
         """
         source = (
             "def validate(text):\n"
@@ -92,6 +153,32 @@ class Rejected(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertIn("try/except", found[0])
 
+    def test_optional_inside_try_finally(self):
+        """`finally` runs either way; it cannot absorb a missing package."""
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    finally:\n"
+            "        pass\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("接不住 ImportError", found[0])
+
+    def test_optional_with_non_import_except(self):
+        """`except ValueError` never sees ImportError."""
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except ValueError:\n"
+            "        pass\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("接不住 ImportError", found[0])
+
     def test_unknown_package_even_when_nested(self):
         """核心用例：函数内 + try/except 也不能引入新的第三方依赖。"""
         source = (
@@ -105,6 +192,20 @@ class Rejected(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertIn("第三方依赖 requests", found[0])
 
+    def test_unknown_package_in_nested_function(self):
+        source = (
+            "def outer():\n"
+            "    def inner():\n"
+            "        try:\n"
+            "            import numpy\n"
+            "        except Exception:\n"
+            "            return None\n"
+            "    return inner\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("第三方依赖 numpy", found[0])
+
     def test_unknown_package_in_class_body(self):
         found = problems("class C:\n    import numpy\n")
         self.assertEqual(len(found), 1)
@@ -114,6 +215,40 @@ class Rejected(unittest.TestCase):
         found = problems("from tokenizers import Tokenizer\n")
         self.assertEqual(len(found), 1)
         self.assertIn("模块顶层", found[0])
+
+    def test_late_stdlib_at_module_level(self):
+        """The interpreter is not the judge: `tomllib` exists on 3.11+ and still fails here."""
+        found = problems("import tomllib\n")
+        self.assertEqual(len(found), 1)
+        self.assertIn("模块顶层", found[0])
+        self.assertIn("tomllib", found[0])
+
+    def test_late_stdlib_in_function_without_try(self):
+        found = problems("def f():\n    import tomllib\n    return tomllib.loads('')\n")
+        self.assertEqual(len(found), 1)
+        self.assertIn("try/except", found[0])
+
+    def test_late_stdlib_inside_try_finally(self):
+        source = (
+            "def f():\n"
+            "    try:\n"
+            "        import tomllib\n"
+            "    finally:\n"
+            "        pass\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("try/except", found[0])
+
+    def test_late_stdlib_rule_does_not_depend_on_the_running_interpreter(self):
+        """On 3.12+ `tomllib` is in `sys.stdlib_module_names`; that must not exempt it."""
+        if "tomllib" not in deps_check.STDLIB:
+            self.skipTest("this interpreter predates tomllib; the bypass cannot occur")
+        self.assertIn("tomllib", deps_check.STDLIB)
+        found = problems("import tomllib\n")
+        self.assertEqual(len(found), 1,
+                         "a late stdlib module present in this interpreter was exempted from "
+                         "the function/handler rule — that is the 3.10 regression coming back")
 
     def test_syntax_error_is_reported(self):
         found = problems("def broken(:\n")

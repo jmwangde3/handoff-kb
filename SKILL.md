@@ -62,7 +62,7 @@ Non-negotiable rules:
 Install and locate:
 
 ```bash
-KB="$HOME/.skills-manager/skills/handoff-kb"   # Windows: C:/Users/<you>/.skills-manager/skills/handoff-kb
+KB="$HOME/.skills-manager/skills/handoff-kb"   # Windows PowerShell: README.md §5
 ls "$KB/scripts"                               # verify the path before running anything
 ```
 

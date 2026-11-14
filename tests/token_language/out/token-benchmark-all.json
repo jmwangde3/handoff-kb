@@ -59,6 +59,7 @@
       "tokenizer": "cl100k_base",
       "counter": {
         "requested": "cl100k_base",
+        "effective_mode": "tiktoken",
         "actual": "tiktoken:cl100k_base",
         "exact": true,
         "source": "tiktoken encoder (bundled BPE ranks)",
@@ -114,10 +115,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15399,
-            "chars": 15217,
-            "tokens": 3903,
-            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3892,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
           }
         },
         "T3_references": {
@@ -243,15 +244,15 @@
               ]
             },
             "C": {
-              "tokens": 3903,
+              "tokens": 3892,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3903,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -288,15 +289,15 @@
               ]
             },
             "C": {
-              "tokens": 3903,
+              "tokens": 3892,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3903,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -349,15 +350,15 @@
               ]
             },
             "C": {
-              "tokens": 8353,
+              "tokens": 8342,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3903,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:migration",
@@ -419,15 +420,15 @@
               ]
             },
             "C": {
-              "tokens": 8813,
+              "tokens": 8802,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3903,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -489,15 +490,15 @@
               ]
             },
             "C": {
-              "tokens": 8813,
+              "tokens": 8802,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3903,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -559,15 +560,15 @@
               ]
             },
             "C": {
-              "tokens": 6138,
+              "tokens": 6127,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3903,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3892,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:hooks",
@@ -877,10 +878,10 @@
         "T2_skill": {
           "A": 5416,
           "B": 5486,
-          "C": 3903,
+          "C": 3892,
           "structure_saving": -0.012925,
-          "language_saving": 0.288553,
-          "total_saving": 0.279357
+          "language_saving": 0.290558,
+          "total_saving": 0.281388
         },
         "T3_references": {
           "protocol-v2": {
@@ -920,10 +921,10 @@
           "new-project": {
             "A": 5416,
             "B": 5486,
-            "C": 3903,
+            "C": 3892,
             "structure_saving": -0.012925,
-            "language_saving": 0.288553,
-            "total_saving": 0.279357,
+            "language_saving": 0.290558,
+            "total_saving": 0.281388,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -932,10 +933,10 @@
           "diagnose": {
             "A": 5416,
             "B": 5486,
-            "C": 3903,
+            "C": 3892,
             "structure_saving": -0.012925,
-            "language_saving": 0.288553,
-            "total_saving": 0.279357,
+            "language_saving": 0.290558,
+            "total_saving": 0.281388,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -944,10 +945,10 @@
           "migrate": {
             "A": 11428,
             "B": 11498,
-            "C": 8353,
+            "C": 8342,
             "structure_saving": -0.006125,
-            "language_saving": 0.273526,
-            "total_saving": 0.269076,
+            "language_saving": 0.274483,
+            "total_saving": 0.270039,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -957,10 +958,10 @@
           "recovery": {
             "A": 11930,
             "B": 12000,
-            "C": 8813,
+            "C": 8802,
             "structure_saving": -0.005868,
-            "language_saving": 0.265583,
-            "total_saving": 0.261274,
+            "language_saving": 0.2665,
+            "total_saving": 0.262196,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -970,10 +971,10 @@
           "safe-write": {
             "A": 11930,
             "B": 12000,
-            "C": 8813,
+            "C": 8802,
             "structure_saving": -0.005868,
-            "language_saving": 0.265583,
-            "total_saving": 0.261274,
+            "language_saving": 0.2665,
+            "total_saving": 0.262196,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -983,10 +984,10 @@
           "hook-install": {
             "A": 8429,
             "B": 8499,
-            "C": 6138,
+            "C": 6127,
             "structure_saving": -0.008305,
-            "language_saving": 0.277797,
-            "total_saving": 0.2718,
+            "language_saving": 0.279092,
+            "total_saving": 0.273105,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -1098,6 +1099,7 @@
       "tokenizer": "o200k_base",
       "counter": {
         "requested": "o200k_base",
+        "effective_mode": "tiktoken",
         "actual": "tiktoken:o200k_base",
         "exact": true,
         "source": "tiktoken encoder (bundled BPE ranks)",
@@ -1153,10 +1155,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15399,
-            "chars": 15217,
-            "tokens": 3878,
-            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3869,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
           }
         },
         "T3_references": {
@@ -1282,15 +1284,15 @@
               ]
             },
             "C": {
-              "tokens": 3878,
+              "tokens": 3869,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3878,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -1327,15 +1329,15 @@
               ]
             },
             "C": {
-              "tokens": 3878,
+              "tokens": 3869,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3878,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -1388,15 +1390,15 @@
               ]
             },
             "C": {
-              "tokens": 8296,
+              "tokens": 8287,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3878,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:migration",
@@ -1458,15 +1460,15 @@
               ]
             },
             "C": {
-              "tokens": 8759,
+              "tokens": 8750,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3878,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -1528,15 +1530,15 @@
               ]
             },
             "C": {
-              "tokens": 8759,
+              "tokens": 8750,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3878,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -1598,15 +1600,15 @@
               ]
             },
             "C": {
-              "tokens": 6121,
+              "tokens": 6112,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3878,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3869,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:hooks",
@@ -1916,10 +1918,10 @@
         "T2_skill": {
           "A": 4571,
           "B": 4612,
-          "C": 3878,
+          "C": 3869,
           "structure_saving": -0.00897,
-          "language_saving": 0.15915,
-          "total_saving": 0.151608
+          "language_saving": 0.161101,
+          "total_saving": 0.153577
         },
         "T3_references": {
           "protocol-v2": {
@@ -1959,10 +1961,10 @@
           "new-project": {
             "A": 4571,
             "B": 4612,
-            "C": 3878,
+            "C": 3869,
             "structure_saving": -0.00897,
-            "language_saving": 0.15915,
-            "total_saving": 0.151608,
+            "language_saving": 0.161101,
+            "total_saving": 0.153577,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -1971,10 +1973,10 @@
           "diagnose": {
             "A": 4571,
             "B": 4612,
-            "C": 3878,
+            "C": 3869,
             "structure_saving": -0.00897,
-            "language_saving": 0.15915,
-            "total_saving": 0.151608,
+            "language_saving": 0.161101,
+            "total_saving": 0.153577,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -1983,10 +1985,10 @@
           "migrate": {
             "A": 9587,
             "B": 9628,
-            "C": 8296,
+            "C": 8287,
             "structure_saving": -0.004277,
-            "language_saving": 0.138346,
-            "total_saving": 0.134662,
+            "language_saving": 0.139281,
+            "total_saving": 0.1356,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -1996,10 +1998,10 @@
           "recovery": {
             "A": 10099,
             "B": 10140,
-            "C": 8759,
+            "C": 8750,
             "structure_saving": -0.00406,
-            "language_saving": 0.136193,
-            "total_saving": 0.132686,
+            "language_saving": 0.137081,
+            "total_saving": 0.133578,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -2009,10 +2011,10 @@
           "safe-write": {
             "A": 10099,
             "B": 10140,
-            "C": 8759,
+            "C": 8750,
             "structure_saving": -0.00406,
-            "language_saving": 0.136193,
-            "total_saving": 0.132686,
+            "language_saving": 0.137081,
+            "total_saving": 0.133578,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -2022,10 +2024,10 @@
           "hook-install": {
             "A": 7070,
             "B": 7111,
-            "C": 6121,
+            "C": 6112,
             "structure_saving": -0.005799,
-            "language_saving": 0.139221,
-            "total_saving": 0.134229,
+            "language_saving": 0.140487,
+            "total_saving": 0.135502,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -2137,6 +2139,7 @@
       "tokenizer": "deepseek_v4",
       "counter": {
         "requested": "deepseek_v4",
+        "effective_mode": "deepseek_v4",
         "actual": "tokenizers:deepseek_v4",
         "exact": true,
         "source": "DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json)",
@@ -2192,10 +2195,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15399,
-            "chars": 15217,
-            "tokens": 3943,
-            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3931,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
           }
         },
         "T3_references": {
@@ -2321,15 +2324,15 @@
               ]
             },
             "C": {
-              "tokens": 3943,
+              "tokens": 3931,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3943,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -2366,15 +2369,15 @@
               ]
             },
             "C": {
-              "tokens": 3943,
+              "tokens": 3931,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3943,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -2427,15 +2430,15 @@
               ]
             },
             "C": {
-              "tokens": 8395,
+              "tokens": 8383,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3943,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:migration",
@@ -2497,15 +2500,15 @@
               ]
             },
             "C": {
-              "tokens": 8912,
+              "tokens": 8900,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3943,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -2567,15 +2570,15 @@
               ]
             },
             "C": {
-              "tokens": 8912,
+              "tokens": 8900,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3943,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -2637,15 +2640,15 @@
               ]
             },
             "C": {
-              "tokens": 6243,
+              "tokens": 6231,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3943,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3931,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:hooks",
@@ -2955,10 +2958,10 @@
         "T2_skill": {
           "A": 4343,
           "B": 4338,
-          "C": 3943,
+          "C": 3931,
           "structure_saving": 0.001151,
-          "language_saving": 0.091056,
-          "total_saving": 0.092102
+          "language_saving": 0.093822,
+          "total_saving": 0.094865
         },
         "T3_references": {
           "protocol-v2": {
@@ -2998,10 +3001,10 @@
           "new-project": {
             "A": 4343,
             "B": 4338,
-            "C": 3943,
+            "C": 3931,
             "structure_saving": 0.001151,
-            "language_saving": 0.091056,
-            "total_saving": 0.092102,
+            "language_saving": 0.093822,
+            "total_saving": 0.094865,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -3010,10 +3013,10 @@
           "diagnose": {
             "A": 4343,
             "B": 4338,
-            "C": 3943,
+            "C": 3931,
             "structure_saving": 0.001151,
-            "language_saving": 0.091056,
-            "total_saving": 0.092102,
+            "language_saving": 0.093822,
+            "total_saving": 0.094865,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -3022,10 +3025,10 @@
           "migrate": {
             "A": 9018,
             "B": 9013,
-            "C": 8395,
+            "C": 8383,
             "structure_saving": 0.000554,
-            "language_saving": 0.068568,
-            "total_saving": 0.069084,
+            "language_saving": 0.069899,
+            "total_saving": 0.070415,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -3035,10 +3038,10 @@
           "recovery": {
             "A": 9514,
             "B": 9509,
-            "C": 8912,
+            "C": 8900,
             "structure_saving": 0.000526,
-            "language_saving": 0.062783,
-            "total_saving": 0.063275,
+            "language_saving": 0.064045,
+            "total_saving": 0.064536,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -3048,10 +3051,10 @@
           "safe-write": {
             "A": 9514,
             "B": 9509,
-            "C": 8912,
+            "C": 8900,
             "structure_saving": 0.000526,
-            "language_saving": 0.062783,
-            "total_saving": 0.063275,
+            "language_saving": 0.064045,
+            "total_saving": 0.064536,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -3061,10 +3064,10 @@
           "hook-install": {
             "A": 6720,
             "B": 6715,
-            "C": 6243,
+            "C": 6231,
             "structure_saving": 0.000744,
-            "language_saving": 0.07029,
-            "total_saving": 0.070982,
+            "language_saving": 0.072077,
+            "total_saving": 0.072768,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -3176,6 +3179,7 @@
       "tokenizer": "deepseek_estimate",
       "counter": {
         "requested": "deepseek_estimate",
+        "effective_mode": "deepseek_estimate",
         "actual": "deepseek_estimate（官方比例：1 英文字符≈0.3、1 中文字符≈0.6）",
         "exact": false,
         "source": "documented ratio (0.3 / 0.6)",
@@ -3231,10 +3235,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15399,
-            "chars": 15217,
-            "tokens": 4583,
-            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 4575,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
           }
         },
         "T3_references": {
@@ -3360,15 +3364,15 @@
               ]
             },
             "C": {
-              "tokens": 4583,
+              "tokens": 4575,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 4583,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -3405,15 +3409,15 @@
               ]
             },
             "C": {
-              "tokens": 4583,
+              "tokens": 4575,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 4583,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -3466,15 +3470,15 @@
               ]
             },
             "C": {
-              "tokens": 9508,
+              "tokens": 9500,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 4583,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:migration",
@@ -3536,15 +3540,15 @@
               ]
             },
             "C": {
-              "tokens": 10105,
+              "tokens": 10097,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 4583,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -3606,15 +3610,15 @@
               ]
             },
             "C": {
-              "tokens": 10105,
+              "tokens": 10097,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 4583,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -3676,15 +3680,15 @@
               ]
             },
             "C": {
-              "tokens": 7336,
+              "tokens": 7328,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 4583,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 4575,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:hooks",
@@ -3994,10 +3998,10 @@
         "T2_skill": {
           "A": 3261,
           "B": 3266,
-          "C": 4583,
+          "C": 4575,
           "structure_saving": -0.001533,
-          "language_saving": -0.403246,
-          "total_saving": -0.405397
+          "language_saving": -0.400796,
+          "total_saving": -0.402944
         },
         "T3_references": {
           "protocol-v2": {
@@ -4037,10 +4041,10 @@
           "new-project": {
             "A": 3261,
             "B": 3266,
-            "C": 4583,
+            "C": 4575,
             "structure_saving": -0.001533,
-            "language_saving": -0.403246,
-            "total_saving": -0.405397,
+            "language_saving": -0.400796,
+            "total_saving": -0.402944,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -4049,10 +4053,10 @@
           "diagnose": {
             "A": 3261,
             "B": 3266,
-            "C": 4583,
+            "C": 4575,
             "structure_saving": -0.001533,
-            "language_saving": -0.403246,
-            "total_saving": -0.405397,
+            "language_saving": -0.400796,
+            "total_saving": -0.402944,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -4061,10 +4065,10 @@
           "migrate": {
             "A": 6647,
             "B": 6652,
-            "C": 9508,
+            "C": 9500,
             "structure_saving": -0.000752,
-            "language_saving": -0.429345,
-            "total_saving": -0.43042,
+            "language_saving": -0.428142,
+            "total_saving": -0.429216,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -4074,10 +4078,10 @@
           "recovery": {
             "A": 7091,
             "B": 7096,
-            "C": 10105,
+            "C": 10097,
             "structure_saving": -0.000705,
-            "language_saving": -0.424042,
-            "total_saving": -0.425046,
+            "language_saving": -0.422914,
+            "total_saving": -0.423918,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -4087,10 +4091,10 @@
           "safe-write": {
             "A": 7091,
             "B": 7096,
-            "C": 10105,
+            "C": 10097,
             "structure_saving": -0.000705,
-            "language_saving": -0.424042,
-            "total_saving": -0.425046,
+            "language_saving": -0.422914,
+            "total_saving": -0.423918,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -4100,10 +4104,10 @@
           "hook-install": {
             "A": 5199,
             "B": 5204,
-            "C": 7336,
+            "C": 7328,
             "structure_saving": -0.000962,
-            "language_saving": -0.409685,
-            "total_saving": -0.411041,
+            "language_saving": -0.408148,
+            "total_saving": -0.409502,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -4215,6 +4219,7 @@
       "tokenizer": "heuristic",
       "counter": {
         "requested": "heuristic",
+        "effective_mode": "heuristic",
         "actual": "heuristic（CJK 1 字≈1 token，其余 4 字符≈1 token）",
         "exact": false,
         "source": "heuristic",
@@ -4270,10 +4275,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15399,
-            "chars": 15217,
-            "tokens": 3848,
-            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+            "bytes": 15375,
+            "chars": 15192,
+            "tokens": 3842,
+            "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
           }
         },
         "T3_references": {
@@ -4399,15 +4404,15 @@
               ]
             },
             "C": {
-              "tokens": 3848,
+              "tokens": 3842,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3848,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -4444,15 +4449,15 @@
               ]
             },
             "C": {
-              "tokens": 3848,
+              "tokens": 3842,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3848,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 }
               ]
             },
@@ -4505,15 +4510,15 @@
               ]
             },
             "C": {
-              "tokens": 8004,
+              "tokens": 7998,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3848,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:migration",
@@ -4575,15 +4580,15 @@
               ]
             },
             "C": {
-              "tokens": 8534,
+              "tokens": 8528,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3848,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -4645,15 +4650,15 @@
               ]
             },
             "C": {
-              "tokens": 8534,
+              "tokens": 8528,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3848,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -4715,15 +4720,15 @@
               ]
             },
             "C": {
-              "tokens": 6146,
+              "tokens": 6140,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15399,
-                  "chars": 15217,
-                  "tokens": 3848,
-                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
+                  "bytes": 15375,
+                  "chars": 15192,
+                  "tokens": 3842,
+                  "sha256": "5cb10a690f4e276bbe82a6fad2250002d4b285ee062ea2f750c12daaeeee2102"
                 },
                 {
                   "key": "ref:hooks",
@@ -5033,10 +5038,10 @@
         "T2_skill": {
           "A": 3913,
           "B": 3980,
-          "C": 3848,
+          "C": 3842,
           "structure_saving": -0.017122,
-          "language_saving": 0.033166,
-          "total_saving": 0.016611
+          "language_saving": 0.034673,
+          "total_saving": 0.018145
         },
         "T3_references": {
           "protocol-v2": {
@@ -5076,10 +5081,10 @@
           "new-project": {
             "A": 3913,
             "B": 3980,
-            "C": 3848,
+            "C": 3842,
             "structure_saving": -0.017122,
-            "language_saving": 0.033166,
-            "total_saving": 0.016611,
+            "language_saving": 0.034673,
+            "total_saving": 0.018145,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -5088,10 +5093,10 @@
           "diagnose": {
             "A": 3913,
             "B": 3980,
-            "C": 3848,
+            "C": 3842,
             "structure_saving": -0.017122,
-            "language_saving": 0.033166,
-            "total_saving": 0.016611,
+            "language_saving": 0.034673,
+            "total_saving": 0.018145,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -5100,10 +5105,10 @@
           "migrate": {
             "A": 8089,
             "B": 8156,
-            "C": 8004,
+            "C": 7998,
             "structure_saving": -0.008283,
-            "language_saving": 0.018637,
-            "total_saving": 0.010508,
+            "language_saving": 0.019372,
+            "total_saving": 0.01125,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -5113,10 +5118,10 @@
           "recovery": {
             "A": 8617,
             "B": 8684,
-            "C": 8534,
+            "C": 8528,
             "structure_saving": -0.007775,
-            "language_saving": 0.017273,
-            "total_saving": 0.009632,
+            "language_saving": 0.017964,
+            "total_saving": 0.010328,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -5126,10 +5131,10 @@
           "safe-write": {
             "A": 8617,
             "B": 8684,
-            "C": 8534,
+            "C": 8528,
             "structure_saving": -0.007775,
-            "language_saving": 0.017273,
-            "total_saving": 0.009632,
+            "language_saving": 0.017964,
+            "total_saving": 0.010328,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -5139,10 +5144,10 @@
           "hook-install": {
             "A": 6237,
             "B": 6304,
-            "C": 6146,
+            "C": 6140,
             "structure_saving": -0.010742,
-            "language_saving": 0.025063,
-            "total_saving": 0.01459,
+            "language_saving": 0.026015,
+            "total_saving": 0.015552,
             "title": "Hook installation",
             "required": [
               "skill",
