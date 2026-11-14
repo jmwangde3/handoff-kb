@@ -55,24 +55,27 @@ English edition: [`README.md`](README.md)（英文主手册）。
 
 ---
 
-## 3. 语言怎么选（2.0.4 新增）
+## 3. 语言：一个技能，任意知识库语言（2.0.4 新增）
 
-技能与模板各有中英两套完整版本。**按项目现有文档的语言选，不按操作者语言选。**
+2.0.4 只发**一个**技能：`SKILL.md`，正文英文。它的指令语言不等于知识库语言，两者各自独立选择。**模板按项目现有文档的语言选，不按操作者语言选。**
 
-| 情况 | 加载哪份技能 | 用哪套模板 |
+| 情况 | 用哪套模板 | agent 读到什么 |
 |---|---|---|
-| 中文项目（文档已是中文） | `SKILL.zh-CN.md` + `references/*.zh-CN.md` | `assets/`（中文） |
-| 英文项目（文档已是英文） | `SKILL.md` + `references/*.md` | `assets/en/` |
-| 中英混排项目 | **沿用现有文档的主导语言**，不转换 | 与主导语言一致 |
-| 新建项目、还没有文档 | 问一次，或跟随用户消息语言 | 对应 `kb-init --lang` |
+| 中文项目（文档已是中文） | `assets/`（默认，`--lang zh`） | 英文技能 + 中文文档 |
+| 英文项目（文档已是英文） | `assets/en/`（`--lang en`） | 英文技能 + 英文文档 |
+| 中英混排的旧项目 | **沿用现有文档的主导语言**，不转换 | 英文技能 + 原有内容 |
+| 新建项目、还没有文档 | 问一次，或跟随用户消息语言 | 英文技能 + 选定的模板集 |
 
 硬规则：
 
-- **绝不自动翻译已生成的内容。** 模板、协议状态词（`有效` / `待核` / `已作废`）、保留文件名（`00_基线.md`、`05_进度仪表盘.md` …）和 `kb:id` 取值都属于协议，不是散文。英文项目照样用协议的状态词与 ID；中文项目照样用中文文件名。
+- **绝不自动翻译已有内容。** 模板、协议状态词（`有效` / `待核` / `已作废`）、保留文件名（`00_基线.md`、`05_进度仪表盘.md` …）和 `kb:id` 取值都属于协议数据，不是散文。英文项目照样用协议的状态词与 ID；中文项目照样用中文文件名。
+- **指令永远是英文，不管知识库是什么语言。** 管着中文库的 agent 读英文指令、写中文文档，两者不需要一致。
 - **一个库只用一种散文语言。** 同一库里混两种散文语言，只会让检索噪音翻倍而不增加信息。
-- **选择是按库的，不是全局的。** 同一台机器上两个项目可以用不同语言；`kb-context` / `kb-check` / `kb-write` 与语言无关，没有 `--lang`。
+- **选择是按库的，不是全局的，而且几乎没有命令行开关承载它。** `kb-context` / `kb-check` / `kb-write` 与语言无关、没有 `--lang`；只有 `kb-init` 有，因为只有搭骨架需要选模板集。
 
 `kb-init.py --lang {zh,en}` 选模板集。两套产出**同样的 17 个文件、同样的相对路径、同样的占位符、同样的 `kb:id` 集合**，由 `tests/token_language/test_token_language.py::TemplateParity` 守住。
+
+中文**参考**版（`references/*.zh-CN.md`）作为可选中读资料一起发，协议 ID、命令、JSON 形状、退出码与英文版一致。它们是参考资料，不是第二个技能：`SKILL.md` 是唯一可发现的技能文件，有测试守住这一条。
 
 有一处要明说：英文项目生成的启动消息仍然叫 `新会话启动消息.txt`，因为那是骨架的固定槽位。它不是协议数据，也没有脚本依赖这个名字；保持统一的原因是——文件名随语言变，一致性用例就只能比对「槽位集」而不是字面路径，而字面路径比对才是能抓出「真少了一个文件」的那种。觉得别扭就本地改名，不会坏任何东西。
 
@@ -96,7 +99,14 @@ English edition: [`README.md`](README.md)（英文主手册）。
 
 ## 5. 一键初始化
 
-**依赖**：Python 3.10+，只用标准库。`tiktoken` 是唯一的可选依赖，只用于「精确 token 计数」，不装也能跑（自动降级为启发式估算并在输出里标注）；`tests/deps_check.py` 会在 CI 里守住这条。
+**依赖**：Python 3.10+，**必需依赖只有标准库**。可选依赖两个，都只为精确 token 计数，都在函数内 `try/except` 导入：
+
+| 可选 | 换来什么 | 没有它 |
+|---|---|---|
+| `tiktoken` | `--tokenizer cl100k_base` / `o200k_base`，精确 BPE 计数 | 指定即退出 **2**；`heuristic` 照常可用 |
+| `tokenizers` + DeepSeek 的 `tokenizer.json` | `--tokenizer deepseek_v4`，在 DeepSeek 自有词表上精确计数 | 指定即退出 **2**；`deepseek_estimate` 按官方比例估算 |
+
+没有任何东西静默降级：显式指定的编码器要么能用，要么退出 2；唯一接受估算的办法是 `--allow-tokenizer-fallback`，此时输出自己标 `exact=false`。`tests/deps_check.py` 走每个脚本的**完整 AST**，超出上表的第三方导入、出现在模块顶层、或没包 `try/except`，一律失败；`tests/test_deps_check.py` 再测这个检查器本身，新增依赖不可能不被发现。
 
 ```bash
 KB="$HOME/.skills-manager/skills/handoff-kb"   # 换成你的安装目录
@@ -255,7 +265,7 @@ py "$KB/scripts/kb-check.py" --target . --mode template  # 刚初始化的空模
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 365 例（341 既有 + 24 例 token_language）
+python -m unittest discover -s tests        # 392 例（341 既有 + 40 例 token_language + 11 例 deps_check）
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
@@ -264,34 +274,39 @@ python tests/token_language/run_token_benchmark.py --all --out tests/token_langu
 
 - 既有用例覆盖：锁所有权 / 死锁回收 / 不完整锁不抢占、事务回滚与 journal 校验和、recover 三态、迁移计划绑定哈希与 root_id、路径越界与符号链接剪枝、事实三定义位与索引页指针、作废链与 ID 不可变、多工作线装配与预算收敛、P3/P4 受控、`--loose` 自有命名（含数字分册兜底与候选分册降权）、agent 目录不进检索、P4 只按自有正文打分、P4 补入边界与 `p4_facts`、P0 三级兜底（含软链越界与占位符）、围栏内容不进计数、Hook 预览零写入 / 多文件回滚 / 官方事件结构、真实子进程并发与故障注入、benchmark 指标与质量门、内容级去重与重复装载指标、单事实分册与 `--line` 兜底、容器 599/600/601 边界、P0 去重豁免、P0 两级 dashboard 逐级兜底、h1 导语判定（正文逐句比对 / 短句按任务相关性 / 导语与事实混句）。
 - `tests/fixtures/ffrs/` 是脱敏的「自有命名」项目夹具（`60_进度.md` / `61_流水.md` / `60_流水/`），全部虚构内容，用来验证 `--loose` 与标准命名等价；`tests/fixtures/plain/` 是普通数字编号库（`00/05/20/30/40/50`，无 `kb:id`、无事实结构），用来验证「编号像分册」不等于「里面是事实」。
-- CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 由 `deps_check.py` 显式放行并限制在函数内）。
+- CI：`.github/workflows/test.yml`，Ubuntu + Windows × Python 3.10 / 3.12 / 3.13，无网络、无凭证、库依赖只有标准库（可选 `tiktoken` 与 `tokenizers` 由 `deps_check.py` 显式放行，且必须写在函数内、包 `try/except`）。
 - benchmark 对比 A 全量 / B `00+05` / C 路由，10 个固定任务（其中 1 个是错误路径，单列、不进均值）；A/B/C 用同一个 `TokenCounter`；输出 10 项质量指标，其中 5 项是硬门槛（硬约束保留、错误路径拒绝、预算如实、工作线无静默遗漏、计数器口径一致），不接受被平均值抹平；任务通过率门槛 80% **向上取整**（8 个任务要 7 个过，`round()` 会把 6.4 抹成 6）。
 
 ### 12.1 中英双语 token 基准（2.0.4 新增）
 
-三个变体：**A** 原版中文 v2.0.3 · **B** 优化中文 v2.0.4 · **C** 优化英文 v2.0.4。
+三个变体：**A** 原版中文 v2.0.3（冻结） · **B** 优化中文 v2.0.4——**基准测试样本，不是发布技能** · **C** 发布版英文技能 v2.0.4。
 `structure = 1 − B/A`，`language = 1 − C/B`，`total = 1 − C/A`。分母为零时显式写「不适用」，不写成 0%。
 
-默认加载成本（`SKILL.md` + YAML description），2026-11-14 实测：
+B 只为一件事存在：没有「优化后文本」的中文版，`A → C` 会把结构精简和改写语言混成一个无法归因的数字。留着 B，两个因子才各自可测。它在 `tests/token_language/sample_b/`，字节由 SHA256 断言钉住，不可安装——2.0.4 只发一个技能。
+
+`SKILL.md` 正文，2026-11-14 实测：
 
 | 词表 | A | C | 总降幅 | 15% 目标 |
 |---|---|---|---|---|
-| `cl100k_base`（tiktoken，精确） | 5,416 | 3,871 | **28.5%** | 达到 |
-| `o200k_base`（tiktoken，精确） | 4,571 | 3,851 | **15.8%** | 达到 |
-| `deepseek_v4`（官方离线 `tokenizer.json`，精确） | 4,343 | 3,919 | **9.8%** | **未达到，照实报** |
-| `deepseek_estimate`（官方比例 0.3 / 0.6，**估算**） | 3,261 | 4,525 | −38.8% | 不适用 |
+| `cl100k_base`（tiktoken，精确） | 5,416 | 3,903 | **27.9%** | 达到 |
+| `o200k_base`（tiktoken，精确） | 4,571 | 3,878 | **15.2%** | 达到 |
+| `deepseek_v4`（官方离线 `tokenizer.json`，精确） | 4,343 | 3,943 | **9.2%** | **未达到，照实报** |
+| `deepseek_estimate`（官方比例 0.3 / 0.6，**估算**） | 3,261 | 4,583 | −40.5% | 不适用 |
 
-参考手册在 `deepseek_v4` 下：protocol-v2 5,171 → 4,969（3.9%）、migration 4,675 → 4,452（4.8%）、hooks 2,377 → 2,300（3.2%）、benchmark 5,424 → 5,193（4.3%）。模板：`AGENTS.md` 1,175 → 1,188、`05_dashboard.md` 701 → 697——**模板在两种语言下基本等长**，这正是预期：模板主要是占位符和协议词汇。
+把 YAML description 也算进去（客户端真正先加载的那部分），合计是 `cl100k_base` 5,533 → 3,972（−28.2%）、`deepseek_v4` 4,406 → 4,014（−8.9%）。在 DeepSeek 词表上**description 自己是变长的**：63 → 71——同一句触发描述，英文需要更多这个词表的 token。正文占大头，所以合计仍然下降。
 
-DeepSeek 为什么达不到 15%：它的词表偏中文，中文原文本身已经很紧（约 7.7 k 字符 = 4,343 tokens），同一份内容写成英文要约 12.4 k 字符。同样的结构调整，在拉丁字母为主词表上省 28.5%，在中文为主词表上省 9.8%。逐节、逐任务、逐文件的完整表在 `tests/token_language/out/token-benchmark-all.md`（同目录有 JSON）。
+参考手册在 `deepseek_v4` 下：protocol-v2 5,171 → 4,969（3.9%）、migration 4,675 → 4,452（4.8%）、hooks 2,377 → 2,300（3.2%）、benchmark 5,424 → 5,193（4.3%）。模板：`AGENTS.md` 1,232 → 1,237、`05_dashboard.md` 784 → 760——**模板在两种语言下基本等长**，这正是预期：模板主要是占位符和协议词汇。
+
+DeepSeek 为什么达不到 15%：它的词表偏中文，中文原文本身已经很紧（约 7.7 k 字符 = 4,343 tokens），同一份内容写成英文要约 12.4 k 字符。同样的结构调整，在拉丁字母为主词表上省 27.9%，在中文为主词表上省 9.2%——所以门槛是分开的：**`cl100k_base` / `o200k_base` 按 15%，`deepseek_v4` 按「不增长」**。逐节、逐任务、逐文件的完整表在 `tests/token_language/out/token-benchmark-all.md`（同目录有 JSON）。
 
 读数口径（避免过度解读）：
 
 - `cl100k_base` / `o200k_base` 是可复现的代理词表，不是任何一个模型的计费 tokenizer。
-- `deepseek_v4` 用 DeepSeek 官方离线词表；`deepseek_estimate` 只套官方公布的比例（1 英文字符≈0.3、1 中文字符≈0.6），在所有输出里都标 `estimate`。**这个比例模型不能用来做跨语言比较**——译文总字符数更多，公式会报「变长了」，而真实词表报「省了」。报告里保留这一组，就是为了把它失效的边界写清楚。
+- 每份报告都写明用了哪套词表：`deepseek_v4` 记录文件名、`tokenizer.json` 的 SHA256 和 `tokenizers` 版本，且报告里没有任何个人路径——既能证明两个数字来自同一套词表，又不用公开谁的目录结构。当前哈希 `89085f12…c9614`。
+- `deepseek_estimate` 只套官方公布的比例（1 英文字符≈0.3、1 中文字符≈0.6），在所有输出里都标 `estimate`。**这个比例模型不能用来做跨语言比较**——译文总字符数更多，公式会报「变长了」，而真实词表报「省了」。报告里保留这一组，就是为了把它失效的边界写清楚。
 - `heuristic`（CJK 1 字≈1 token，其余 4 字符≈1 token）只作估算报，从不用于结论。
 - 词表缺失即报错（退出码 2），不静默降级：报告绝不声称自己拥有并不具备的精确性。
-- 结构对照靠章节标题与协议 ID，不逐句做语义等价；规则表（17 条必备规则，逐条给两种语言的可接受表述）在 `tests/token_language/test_token_language.py`。
+- 结构对照靠章节标题与协议 ID，不逐句做语义等价；规则表（19 条必备规则，只针对发布的那份英文技能）在 `tests/token_language/test_token_language.py`。
 
 ---
 
@@ -341,10 +356,10 @@ py "$KB/scripts/kb-hooks.py" uninstall --client claude --target . --write
 ## 16. 文件
 
 ```text
-SKILL.md                       英文技能主体（默认，9 个编号章节）
-SKILL.zh-CN.md                 中文技能主体（同结构、同规则）
+CHANGELOG.md                   简版版本记录；完整编年史见本文件 §17
+SKILL.md                       技能本体——英文，9 个编号章节，唯一的技能文件
 references/protocol-v2.md       2.0 协议：编号、章节 ID、changes.json、并发与恢复
-references/protocol-v2.zh-CN.md 上者的中文版
+references/protocol-v2.zh-CN.md 上者的中文版（可选读物）
 references/protocol.md          v1 设计原理（历史，仅中文）
 references/migration.md         存量改造手册（含 v1 → v2）
 references/migration.zh-CN.md   中文版
@@ -368,8 +383,9 @@ scripts/lib/                    共享库：protocol / scope / markdown / safeio
 tests/                          全量 unittest + 端到端 smoke + 依赖检查 + 夹具生成器
 tests/make_fixture.py           生成 benchmark 用的合成夹具（§1 的数字可复现）
 tests/fixtures/ffrs/            脱敏「自有命名」项目夹具（--loose 用，内容全部虚构）
-tests/token_language/           中英 A/B/C token 基准、结构与模板一致性测试、v2.0.3 冻结基线
-tests/deps_check.py             非标准库导入检查（只允许可选的 tiktoken）
+tests/token_language/           A/B/C token 基准、规则与布局测试、v2.0.3 冻结基线
+tests/token_language/sample_b/  冻结的中文 2.0.4 文本——只作基准样本，不是技能
+tests/deps_check.py             非标准库导入检查（走完整 AST，只允许 tiktoken / tokenizers）
 .github/workflows/test.yml      Ubuntu + Windows × 3 个 Python 版本
 ```
 
@@ -635,10 +651,13 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
 
 1. **`SKILL.md` 改成英文、9 个编号章节**：用途与适用边界 / 架构与核心规则 / 快速开始与恢复 /
    上下文路由 / 安全写入规则 / 交接与校验 / 参考手册加载指引 / 反模式与安全 / 文件索引。
-   原来的 14 个零散章节合并成这 9 个，同一件事只在一处说，其余处交叉引用。
-2. **`SKILL.zh-CN.md` 是同结构的完整中文版**：不是英文版的翻译，而是同一套规则用自己的语言写。
-   两份的章节序号、命令参数、协议词汇一一对应，`TemplateParity` 与 `SemanticParity` 两组用例守着。
+   原来的 14 个零散章节合并成这 9 个，同一件事只在一处说，其余处交叉引用。开头明确写：
+   **指令语言与知识库语言互相独立**。
+2. **只发一个技能，不发两个。** 优化后的中文文本不随包发布：它在
+   `tests/token_language/sample_b/SKILL.zh-CN.md`，作为 token 基准的 B 样本，字节由 SHA256 断言钉住。
+   有测试断言 `tests/` 之外只有 `SKILL.md` 一份技能文件。
 3. **`references/*.md` 转英文，中文原稿 `git mv` 到 `references/*.zh-CN.md` 且**不改一字**。
+   它们是可选读物，与英文版共用同一套协议 ID、命令、JSON 形状与退出码，不是第二个技能。
    `references/protocol.md` 故意留中文——它是 v1 设计史，不是操作手册。
 4. **`assets/en/` 12 份英文模板**：占位符（`{{PROJECT}}` / `{{SCHEMA}}` / `{{SHARD_TABLE}}` …）
    与 `kb:id` 集合与中文版完全相同，协议状态词（`有效` / `待核` / `已作废`）保持字面量，
@@ -647,13 +666,21 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
    初始状态、分片章节、`CLAUDE.md`/`GEMINI.md` 指针和自检脚本占位。默认 `zh`，
    所以既有调用行为一字不变。
 6. **`tokens.py` 增加 `deepseek_v4`**（官方离线 `tokenizer.json`，精确，函数内 `import tokenizers`）
-   与 **`deepseek_estimate`**（官方比例 0.3 / 0.6，明确标 `estimate`）。词表缺失即
-   `TokenizerError`，除 `--allow-tokenizer-fallback` 外不静默降级。
-7. **`tests/token_language/`**：A/B/C 实测、v2.0.3 冻结基线（19 份文件 + `MANIFEST.json`，
-   带 bytes / chars / sha256 / 三套词表 token 数）、17 条规则的双语表述表、模板一致性、
-   token 目标、不静默降级、跨语言场景（中文库跑英文技能、英文库跑英文任务）、基线清单的字节/哈希/token 复现，共 24 例。
-   数字化的 token 门槛需要精确词表，CI 不装可选依赖，所以那 5 例会带原因 skip（每条点名缺哪个编码器）；
-   其余不依赖编码器的用例在 CI 照常跑，一条命令可本地复现全部：`python tests/token_language/run_token_benchmark.py --all`。
+   与 **`deepseek_estimate`**（官方比例 0.3 / 0.6，明确标 `estimate`）。每个计数器还带一份
+   **词表指纹**——来源、词表文件名、词表 SHA256、库版本，且**不含任何个人路径**；
+   `is_exact()` 现在同时认 `tiktoken:` 与 `tokenizers:` 两种精确前缀。词表缺失即
+   `TokenizerError`（命令行退出 2），除 `--allow-tokenizer-fallback` 外不静默降级。
+7. **`tests/deps_check.py` 改成走完整 AST**：不再只看模块顶层，可选依赖必须同时满足
+   「在函数内」和「包在 try/except 中」。`tokenizers` 正式列入可选依赖清单——代码从
+   DeepSeek 计数器加入那天起就在用它，而文档只说 `tiktoken`，这次把声明补齐。
+   `tests/test_deps_check.py`（11 例）测检查器本身，新增第三方依赖会被先发现。
+8. **`tests/token_language/`**：A/B/C 实测、v2.0.3 冻结基线（19 份文件 + `MANIFEST.json`，
+   带 bytes / chars / sha256 / 三套词表 token 数，**三套精确词表都复现**）、19 条规则表
+   （只针对发布的那份英文技能）、标识符与 JSON 契约对照实现、模板一致性、
+   token 目标、不静默降级、跨语言场景（中文库跑英文技能、英文库跑英文任务）、基线清单的
+   字节/哈希/token 复现，共 40 例。数字化的 token 门槛需要精确词表，CI 不装可选依赖，
+   所以那 7 例会带原因 skip（每条点名缺哪个编码器）；其余用例在 CI 照常跑，
+   一条命令可本地复现全部：`python tests/token_language/run_token_benchmark.py --all`。
 
 **没变的**：协议版本、文档 ID、保留文件名、章节 ID、命令参数、JSON schema、迁移行为、
 安全/并发/事务/哈希/恢复规则。没有为了省 token 删掉任何一条安全规则——只压缩措辞，
@@ -669,11 +696,11 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **365 例，OK（1 skip）**——341 例既有 + 24 例 `token_language`；本机唯一的 skip 是「装了 tiktoken」那条分支 |
-| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 365 例，**5 skip**：数字化的 token 门槛必须有精确词表才能算。每条 skip 都在原因里点名缺哪个编码器；不依赖编码器的性质（结构、一致性、不静默降级、跨语言场景）照常跑 |
+| `python -m unittest discover -s tests` | **392 例，OK（1 skip）**——341 例既有 + 40 例 `token_language` + 11 例 `test_deps_check`；本机唯一的 skip 是一条既有降级用例，它只在**没装** `tiktoken` 时才适用 |
+| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 392 例，**7 skip**，0 失败：数字化的 token 用例必须有精确词表才能算。每条 skip 都在原因里点名缺哪个词表（`cl100k_base` / `o200k_base` / `deepseek_v4`）；不依赖编码器的性质——布局、规则、标识符、JSON 契约、模板、跨语言场景、降级退出码——照常跑 |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
-| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |
+| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`；`tiktoken` 与 `tokenizers` 是两个已声明的可选例外，都在函数内且包 `try/except`。`tests/test_deps_check.py`（11 例）测检查器本身 |
 | `python tests/token_language/run_token_benchmark.py --all` | 产出 §12.1 的表；`deepseek_v4` 需要离线词表，否则退出 2 |
 
 ### 18.2 CI（六个环境）
@@ -682,8 +709,10 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
 2.0.3 那一轮（run `43451488874`，2026-11-13）六环境全绿、341 例无 skip。
-2.0.4 这一轮（run [43592120170](https://github.com/jmwangde3/handoff-kb/actions/runs/43592120170)，2026-11-14，`pull_request`，HEAD `bb19552`）同样六环境全绿，每个 job 都是 `Ran 365 tests … OK (skipped=5)`。
-那 5 条 skip 是数字化的 token 门槛——它需要精确词表，而 CI 故意不装可选依赖。**它们不是在掩盖失败**：数字本身一条命令可本地复现（§12.1）。
+2.0.4 以 **PR 的 CI 状态**为准，不在本文件里自述：当前 HEAD 的运行结果记在
+PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5) 上。每个 job 跑 392 例，
+那 7 条 skip 是数字化的 token 用例——它们需要精确词表，而 CI 故意不装可选依赖。
+**它们不是在掩盖失败**：数字本身一条命令可本地复现（§12.1）。
 
 > 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
 
@@ -716,8 +745,9 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
 | 客户端启动未端到端验证 | 见 §18.3 | Hook 装了但没生效时，只能靠「没有注入上下文」这个现象发现 |
 | P4 的「在问历史」靠关键词猜 | `历史 / 以前 / 作废 / 沿革…` 命中才带回作废内容 | 换一种说法（「当初」「回滚前」）可能不触发；给人用的显式开关是 `--include-superseded`，模型侧只能看缺口提示 |
 | 作废内容按「定义行」置空 | 只认 `lib/facts.py` 解析出的定义位 | 章节里用自然语言复述旧值（没写成定义位）不会被置空；要靠写库时把旧值标成 `status: deprecated` |
-| token 数字依赖词表 | cl100k 28.5% / o200k 15.8% / deepseek_v4 9.8% | 只报一个百分比而不说词表就是误导；报告里每次都带词表名 |
+| token 数字依赖词表 | cl100k 27.9% / o200k 15.2% / deepseek_v4 9.2% | 只报一个百分比而不说词表就是误导；报告里每次都带词表名与词表 SHA256 |
 | 英文模板是新东西 | 一致性用例比对文件集、占位符与 `kb:id`，另有一次真实 `kb-init --lang en` 跑通 `kb-check` | 还没有用它们养过一个长期英文库，「半年后还好读」未经验证 |
+| 英文技能管中文库 | **命令行**路径有测试（中文夹具上跑 init / check / context） | **agent** 在真实 Codex / Claude Code 会话里按英文指令操作中文库，没跑过；清单一节明确标为未验证 |
 
 ---
 

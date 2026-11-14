@@ -55,24 +55,27 @@ Do not repeat: [1 line, delete if none]
 
 ---
 
-## 3. Language selection (new in 2.0.4)
+## 3. Language: one skill, any library language (new in 2.0.4)
 
-The skill ships two complete editions and two template sets. **Pick by the project's existing documents, not by the operator's language.**
+2.0.4 ships **one** skill — `SKILL.md`, written in English. Its instruction language is not the library's language, and the two are chosen independently. **Pick the template set by the project's existing documents, not by the operator's language.**
 
-| Situation | Skill to load | Templates |
+| Situation | Templates | What the agent reads |
 |---|---|---|
-| Chinese project (docs already in Chinese) | `SKILL.zh-CN.md` + `references/*.zh-CN.md` | `assets/` (Chinese) |
-| English project (docs already in English) | `SKILL.md` + `references/*.md` | `assets/en/` |
-| Mixed project | **Preserve the dominant language of the existing documents**; do not convert them | whichever matches |
-| New project, no documents yet | Ask once, or follow the user's message language | matching `kb-init --lang` |
+| Chinese project (docs already in Chinese) | `assets/` — the default, `--lang zh` | English skill + Chinese documents |
+| English project (docs already in English) | `assets/en/` — `--lang en` | English skill + English documents |
+| Mixed legacy project | **Keep the dominant language of the existing documents**; convert nothing | English skill + whatever is already there |
+| New project, no documents yet | Ask once, or follow the user's message language | English skill + the chosen template set |
 
 Hard rules:
 
-- **Never auto-translate generated content.** The templates, the protocol status vocabulary (`有效` / `待核` / `已作废`), the reserved filenames (`00_基线.md`, `05_进度仪表盘.md`, …) and the `kb:id` values are part of the protocol, not prose. An English project still uses the protocol's literal status words and IDs; a Chinese project still gets Chinese filenames.
+- **Never auto-translate existing content.** The templates, the protocol status vocabulary (`有效` / `待核` / `已作废`), the reserved filenames (`00_基线.md`, `05_进度仪表盘.md`, …) and the `kb:id` values are protocol data, not prose. An English project still uses the protocol's literal status words and IDs; a Chinese project still gets Chinese filenames.
+- **The instructions stay English whatever the library language is.** An agent maintaining a Chinese library reads English instructions and writes Chinese documents — the two never have to match.
 - **One library, one language for its prose.** Mixing two prose languages inside one library doubles retrieval noise without adding information.
-- **The choice is per library, not global.** Two projects on the same machine may use different languages; `kb-context` / `kb-check` / `kb-write` are language-agnostic and take no `--lang`.
+- **The choice is per library, not global, and almost no CLI flag carries it.** `kb-context` / `kb-check` / `kb-write` are language-agnostic and take no `--lang`; only `kb-init` does, because only scaffolding needs a template set.
 
 `kb-init.py --lang {zh,en}` selects the template set. Both produce the **same 17 files with the same relative paths, the same placeholders and the same `kb:id` set**; a parity test enforces it (`tests/token_language/test_token_language.py::TemplateParity`).
+
+Chinese **reference** editions (`references/*.zh-CN.md`) ship as optional reading, with the same protocol IDs, commands, JSON shapes and exit codes as the English ones. They are reference material, not a second skill: `SKILL.md` is the only discoverable skill document, and a test asserts it.
 
 One consequence worth naming: an English project still gets `新会话启动消息.txt` for its copy-paste startup note, because that path is part of the skeleton's fixed slot. It is not protocol data and no script requires the name; the reason for keeping it uniform is that a language-dependent filename would make the parity test compare slot sets instead of literal paths, and the literal-path check is the one that catches a genuinely missing file. Rename it locally if it bothers you — nothing breaks.
 
@@ -96,7 +99,14 @@ One consequence worth naming: an English project still gets `新会话启动消�
 
 ## 5. One-command initialization
 
-**Requirements**: Python 3.10+, standard library only. `tiktoken` is the only optional dependency, used for "exact token counting"; without it the tools fall back to a labeled estimate. `tests/deps_check.py` enforces this in CI.
+**Requirements**: Python 3.10+, **standard library only**. Two optional dependencies exist, both for exact token counting and both imported inside a function under `try/except`:
+
+| Optional | Gives | Without it |
+|---|---|---|
+| `tiktoken` | `--tokenizer cl100k_base` / `o200k_base`, exact BPE counts | requesting one exits **2**; `heuristic` still works |
+| `tokenizers` + DeepSeek's `tokenizer.json` | `--tokenizer deepseek_v4`, exact counts on DeepSeek's own vocabulary | requesting it exits **2**; `deepseek_estimate` applies the documented ratio |
+
+Nothing degrades silently: an explicitly requested encoder either works or exits 2, and `--allow-tokenizer-fallback` is the only way to accept an estimate (which then labels itself `exact=false`). `tests/deps_check.py` walks the full AST of every script and fails on any third-party import outside this table, at module level, or outside `try/except`; `tests/test_deps_check.py` tests the checker itself so a new dependency cannot slip in unnoticed.
 
 ```bash
 KB="$HOME/.skills-manager/skills/handoff-kb"   # your install path
@@ -255,7 +265,7 @@ Numbering checks accept "definition positions": heading start, list start, table
 ## 12. Tests and benchmarks
 
 ```bash
-python -m unittest discover -s tests        # 365 tests (341 existing + 24 token_language)
+python -m unittest discover -s tests        # 392 tests (341 existing + 40 token_language + 11 deps_check)
 python tests/smoke.py                       # end to end: init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ must not import outside the standard library
 python scripts/kb-benchmark.py --target . --report markdown
@@ -264,7 +274,7 @@ python tests/token_language/run_token_benchmark.py --all --out tests/token_langu
 
 - The existing suite covers lock ownership / dead-lock reclamation / never stealing an incomplete lock, transaction rollback and journal checksums, `recover` three-state, migration plan bound to hashes and `root_id`, path escapes and symlink pruning, the three fact definition positions and index-page pointers, retirement chains and immutable IDs, multi-workstream assembly and budget convergence, P3/P4 containment, `--loose` custom naming (numbered-book fallback and candidate down-weighting), agent directories excluded from retrieval, P4 scoring only on own body text, the P4 insertion boundary and `p4_facts`, the three-level P0 fallback (including symlink escapes and placeholders), fenced content excluded from counts, hook preview writing nothing / multi-file rollback / official event structures, real subprocess concurrency and fault injection, benchmark metrics and quality gates, content-level dedupe and duplicate-loading metrics, single-fact books and the `--line` fallback, container 599/600/601 boundaries, haiku-preamble demotion (sentence-by-sentence body comparison / short sentences by task relevance / preamble-and-fact mixed sentences).
 - `tests/fixtures/ffrs/` is a desensitized "custom naming" fixture (`60_进度.md` / `61_流水.md` / `60_流水/`), all fictional, used to prove `--loose` is equivalent to standard naming; `tests/fixtures/plain/` is an ordinary numbered library (`00/05/20/30/40/50`, no `kb:id`, no fact structure), used to prove "looks like a book" ≠ "contains facts".
-- CI: `.github/workflows/test.yml`, Ubuntu + Windows × Python 3.10 / 3.12 / 3.13, no network, no credentials, standard library only (`tiktoken` explicitly allowed as an optional import inside a function).
+- CI: `.github/workflows/test.yml`, Ubuntu + Windows × Python 3.10 / 3.12 / 3.13, no network, no credentials, standard library only (`tiktoken` and `tokenizers` are the declared optional imports, and must sit inside a function under `try/except`).
 
 ### 12.1 Benchmark (routing quality)
 
@@ -272,29 +282,34 @@ Compares A full / B `00+05` / C routed across 10 fixed tasks (one is an error pa
 
 ### 12.2 Bilingual token benchmark (new in 2.0.4)
 
-Three variants: **A** original Chinese v2.0.3 · **B** optimized Chinese v2.0.4 · **C** optimized English v2.0.4.
+Three variants: **A** original Chinese v2.0.3 (frozen) · **B** optimized Chinese v2.0.4 — **a benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
 `structure = 1 − B/A`, `language = 1 − C/B`, `total = 1 − C/A`. A zero denominator is reported explicitly, never as 0%.
 
-Default-loading cost (`SKILL.md` + the YAML description), measured 2026-11-14:
+B exists for one reason: without a Chinese edition of the *optimized* text, `A → C` would mix restructuring and translation into one number that cannot be attributed. Keeping B lets each term be measured on its own. It lives in `tests/token_language/sample_b/`, its bytes are pinned by a SHA256 assertion, and it is not installable — 2.0.4 ships one skill.
+
+`SKILL.md` body, measured 2026-11-14:
 
 | Tokenizer | A | C | total saving | 15% target |
 |---|---|---|---|---|
-| `cl100k_base` (tiktoken, exact) | 5,416 | 3,871 | **28.5%** | met |
-| `o200k_base` (tiktoken, exact) | 4,571 | 3,851 | **15.8%** | met |
-| `deepseek_v4` (official offline `tokenizer.json`, exact) | 4,343 | 3,919 | **9.8%** | **not met — reported, not gamed** |
-| `deepseek_estimate` (documented ratio 0.3 / 0.6, **estimate**) | 3,261 | 4,525 | −38.8% | not applicable |
+| `cl100k_base` (tiktoken, exact) | 5,416 | 3,903 | **27.9%** | met |
+| `o200k_base` (tiktoken, exact) | 4,571 | 3,878 | **15.2%** | met |
+| `deepseek_v4` (official offline `tokenizer.json`, exact) | 4,343 | 3,943 | **9.2%** | **not met — reported, not gamed** |
+| `deepseek_estimate` (documented ratio 0.3 / 0.6, **estimate**) | 3,261 | 4,583 | −40.5% | not applicable |
 
-Reference files, `deepseek_v4`: protocol-v2 5,171 → 4,969 (+3.9%), migration 4,675 → 4,452 (+4.8%), hooks 2,377 → 2,300 (+3.2%), benchmark 5,424 → 5,193 (+4.3%). Templates: `AGENTS.md` 1,175 → 1,188, `05_dashboard.md` 701 → 697 — i.e. **templates are language-neutral within noise**, which is the point: a template is mostly placeholders and protocol vocabulary.
+Including the YAML description — what a client actually loads before reading anything — the totals are 5,533 → 3,972 on `cl100k_base` (−28.2%) and 4,406 → 4,014 on `deepseek_v4` (−8.9%). On DeepSeek the description alone *grows*, 63 → 71 tokens: the English trigger sentence needs more of that vocabulary than the Chinese one. The body dominates, so the total still falls.
 
-Why DeepSeek lands below 15%: its vocabulary is Chinese-heavy, so the Chinese source is already dense (4,343 tokens for ~7.7 k characters), while the English edition needs ~12.4 k characters for the same content. The same restructuring gains 28.5% on a Latin-script-heavy vocabulary and 9.8% on a Chinese-heavy one. Per-section detail, per-task reading paths and the full per-file table are in `tests/token_language/out/token-benchmark-all.md` (JSON alongside it).
+Reference files, `deepseek_v4`: protocol-v2 5,171 → 4,969 (+3.9%), migration 4,675 → 4,452 (+4.8%), hooks 2,377 → 2,300 (+3.2%), benchmark 5,424 → 5,193 (+4.3%). Templates: `AGENTS.md` 1,232 → 1,237, `05_dashboard.md` 784 → 760 — i.e. **templates are language-neutral within noise**, which is the point: a template is mostly placeholders and protocol vocabulary.
+
+Why DeepSeek lands below 15%: its vocabulary is Chinese-heavy, so the Chinese source is already dense (4,343 tokens for ~7.7 k characters), while the English edition needs ~12.4 k characters for the same content. The same restructuring gains 27.9% on a Latin-script-heavy vocabulary and 9.2% on a Chinese-heavy one — which is why the gate is split: **15% on `cl100k_base` / `o200k_base`, "must not grow" on `deepseek_v4`**. Per-section detail, per-task reading paths and the full per-file table are in `tests/token_language/out/token-benchmark-all.md` (JSON alongside it).
 
 Method notes, so nobody reads more into these numbers than they support:
 
 - `cl100k_base` / `o200k_base` are reproducible proxies, not any specific model's billing tokenizer.
-- `deepseek_v4` uses DeepSeek's official offline tokenizer; `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is labeled as an estimate everywhere. **The ratio model is invalid for cross-language comparison** — a translation has more characters, so the formula reports a grow where the real tokenizer reports a saving. That comparison is kept in the report on purpose, as evidence of the formula's limit.
+- Every report names the vocabulary it used: `deepseek_v4` records the file name, the `tokenizer.json` SHA256 and the `tokenizers` version, and no report contains a personal path — two numbers can be proved to come from the same vocabulary without publishing anyone's directory layout. The current hash is `89085f12…c9614`.
+- `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is labeled as an estimate everywhere. **The ratio model is invalid for cross-language comparison** — a translation has more characters, so the formula reports a grow where the real tokenizer reports a saving. That comparison is kept in the report on purpose, as evidence of the formula's limit.
 - The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is reported as an estimate only and is never used for a conclusion.
 - A missing tokenizer is an error (exit 2), not a silent downgrade: a report never claims exactness it does not have.
-- Structure is compared through section headings and protocol IDs, not through sentence-by-sentence semantic equivalence; `tests/token_language/test_token_language.py` holds the rule table (17 required rules with per-language acceptable wording).
+- Structure is compared through section headings and protocol IDs, not through sentence-by-sentence semantic equivalence; `tests/token_language/test_token_language.py` holds the rule table (19 required rules in the shipped skill).
 
 ---
 
@@ -344,10 +359,10 @@ Every old command still works: no `kb-init` / `kb-check` / `kb-outline` argument
 ## 16. Files
 
 ```text
-SKILL.md                        English skill body (default, 9 numbered sections)
-SKILL.zh-CN.md                  Chinese skill body (same structure, same rules)
+CHANGELOG.md                    short version history; the long chronicle is README.zh-CN.md §17
+SKILL.md                        the skill — English, 9 numbered sections, the only skill document
 references/protocol-v2.md       2.0 protocol: numbering, section IDs, changes.json, concurrency and recovery
-references/protocol-v2.zh-CN.md Chinese edition of the above
+references/protocol-v2.zh-CN.md Chinese edition of the above (optional reading)
 references/protocol.md          v1 design rationale (historical, Chinese only)
 references/migration.md         legacy restructuring manual (incl. v1 → v2)
 references/migration.zh-CN.md   Chinese edition
@@ -371,8 +386,9 @@ scripts/lib/                    shared library: protocol / scope / markdown / sa
 tests/                          unittest suite + end-to-end smoke + dependency check + fixture generator
 tests/make_fixture.py           synthetic benchmark fixture (the numbers in §1 are reproducible)
 tests/fixtures/ffrs/            desensitized custom-naming fixture (--loose, all fictional)
-tests/token_language/           bilingual A/B/C token benchmark, parity tests, frozen v2.0.3 baseline
-tests/deps_check.py             non-stdlib import check (only optional tiktoken allowed)
+tests/token_language/           A/B/C token benchmark, rule and layout tests, frozen v2.0.3 baseline
+tests/token_language/sample_b/  frozen Chinese 2.0.4 text — benchmark sample only, not a skill
+tests/deps_check.py             non-stdlib import check (full AST; only tiktoken / tokenizers allowed)
 .github/workflows/test.yml      Ubuntu + Windows × 3 Python versions
 ```
 
@@ -391,13 +407,14 @@ The full Chinese chronicle — what each defect did on a real library, before/af
 
 ### 17.1 What 2.0.4 changed
 
-- `SKILL.md` rewritten in English as **9 numbered sections**: Purpose and Applicability / Architecture and Core Rules / Quick Start and Recovery / Context Routing / Safe Write Rules / Handoff and Validation / Reference Loading Guide / Anti-patterns and Safety / File Index.
-- `SKILL.zh-CN.md` added: the same 9 sections, the same rules, the same command arguments — the Chinese edition is not a translation of the English one, it is the same content in the project's own language.
-- `references/*.md` are English; the Chinese originals moved to `references/*.zh-CN.md` **without wording changes**. `references/protocol.md` stays Chinese on purpose (it is a historical design note).
-- `assets/en/` added: 12 templates with the same placeholders and the same `kb:id` set as `assets/`.
+- `SKILL.md` rewritten in English as **9 numbered sections**: Purpose and Applicability / Architecture and Core Rules / Quick Start and Recovery / Context Routing / Safe Write Rules / Handoff and Validation / Reference Loading Guide / Anti-patterns and Safety / File Index. It states in its opening block that instruction language and library language are independent.
+- **One skill, not two.** The Chinese optimized text is not shipped: it lives at `tests/token_language/sample_b/SKILL.zh-CN.md` as the B sample of the token benchmark, byte-frozen by a SHA256 assertion. A test asserts that `SKILL.md` is the only skill document outside `tests/`.
+- `references/*.md` are English; the Chinese originals moved to `references/*.zh-CN.md` **without wording changes**, kept as optional reading with the same protocol IDs, commands, JSON shapes and exit codes. `references/protocol.md` stays Chinese on purpose (it is a historical design note).
+- `assets/en/` added: 12 templates with the same placeholders and the same `kb:id` set as `assets/`. The Chinese templates are untouched.
 - `scripts/kb-init.py --lang {zh,en}`: selects the template set and localizes the generated table headers, route separator, initial status, shard section, `CLAUDE.md`/`GEMINI.md` pointer and the self-check script stub. `--lang zh` is the default, so existing behaviour is unchanged.
-- `scripts/lib/tokens.py`: `TokenCounter` gains `deepseek_v4` (official offline tokenizer, exact) and `deepseek_estimate` (documented ratio, labeled estimate). A missing encoder raises instead of silently downgrading.
-- `tests/token_language/`: new package — A/B/C measurement, frozen v2.0.3 baseline whose bytes / SHA256 / token counts are re-verified on every run, 17-rule semantic parity table, template parity, token targets, no-silent-fallback, cross-language scenario tests. 24 cases. The numeric token gate needs an exact encoder, so 5 of them skip with the missing encoder named when none is installed — which is what CI looks like; everything encoder-free runs there unchanged.
+- `scripts/lib/tokens.py`: `TokenCounter` gains `deepseek_v4` (official offline tokenizer, exact) and `deepseek_estimate` (documented ratio, labeled estimate). Each counter now reports a fingerprint — source, vocabulary file name, vocabulary SHA256, library version — with no personal path, and `is_exact()` recognises both exact prefixes. A missing encoder raises instead of silently downgrading.
+- `tests/deps_check.py`: now walks the **full AST** instead of module-level imports only, and requires optional imports to sit inside a function **and** inside `try/except`. `tokenizers` joined `tiktoken` as a declared optional dependency, which is what the code had been using since the DeepSeek counter landed.
+- `tests/token_language/`: A/B/C measurement, frozen v2.0.3 baseline whose bytes / SHA256 / token counts are re-verified against **all three exact vocabularies**, rule table for the shipped skill, identifier/JSON contract checks against the implementation, template parity, token targets, no-silent-fallback, cross-language scenario tests.
 
 **What did not change**: protocol version stays `2`; document IDs, reserved filenames, section IDs, command arguments, JSON schemas and migration behavior are all untouched; an existing Chinese library needs no migration and is still read correctly. Security, concurrency, transaction, hashing and recovery rules are preserved verbatim in substance — nothing was removed to make the token numbers look better.
 
@@ -411,11 +428,11 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 | Item | Result |
 |---|---|
-| `python -m unittest discover -s tests` | **365 tests, OK (1 skipped)** — 341 existing + 24 new `token_language`; the single local skip is the `tiktoken`-installed branch |
-| `python -m unittest discover -s tests` **with no optional encoder** (what CI sees) | 365 tests, **5 skipped**: the numeric token gate needs an exact tokenizer. Every skip names the missing encoder in its reason; the encoder-free properties (structure, parity, no-silent-fallback, cross-language scenarios) still run |
+| `python -m unittest discover -s tests` | **392 tests, OK (1 skipped)** — 341 existing + 40 `token_language` + 11 `test_deps_check`; the single local skip is an existing degradation test that only applies when `tiktoken` is *absent* |
+| the same suite **with no optional encoder** (what CI sees) | 392 tests, **7 skipped**, 0 failures: the numeric token tests need an exact vocabulary. Every skip names the missing encoder (`cl100k_base` / `o200k_base` / `deepseek_v4`); the encoder-free properties — layout, rules, identifiers, JSON contract, templates, cross-language scenarios, fallback exit codes — all still run |
 | Runtime | Windows 11 (10.0.26200) / Python 3.13 (local `G:\Python313`) |
 | `python tests/smoke.py` | all pass: init → read/write → migrate → check → route → benchmark, including exit-code assertions on conflicts and bad paths |
-| `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` is the single optional exception |
+| `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` and `tokenizers` are the two declared optional exceptions, both function-scoped and `try`-guarded. `tests/test_deps_check.py` (11 cases) tests the checker itself |
 | `python tests/token_language/run_token_benchmark.py --all` | produces the table in §12.2; `deepseek_v4` requires the offline tokenizer, otherwise exit 2 |
 
 ### 18.2 CI (six environments)
@@ -424,7 +441,7 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 The 2.0.3 run (run `43451488874`, 2026-11-13) was green in all six environments with 341 tests, no skips.
 
-The 2.0.4 run (run [43592120170](https://github.com/jmwangde3/handoff-kb/actions/runs/43592120170), 2026-11-14, `pull_request`, HEAD `bb19552`) is green in all six environments too: every job reports `Ran 365 tests … OK (skipped=5)`. The five skips are the numeric token gate, which needs an exact encoder that CI deliberately does not install — they are not hiding a failure, and the numbers themselves are reproducible locally with one command (§12.2).
+For 2.0.4 the authoritative statement is the PR's CI status, not this file: the run for the current HEAD is on pull request [#5](https://github.com/jmwangde3/handoff-kb/pull/5). Each job runs 392 tests; the 7 skips are the numeric token tests, which need an exact encoder that CI deliberately does not install — they are not hiding a failure, and the numbers themselves are reproducible locally with one command (§12.2).
 
 > Known noise: GitHub warns about Node 20 deprecation in `actions/checkout@v4` and `setup-python@v5`; that is an action-upgrade reminder and does not affect results.
 
@@ -451,8 +468,9 @@ The 2.0.4 run (run [43592120170](https://github.com/jmwangde3/handoff-kb/actions
 | Client startup not verified end to end | see §18.3 | a hook that is installed but ineffective is only discoverable by "no context was injected" |
 | P4's "asking about history" is a keyword guess | only `历史 / 以前 / 作废 / 沿革…` bring retired content back | a different phrasing ("back then", "before the rollback") may not trigger it; the explicit switch is `--include-superseded`, and the model side only sees the gap note |
 | Retired content is blanked at the "definition line" | only definition positions parsed by `lib/facts.py` | a section restating an old value in prose (not written as a definition) is not blanked; mark the old value `status: deprecated` when writing |
-| Token numbers are tokenizer-dependent | 28.5% / 15.8% / 9.8% on cl100k / o200k / deepseek_v4 | quoting a single percentage without naming the tokenizer is misleading; the report always names it |
+| Token numbers are tokenizer-dependent | 27.9% / 15.2% / 9.2% on cl100k / o200k / deepseek_v4 | quoting a single percentage without naming the tokenizer is misleading; the report always names it and records the vocabulary SHA256 |
 | English templates are new | parity tests compare file sets, placeholders and `kb:id`, plus a live `kb-init --lang en` run through `kb-check` | no long-running English library has been produced with them yet, so "reads well after six months" is unproven |
+| English skill over a Chinese library | the **CLI** path is covered by tests (init / check / context on the Chinese fixture) | an **agent** following the English instructions in a real Codex / Claude Code session has not been run; the checklist marks this unverified |
 
 ---
 
