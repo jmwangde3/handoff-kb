@@ -265,7 +265,7 @@ Numbering checks accept "definition positions": heading start, list start, table
 ## 12. Tests and benchmarks
 
 ```bash
-python -m unittest discover -s tests        # 392 tests (341 existing + 40 token_language + 11 deps_check)
+python -m unittest discover -s tests        # 394 tests (341 existing + 40 token_language + 13 deps_check)
 python tests/smoke.py                       # end to end: init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ must not import outside the standard library
 python scripts/kb-benchmark.py --target . --report markdown
@@ -430,11 +430,11 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 | Item | Result |
 |---|---|
-| `python -m unittest discover -s tests` | **392 tests, OK (1 skipped)** — 341 existing + 40 `token_language` + 11 `test_deps_check`; the single local skip is an existing degradation test that only applies when `tiktoken` is *absent* |
-| the same suite **with no optional encoder** (what CI sees) | 392 tests, **7 skipped**, 0 failures: the numeric token tests need an exact vocabulary. Every skip names the missing encoder (`cl100k_base` / `o200k_base` / `deepseek_v4`); the encoder-free properties — layout, rules, identifiers, JSON contract, templates, cross-language scenarios, fallback exit codes — all still run |
+| `python -m unittest discover -s tests` | **394 tests, OK (1 skipped)** — 341 existing + 40 `token_language` + 13 `test_deps_check`; the single local skip is an existing degradation test that only applies when `tiktoken` is *absent* |
+| the same suite **with no optional encoder** (what CI sees) | 394 tests, **7 skipped**, 0 failures: the numeric token tests need an exact vocabulary. Every skip names the missing encoder (`cl100k_base` / `o200k_base` / `deepseek_v4`); the encoder-free properties — layout, rules, identifiers, JSON contract, templates, cross-language scenarios, fallback exit codes — all still run |
 | Runtime | Windows 11 (10.0.26200) / Python 3.13 (local `G:\Python313`) |
 | `python tests/smoke.py` | all pass: init → read/write → migrate → check → route → benchmark, including exit-code assertions on conflicts and bad paths |
-| `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` and `tokenizers` are the two declared optional exceptions, both function-scoped and `try`-guarded. `tests/test_deps_check.py` (11 cases) tests the checker itself |
+| `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` and `tokenizers` are the two declared optional exceptions, both function-scoped and `try`-guarded. `tests/test_deps_check.py` (13 cases) tests the checker itself |
 | `python tests/token_language/run_token_benchmark.py --all` | produces the table in §12.2; `deepseek_v4` requires the offline tokenizer, otherwise exit 2 |
 
 ### 18.2 CI (six environments)
@@ -443,7 +443,7 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 The 2.0.3 run (run `43451488874`, 2026-11-13) was green in all six environments with 341 tests, no skips.
 
-For 2.0.4 the authoritative statement is the PR's CI status, not this file: the run for the current HEAD is on pull request [#5](https://github.com/jmwangde3/handoff-kb/pull/5). Each job runs 392 tests; the 7 skips are the numeric token tests, which need an exact encoder that CI deliberately does not install — they are not hiding a failure, and the numbers themselves are reproducible locally with one command (§12.2).
+For 2.0.4 the authoritative statement is the PR's CI status, not this file: the run for the current HEAD is on pull request [#5](https://github.com/jmwangde3/handoff-kb/pull/5). Each job runs 394 tests; the 7 skips are the numeric token tests, which need an exact encoder that CI deliberately does not install — they are not hiding a failure, and the numbers themselves are reproducible locally with one command (§12.2).
 
 > Known noise: GitHub warns about Node 20 deprecation in `actions/checkout@v4` and `setup-python@v5`; that is an action-upgrade reminder and does not affect results.
 

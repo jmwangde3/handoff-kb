@@ -48,6 +48,38 @@ class Allowed(unittest.TestCase):
                          "可选依赖清单变了：新增第三方包必须先改文档与理由，"
                          "并同步 README 的依赖声明")
 
+    def test_late_stdlib_is_not_third_party(self):
+        """`tomllib` 是 3.11 才进标准库的，`sys.stdlib_module_names` 在 3.10 里没有它。
+
+        3.10 的 CI 曾把 `kb-hooks.py` 里那句受控的 `import tomllib` 判成第三方依赖，
+        于是六个环境里两个红。判据改成「当前版本标准库 ∪ 迟到的标准库」，
+        且迟到的那些仍必须满足函数内 + try/except（kb-hooks 就是这么写的）。
+        """
+        source = (
+            "def validate(text):\n"
+            "    try:\n"
+            "        import tomllib\n"
+            "    except Exception:\n"
+            "        return None\n"
+            "    return tomllib.loads(text)\n"
+        )
+        self.assertEqual(problems(source), [])
+
+    def test_late_stdlib_list_is_not_a_whitelist(self):
+        """迟到的标准库清单不能顺手当成第三方白名单用。
+
+        钉住三件事：清单里只有真·标准库迟到模块；它不是 OPTIONAL；往里加东西
+        必须同时改这条用例——加错的那一刻就红。
+        """
+        self.assertEqual(set(deps_check.STDLIB_LATE), {"tomllib"},
+                         "STDLIB_LATE 只能放真正的标准库迟到模块；"
+                         "第三方包请走 OPTIONAL 并写理由")
+        self.assertFalse(set(deps_check.STDLIB_LATE) & deps_check.OPTIONAL,
+                         "同名的模块不能既是标准库又是可选第三方")
+        # 加进 STDLIB_LATE 不会顺带放宽「未知第三方」判据
+        found = problems("def f():\n    try:\n        import requests\n    except Exception:\n        pass\n")
+        self.assertEqual(len(found), 1, "未知第三方依赖必须照旧被拒")
+
 
 class Rejected(unittest.TestCase):
     def test_optional_at_module_level(self):

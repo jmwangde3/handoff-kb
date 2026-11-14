@@ -265,7 +265,7 @@ py "$KB/scripts/kb-check.py" --target . --mode template  # 刚初始化的空模
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 392 例（341 既有 + 40 例 token_language + 11 例 deps_check）
+python -m unittest discover -s tests        # 394 例（341 既有 + 40 例 token_language + 13 例 deps_check）
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
@@ -675,7 +675,7 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 7. **`tests/deps_check.py` 改成走完整 AST**：不再只看模块顶层，可选依赖必须同时满足
    「在函数内」和「包在 try/except 中」。`tokenizers` 正式列入可选依赖清单——代码从
    DeepSeek 计数器加入那天起就在用它，而文档只说 `tiktoken`，这次把声明补齐。
-   `tests/test_deps_check.py`（11 例）测检查器本身，新增第三方依赖会被先发现。
+   `tests/test_deps_check.py`（13 例）测检查器本身，新增第三方依赖会被先发现。
 8. **`tests/token_language/`**：A/B/C 实测、v2.0.3 冻结基线（19 份文件 + `MANIFEST.json`，
    带 bytes / chars / sha256 / 三套词表 token 数，**三套精确词表都复现**）、19 条规则表
    （只针对发布的那份英文技能）、标识符与 JSON 契约对照实现、模板一致性、
@@ -698,11 +698,11 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **392 例，OK（1 skip）**——341 例既有 + 40 例 `token_language` + 11 例 `test_deps_check`；本机唯一的 skip 是一条既有降级用例，它只在**没装** `tiktoken` 时才适用 |
-| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 392 例，**7 skip**，0 失败：数字化的 token 用例必须有精确词表才能算。每条 skip 都在原因里点名缺哪个词表（`cl100k_base` / `o200k_base` / `deepseek_v4`）；不依赖编码器的性质——布局、规则、标识符、JSON 契约、模板、跨语言场景、降级退出码——照常跑 |
+| `python -m unittest discover -s tests` | **394 例，OK（1 skip）**——341 例既有 + 40 例 `token_language` + 13 例 `test_deps_check`；本机唯一的 skip 是一条既有降级用例，它只在**没装** `tiktoken` 时才适用 |
+| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 394 例，**7 skip**，0 失败：数字化的 token 用例必须有精确词表才能算。每条 skip 都在原因里点名缺哪个词表（`cl100k_base` / `o200k_base` / `deepseek_v4`）；不依赖编码器的性质——布局、规则、标识符、JSON 契约、模板、跨语言场景、降级退出码——照常跑 |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
-| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`；`tiktoken` 与 `tokenizers` 是两个已声明的可选例外，都在函数内且包 `try/except`。`tests/test_deps_check.py`（11 例）测检查器本身 |
+| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`；`tiktoken` 与 `tokenizers` 是两个已声明的可选例外，都在函数内且包 `try/except`。`tests/test_deps_check.py`（13 例）测检查器本身 |
 | `python tests/token_language/run_token_benchmark.py --all` | 产出 §12.1 的表；`deepseek_v4` 需要离线词表，否则退出 2 |
 
 ### 18.2 CI（六个环境）
@@ -712,7 +712,7 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 
 2.0.3 那一轮（run `43451488874`，2026-11-13）六环境全绿、341 例无 skip。
 2.0.4 以 **PR 的 CI 状态**为准，不在本文件里自述：当前 HEAD 的运行结果记在
-PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5) 上。每个 job 跑 392 例，
+PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5) 上。每个 job 跑 394 例，
 那 7 条 skip 是数字化的 token 用例——它们需要精确词表，而 CI 故意不装可选依赖。
 **它们不是在掩盖失败**：数字本身一条命令可本地复现（§12.1）。
 

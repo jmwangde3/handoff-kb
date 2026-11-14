@@ -32,6 +32,15 @@ STDLIB = set(sys.stdlib_module_names)
 LOCAL = {"lib"}
 OPTIONAL = {"tiktoken", "tokenizers"}
 
+# 标准库但在低版本 Python 里还没有的模块。`sys.stdlib_module_names` 是按**当前进程**
+# 的版本给的，所以 3.10 的 CI 会把 `import tomllib` 判成第三方——那是检查器的错，
+# 不是代码的错。列在这里的模块必须同时满足：新版标准库 + 调用点自带版本兜底
+# （函数内 try/except，缺模块时降级并说明）。加条目等同于声明「这是标准库」，
+# 别拿它当第三方白名单用。
+STDLIB_LATE = {
+    "tomllib": "3.11 (PEP 680)",   # kb-hooks.py 用它校验 TOML，3.10 上跳过校验
+}
+
 
 def _walk(node, ancestors=(), guarded=False):
     """Yield (node, ancestors, guarded_by_try) for every node in the tree."""
@@ -65,7 +74,7 @@ def check_source(source: str, filename: str = "<string>"):
             continue
         for name in _imported_names(node):
             root = name.split(".")[0]
-            if root in STDLIB or root in LOCAL:
+            if root in STDLIB or root in STDLIB_LATE or root in LOCAL:
                 continue
             lineno = getattr(node, "lineno", 0)
             if root not in OPTIONAL:
