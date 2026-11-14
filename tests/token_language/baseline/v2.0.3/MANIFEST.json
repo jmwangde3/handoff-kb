@@ -19,7 +19,7 @@
     },
     "deepseek_v4": {
       "requested": "deepseek_v4",
-      "actual": "tokenizers:deepseek_v4(C:\\Users\\jmwan\\.cache\\handoff-kb\\deepseek_v4_tokenizer\\tokenizer.json)",
+      "actual": "tokenizers:deepseek_v4(tokenizer.json)",
       "exact": true
     }
   },

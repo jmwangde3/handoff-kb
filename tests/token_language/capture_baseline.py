@@ -25,6 +25,23 @@ import tl_common as tl  # noqa: E402
 from lib import tokens as tokenlib  # noqa: E402
 
 
+def _describe(counter):
+    """Counter metadata without local absolute paths.
+
+    `as_dict()["actual"]` embeds the resolved tokenizer.json path, which would
+    put a machine-specific absolute path into a committed artifact. Keep the
+    encoder identity, drop the directory.
+    """
+    if counter is None:
+        return None
+    row = counter.as_dict()
+    actual = row.get("actual") or ""
+    if "(" in actual and actual.endswith(")"):
+        head, _, tail = actual.partition("(")
+        row["actual"] = "%s(%s)" % (head, Path(tail[:-1]).name)
+    return row
+
+
 def git(*args) -> str:
     try:
         out = subprocess.run(["git"] + list(args), cwd=str(tl.ROOT),
@@ -66,8 +83,7 @@ def main() -> int:
         "source_commit": git("rev-parse", "420644e") or "",
         "captured_from": "git show 420644e:<path>",
         "note": "Baseline copies are immutable; the test suite verifies their SHA256.",
-        "tokenizers": {name: (c.as_dict() if c is not None else None)
-                       for name, c in counters.items()},
+        "tokenizers": {name: _describe(c) for name, c in counters.items()},
         "files": files,
     }
     tl.write_json(tl.BASELINE / "MANIFEST.json", payload)

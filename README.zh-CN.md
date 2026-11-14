@@ -255,7 +255,7 @@ py "$KB/scripts/kb-check.py" --target . --mode template  # 刚初始化的空模
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 364 例（341 既有 + 23 例 token_language）
+python -m unittest discover -s tests        # 365 例（341 既有 + 24 例 token_language）
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
@@ -651,7 +651,9 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
    `TokenizerError`，除 `--allow-tokenizer-fallback` 外不静默降级。
 7. **`tests/token_language/`**：A/B/C 实测、v2.0.3 冻结基线（19 份文件 + `MANIFEST.json`，
    带 bytes / chars / sha256 / 三套词表 token 数）、17 条规则的双语表述表、模板一致性、
-   token 目标、不静默降级、跨语言场景（中文库跑英文技能、英文库跑英文任务）共 23 例。
+   token 目标、不静默降级、跨语言场景（中文库跑英文技能、英文库跑英文任务）、基线清单的字节/哈希/token 复现，共 24 例。
+   数字化的 token 门槛需要精确词表，CI 不装可选依赖，所以那 5 例会带原因 skip（每条点名缺哪个编码器）；
+   其余不依赖编码器的用例在 CI 照常跑，一条命令可本地复现全部：`python tests/token_language/run_token_benchmark.py --all`。
 
 **没变的**：协议版本、文档 ID、保留文件名、章节 ID、命令参数、JSON schema、迁移行为、
 安全/并发/事务/哈希/恢复规则。没有为了省 token 删掉任何一条安全规则——只压缩措辞，
@@ -667,7 +669,8 @@ tests/deps_check.py             非标准库导入检查（只允许可选的 ti
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **364 例，OK（1 skip）**——341 例既有 + 23 例 `token_language`；唯一的 skip 是「本机装了 tiktoken」那条分支，用例内已写明原因 |
+| `python -m unittest discover -s tests` | **365 例，OK（1 skip）**——341 例既有 + 24 例 `token_language`；本机唯一的 skip 是「装了 tiktoken」那条分支 |
+| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 365 例，**5 skip**：数字化的 token 门槛必须有精确词表才能算。每条 skip 都在原因里点名缺哪个编码器；不依赖编码器的性质（结构、一致性、不静默降级、跨语言场景）照常跑 |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
 | `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`，`tiktoken` 是唯一可选例外 |

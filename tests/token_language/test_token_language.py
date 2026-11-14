@@ -343,31 +343,46 @@ class TemplateParity(unittest.TestCase):
 
 
 class TokenTargets(unittest.TestCase):
-    """Default loading cost must not exceed 85% of v2.0.3; task paths must not grow."""
+    """Default loading cost must not exceed 85% of v2.0.3; task paths must not grow.
+
+    An exact encoder is an optional dependency. CI installs none, so on CI these
+    tests skip with the missing encoder named in the reason — they are never
+    silently absent, and the whole class is reproducible on any machine that has
+    `tiktoken` (and optionally the DeepSeek offline tokenizer) installed:
+
+        python tests/token_language/run_token_benchmark.py --all
+    """
 
     @classmethod
     def setUpClass(cls):
         cls.counters = {}
+        cls.missing = []
         for name in ("cl100k_base", "o200k_base", "deepseek_v4"):
             try:
                 cls.counters[name] = tokenlib.TokenCounter(name)
             except tokenlib.TokenizerError:
                 cls.counters[name] = None
+                cls.missing.append(name)
         cls.manifest = json.loads(read(tl.BASELINE / "MANIFEST.json"))
 
     SPEC_TOKENIZERS = ("cl100k_base", "o200k_base")
 
+    def available(self, names):
+        """Return the usable counters, or skip naming exactly what is missing."""
+        usable = {n: self.counters[n] for n in names if self.counters.get(n) is not None}
+        if not usable:
+            self.skipTest("optional encoder(s) not installed: %s — the numeric gate needs an "
+                          "exact tokenizer, see run_token_benchmark.py" % ", ".join(names))
+        return usable
+
     def test_skill_default_loading_saving(self):
-        for name, counter in self.counters.items():
-            if name not in self.SPEC_TOKENIZERS:
-                continue
-            if counter is None:
-                self.skipTest("tokenizer %s not installed in this environment" % name)
-            a = counter.count(read(tl.doc_path("A", "skill")))
-            c = counter.count(read(tl.doc_path("C", "skill")))
-            self.assertLessEqual(c, 0.85 * a,
-                                 "%s: default SKILL load must drop >=15%% (A=%d C=%d)"
-                                 % (name, a, c))
+        for name, counter in self.available(self.SPEC_TOKENIZERS).items():
+            with self.subTest(tokenizer=name):
+                a = counter.count(read(tl.doc_path("A", "skill")))
+                c = counter.count(read(tl.doc_path("C", "skill")))
+                self.assertLessEqual(c, 0.85 * a,
+                                     "%s: default SKILL load must drop >=15%% (A=%d C=%d)"
+                                     % (name, a, c))
 
     def test_deepseek_default_loading_does_not_grow(self):
         """DeepSeek's vocabulary is Chinese-heavy, so the English gain is smaller.
@@ -375,32 +390,48 @@ class TokenTargets(unittest.TestCase):
         The specification's 15% target is measured with cl100k_base / o200k_base;
         on the DeepSeek tokenizer the honest requirement is "never worse".
         """
-        counter = self.counters.get("deepseek_v4")
-        if counter is None:
-            self.skipTest("deepseek_v4 tokenizer unavailable")
+        counter = self.available(("deepseek_v4",))["deepseek_v4"]
         a = counter.count(read(tl.doc_path("A", "skill")))
         c = counter.count(read(tl.doc_path("C", "skill")))
         self.assertLessEqual(c, a,
                              "deepseek_v4: English SKILL must not grow (A=%d C=%d)" % (a, c))
 
     def test_task_paths_do_not_grow(self):
-        for name, counter in self.counters.items():
-            if counter is None:
-                self.skipTest("tokenizer %s not installed" % name)
+        """Every task reading path must not get more expensive in the English edition.
+
+        Runs per tokenizer as a subtest so one missing encoder cannot hide the
+        result of the others.
+        """
+        for name, counter in self.available(("cl100k_base", "o200k_base", "deepseek_v4")).items():
             for key, title, keys in tl.TASKS:
-                a = tl.task_stats("A", keys, counter)["tokens"]
-                c = tl.task_stats("C", keys, counter)["tokens"]
-                self.assertLessEqual(c, a,
-                                     "%s / %s: English task path grew (A=%d C=%d)"
-                                     % (name, title, a, c))
+                with self.subTest(tokenizer=name, task=key):
+                    a = tl.task_stats("A", keys, counter)["tokens"]
+                    c = tl.task_stats("C", keys, counter)["tokens"]
+                    self.assertLessEqual(c, a,
+                                         "%s / %s: English task path grew (A=%d C=%d)"
+                                         % (name, title, a, c))
 
     def test_measurement_is_reproducible(self):
-        counter = self.counters.get("o200k_base")
-        if counter is None:
-            self.skipTest("o200k_base unavailable")
+        counter = self.available(("o200k_base",))["o200k_base"]
         first = counter.count(read(tl.doc_path("C", "skill")))
         second = tokenlib.TokenCounter("o200k_base").count(read(tl.doc_path("C", "skill")))
         self.assertEqual(first, second, "same tokenizer must give identical counts")
+
+    def test_manifest_matches_tokens_for_every_available_encoder(self):
+        """The frozen baseline's recorded counts must still reproduce.
+
+        This is the guard that makes A trustworthy: if the manifest and the live
+        count disagree, the "before" number is fiction.
+        """
+        for name, counter in self.available(self.SPEC_TOKENIZERS).items():
+            for rel, entry in sorted(self.manifest["files"].items()):
+                path = tl.BASELINE / rel
+                with self.subTest(tokenizer=name, path=rel):
+                    data = path.read_bytes()
+                    self.assertEqual(len(data), entry["bytes"])
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
+                    self.assertEqual(counter.count(read(path)), entry["tokens"][name],
+                                     "%s: baseline token count drifted" % rel)
 
     def test_zero_denominator_is_explicit(self):
         self.assertIsNone(tl.saving(0, 10))

@@ -255,7 +255,7 @@ Numbering checks accept "definition positions": heading start, list start, table
 ## 12. Tests and benchmarks
 
 ```bash
-python -m unittest discover -s tests        # 364 tests (341 existing + 23 token_language)
+python -m unittest discover -s tests        # 365 tests (341 existing + 24 token_language)
 python tests/smoke.py                       # end to end: init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ must not import outside the standard library
 python scripts/kb-benchmark.py --target . --report markdown
@@ -397,7 +397,7 @@ The full Chinese chronicle — what each defect did on a real library, before/af
 - `assets/en/` added: 12 templates with the same placeholders and the same `kb:id` set as `assets/`.
 - `scripts/kb-init.py --lang {zh,en}`: selects the template set and localizes the generated table headers, route separator, initial status, shard section, `CLAUDE.md`/`GEMINI.md` pointer and the self-check script stub. `--lang zh` is the default, so existing behaviour is unchanged.
 - `scripts/lib/tokens.py`: `TokenCounter` gains `deepseek_v4` (official offline tokenizer, exact) and `deepseek_estimate` (documented ratio, labeled estimate). A missing encoder raises instead of silently downgrading.
-- `tests/token_language/`: new package — A/B/C measurement, frozen v2.0.3 baseline with a manifest, 17-rule semantic parity table, template parity, token targets, no-silent-fallback, cross-language scenario tests.
+- `tests/token_language/`: new package — A/B/C measurement, frozen v2.0.3 baseline whose bytes / SHA256 / token counts are re-verified on every run, 17-rule semantic parity table, template parity, token targets, no-silent-fallback, cross-language scenario tests. 24 cases. The numeric token gate needs an exact encoder, so 5 of them skip with the missing encoder named when none is installed — which is what CI looks like; everything encoder-free runs there unchanged.
 
 **What did not change**: protocol version stays `2`; document IDs, reserved filenames, section IDs, command arguments, JSON schemas and migration behavior are all untouched; an existing Chinese library needs no migration and is still read correctly. Security, concurrency, transaction, hashing and recovery rules are preserved verbatim in substance — nothing was removed to make the token numbers look better.
 
@@ -411,7 +411,8 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 | Item | Result |
 |---|---|
-| `python -m unittest discover -s tests` | **364 tests, OK (1 skipped)** — 341 existing + 23 new `token_language`; the single skip is the `tiktoken`-installed branch, documented in the test |
+| `python -m unittest discover -s tests` | **365 tests, OK (1 skipped)** — 341 existing + 24 new `token_language`; the single local skip is the `tiktoken`-installed branch |
+| `python -m unittest discover -s tests` **with no optional encoder** (what CI sees) | 365 tests, **5 skipped**: the numeric token gate needs an exact tokenizer. Every skip names the missing encoder in its reason; the encoder-free properties (structure, parity, no-silent-fallback, cross-language scenarios) still run |
 | Runtime | Windows 11 (10.0.26200) / Python 3.13 (local `G:\Python313`) |
 | `python tests/smoke.py` | all pass: init → read/write → migrate → check → route → benchmark, including exit-code assertions on conflicts and bad paths |
 | `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` is the single optional exception |
