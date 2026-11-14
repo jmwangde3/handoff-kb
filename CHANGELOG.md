@@ -5,9 +5,7 @@ Tool version and protocol version move independently: a tool upgrade never chang
 Chinese chronicle — what each defect did on a real library, before/after numbers —
 is in [`README.zh-CN.md`](README.zh-CN.md) §17.
 
-## 2.0.4 — unreleased
-
-Still on `feat/2.0.4-english-skill-token-benchmark` (PR #5). No tag, no release.
+## 2.0.4 — 2026-11-14
 
 ### Added
 
