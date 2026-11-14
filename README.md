@@ -285,6 +285,8 @@ Compares A full / B `00+05` / C routed across 10 fixed tasks (one is an error pa
 Three variants: **A** original Chinese v2.0.3 (frozen) · **B** optimized Chinese v2.0.4 — **a benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
 `structure = 1 − B/A`, `language = 1 − C/B`, `total = 1 − C/A`. A zero denominator is reported explicitly, never as 0%.
 
+**The total is a language gain, not a structural one.** `structure` lands at −1.3% / −0.9% / +0.1% across the three exact vocabularies: restructuring the prose into 9 sections did not make the Chinese text smaller. Everything the total shows comes from `language`. Quoting "2.0.4 is 27.9% smaller" as a structural achievement would be wrong — the structure paid for itself in readability and in *not growing*.
+
 B exists for one reason: without a Chinese edition of the *optimized* text, `A → C` would mix restructuring and translation into one number that cannot be attributed. Keeping B lets each term be measured on its own. It lives in `tests/token_language/sample_b/`, its bytes are pinned by a SHA256 assertion, and it is not installable — 2.0.4 ships one skill.
 
 `SKILL.md` body, measured 2026-11-14:
