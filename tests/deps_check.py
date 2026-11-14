@@ -13,6 +13,9 @@ Python 标准库是**唯一必需依赖**。允许出现的可选第三方依赖
   - 包在一个**能捕获 ImportError 的 `try` 体内**：`except ImportError` /
     `except ModuleNotFoundError` / `except Exception` / 裸 `except` / 含上述
     类型的元组。`try/finally` 没有捕获能力，`except ValueError` 也接不住缺包。
+  - handler 里的异常名必须是**裸名**或**明确限定为 `builtins.`**：
+    `except ImportError` / `except builtins.ImportError` 算，
+    `except local_lib.ImportError` 不算——那是另一个类，恰好同名而已。
 
 其余任何第三方导入都算失败（退出码 1）。检查走完整 AST，不只看顶层：
 `def f(): import requests` 这种写法同样会被抓出来。
@@ -42,6 +45,10 @@ OPTIONAL = {"tiktoken", "tokenizers"}
 # 能被「缺包」触发的异常名。`Exception` / `BaseException` / 裸 `except` 也算：
 # 现有代码有意用宽口径兜底，这比只catch一个名字更保守，不是更松。
 IMPORT_ERRORS = {"ImportError", "ModuleNotFoundError", "Exception", "BaseException"}
+
+# 唯一允许的限定前缀。`except builtins.ImportError` 与 `except ImportError` 是同一个类；
+# `except anything_else.ImportError` 不是——不看前缀只看最后一段就会把它当成兜底。
+BUILTIN_MODULE = "builtins"
 
 # 标准库但在低版本 Python 里还没有的模块。`sys.stdlib_module_names` 是按**当前
 # 进程**的版本给的，所以 3.10 的 CI 会把 `import tomllib` 判成第三方——那是检查器
@@ -76,10 +83,22 @@ def _walk(node, ancestors=(), try_flags=()):
 
 
 def _exception_name(node):
-    """`ImportError` / `builtins.ImportError` -> the bare name; anything else -> None."""
+    """Bare name, or an explicitly `builtins.`-qualified one; anything else -> None.
+
+    `except ImportError:`            -> "ImportError"
+    `except builtins.ImportError:`   -> "ImportError"
+    `except local_lib.ImportError:`  -> None   (a different class that shares a name)
+    `except pkg.builtins.ImportError:` -> None (only the direct form is recognised)
+
+    Matching on the last attribute segment alone would accept any module's exception
+    that happens to be called `ImportError`, which is not the same class at all.
+    Aliased modules (`import builtins as bi`) stay rejected on purpose: resolving
+    aliases needs scope tracking, and the conservative direction is to reject.
+    """
     if isinstance(node, ast.Name):
         return node.id
-    if isinstance(node, ast.Attribute):
+    if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+            and node.value.id == BUILTIN_MODULE):
         return node.attr
     return None
 
@@ -159,8 +178,9 @@ def check_source(source: str, filename: str = "<string>"):
                     % (filename, lineno, name))
             elif not guarded:
                 problems.append(
-                    "%s:%d: 可选依赖 %s 的 try 接不住 ImportError（`finally` 和 "
-                    "`except ValueError` 都拦不住缺包；缺包时必须能降级或明确报错）"
+                    "%s:%d: 可选依赖 %s 的 try 接不住 ImportError（`finally`、"
+                    "`except ValueError`、以及 `except 别的模块.ImportError` 都拦不住缺包；"
+                    "只认裸名或 `builtins.` 限定；缺包时必须能降级或明确报错）"
                     % (filename, lineno, name))
     return problems
 

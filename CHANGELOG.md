@@ -25,7 +25,7 @@ Still on `feat/2.0.4-english-skill-token-benchmark` (PR #5). No tag, no release.
 - `tests/token_language/` — A/B/C measurement, frozen v2.0.3 baseline reproduced
   against all three exact vocabularies, rule and identifier checks, template parity,
   token targets, no-silent-fallback, cross-language scenarios (55 cases).
-- `tests/test_deps_check.py` — tests the dependency checker itself (25 cases).
+- `tests/test_deps_check.py` — tests the dependency checker itself (32 cases).
 
 ### Fixed
 
@@ -37,6 +37,11 @@ Still on `feat/2.0.4-english-skill-token-benchmark` (PR #5). No tag, no release.
 - `tests/deps_check.py` treated any import inside a `try` body as guarded, so
   `try/finally` and `except ValueError` passed. It now inspects the handlers and
   accepts only those that can catch an import failure.
+- The checker matched exception names on the last attribute segment only, so
+  `except local_lib.ImportError` counted as a guard even though it is a different
+  class that merely shares the name. A handler now needs a bare name (`ImportError`)
+  or an explicit `builtins.` prefix; `except builtins.ImportError`, tuples and bare
+  `except` still pass, and aliased modules stay rejected on purpose.
 - `STDLIB_LATE` (`tomllib`) bypassed both the scope and the handler rule: on 3.10 it
   was reported as third-party, on 3.12+ it was exempted outright. It is now checked
   before the standard-library exemption and must sit inside a function behind an

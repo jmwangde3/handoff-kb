@@ -13,6 +13,8 @@
 - `tomllib` 曾整条豁免，于是 3.10 的 ImportError 没人管；在 3.12 上
   `sys.stdlib_module_names` 又会让它直接过——两种版本两种错法。现在它按
   「函数内 + 能被 ImportError 接住」判，且判据与当前解释器版本无关。
+- 限定名只看最后一段：`except local_lib.ImportError` 也曾算兜底。现在只认裸名与
+  明确的 `builtins.` 前缀——别的模块里叫 ImportError 的类是另一个类。
 """
 
 from __future__ import annotations
@@ -76,6 +78,31 @@ class Allowed(unittest.TestCase):
             "    try:\n"
             "        import tiktoken\n"
             "    except (ImportError, OSError):\n"
+            "        return None\n"
+        )
+        self.assertEqual(problems(source), [])
+
+    def test_optional_with_builtins_qualified_handler(self):
+        """`except builtins.ImportError` is the same class as `except ImportError`."""
+        source = (
+            "import builtins\n"
+            "\n"
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except builtins.ImportError:\n"
+            "        return None\n"
+        )
+        self.assertEqual(problems(source), [])
+
+    def test_optional_with_builtins_qualified_tuple(self):
+        source = (
+            "import builtins\n"
+            "\n"
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except (builtins.ImportError, ValueError):\n"
             "        return None\n"
         )
         self.assertEqual(problems(source), [])
@@ -174,6 +201,73 @@ class Rejected(unittest.TestCase):
             "        import tokenizers\n"
             "    except ValueError:\n"
             "        pass\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("接不住 ImportError", found[0])
+
+    def test_qualified_non_builtin_import_error_is_rejected(self):
+        """`local_lib.ImportError` is a different class that happens to share the name.
+
+        Matching on the last attribute segment alone accepted this, so a handler that
+        cannot catch a missing package counted as if it could.
+        """
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except local_lib.ImportError:\n"
+            "        return None\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("可选依赖 tokenizers", found[0])
+        self.assertIn("接不住 ImportError", found[0])
+
+    def test_qualified_non_builtin_module_not_found_is_rejected(self):
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tiktoken\n"
+            "    except vendor.ModuleNotFoundError:\n"
+            "        return None\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("接不住 ImportError", found[0])
+
+    def test_qualified_non_builtin_in_tuple_is_rejected(self):
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except (local_lib.ImportError, ValueError):\n"
+            "        return None\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("接不住 ImportError", found[0])
+
+    def test_qualified_custom_exception_is_rejected(self):
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except custom.Exception:\n"
+            "        return None\n"
+        )
+        found = problems(source)
+        self.assertEqual(len(found), 1)
+        self.assertIn("接不住 ImportError", found[0])
+
+    def test_only_direct_builtins_qualification_is_recognised(self):
+        """`pkg.builtins.ImportError` is not `builtins.ImportError`; aliases stay rejected."""
+        source = (
+            "def load():\n"
+            "    try:\n"
+            "        import tokenizers\n"
+            "    except pkg.builtins.ImportError:\n"
+            "        return None\n"
         )
         found = problems(source)
         self.assertEqual(len(found), 1)

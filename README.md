@@ -106,7 +106,7 @@ One consequence worth naming: an English project still gets `新会话启动消�
 | `tiktoken` | `--tokenizer cl100k_base` / `o200k_base`, exact BPE counts | requesting one exits **2**; `heuristic` still works |
 | `tokenizers` + DeepSeek's `tokenizer.json` | `--tokenizer deepseek_v4`, exact counts on DeepSeek's own vocabulary | requesting it exits **2**; `deepseek_estimate` applies the documented ratio |
 
-Nothing degrades silently: an explicitly requested encoder either works or exits 2, and `--allow-tokenizer-fallback` is the only way to accept an estimate (which then labels itself `exact=false`). `tests/deps_check.py` walks the full AST of every script and fails on any third-party import outside this table, at module level, or outside `try/except`; `tests/test_deps_check.py` tests the checker itself so a new dependency cannot slip in unnoticed.
+Nothing degrades silently: an explicitly requested encoder either works or exits 2, and `--allow-tokenizer-fallback` is the only way to accept an estimate (which then labels itself `exact=false`). `tests/deps_check.py` walks the full AST of every script and fails on any third-party import outside this table, at module level, behind a `try` that has no handler able to catch `ImportError`, or behind one that names another module's exception (`local_lib.ImportError` is not `ImportError`); `tests/test_deps_check.py` tests the checker itself so a new dependency cannot slip in unnoticed.
 
 ```bash
 KB="$HOME/.skills-manager/skills/handoff-kb"   # your install path
@@ -269,7 +269,7 @@ Numbering checks accept "definition positions": heading start, list start, table
 ## 12. Tests and benchmarks
 
 ```bash
-python -m unittest discover -s tests        # 421 tests (341 existing + 55 token_language + 25 deps_check)
+python -m unittest discover -s tests        # 428 tests (341 existing + 55 token_language + 32 deps_check)
 python tests/smoke.py                       # end to end: init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ must not import outside the standard library
 python scripts/kb-benchmark.py --target . --report markdown
@@ -429,6 +429,7 @@ The full Chinese chronicle — what each defect did on a real library, before/af
 - `tomllib` was fully exempt: reported as third-party on 3.10, exempted outright on 3.12+ by `sys.stdlib_module_names`. It is now checked *before* the standard-library exemption — function scope plus an import-error handler — identically on every interpreter version.
 - Exact-tokenizer tests skipped the whole loop when the first vocabulary was missing, so the installed ones were never checked. Each vocabulary is now its own test with its own skip reason.
 - Four Chinese reference documents were only checked for existence; their SHA256 is now compared against the frozen v2.0.3 copies.
+- The dependency checker matched exception names on the last attribute segment only, so `except local_lib.ImportError` counted as a guard. A handler now needs a bare name or an explicit `builtins.` prefix; tuples, bare `except` and `builtins.ImportError` still pass, aliased modules stay rejected on purpose.
 - `kb-init --lang en` without `--lines` generated Chinese workstream file names; the `--lines` default now follows `--lang`, and an explicit list always wins.
 
 **What did not change**: protocol version stays `2`; document IDs, reserved filenames, section IDs, command arguments, JSON schemas and migration behavior are all untouched; an existing Chinese library needs no migration and is still read correctly. Security, concurrency, transaction, hashing and recovery rules are preserved verbatim in substance — nothing was removed to make the token numbers look better.
@@ -443,11 +444,11 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 | Item | Result |
 |---|---|
-| `python -m unittest discover -s tests` | **421 tests, OK (1 skipped)** — 341 existing + 55 `token_language` + 25 `test_deps_check`; the single local skip is an existing degradation test that only applies when `tiktoken` is *absent* |
-| the same suite **with no optional encoder** (what CI sees) | 421 tests, **24 skipped on 3.12 / 3.13, 25 on 3.10**, 0 failures: the numeric token tests need an exact vocabulary. Skips are per vocabulary and per test, so the count is larger than the number of tests — each one names the missing encoder (`cl100k_base` / `o200k_base` / `deepseek_v4`) instead of silently dropping out of the summary. The encoder-free properties — layout, rules, identifiers, JSON contract, templates, cross-language scenarios, fallback exit codes — all still run |
+| `python -m unittest discover -s tests` | **428 tests, OK (1 skipped)** — 341 existing + 55 `token_language` + 32 `test_deps_check`; the single local skip is an existing degradation test that only applies when `tiktoken` is *absent* |
+| the same suite **with no optional encoder** (what CI sees) | 428 tests, **24 skipped on 3.12 / 3.13, 25 on 3.10**, 0 failures: the numeric token tests need an exact vocabulary. Skips are per vocabulary and per test, so the count is larger than the number of tests — each one names the missing encoder (`cl100k_base` / `o200k_base` / `deepseek_v4`) instead of silently dropping out of the summary. The encoder-free properties — layout, rules, identifiers, JSON contract, templates, cross-language scenarios, fallback exit codes — all still run |
 | Runtime | Windows 11 (10.0.26200) / Python 3.13 (local `G:\Python313`) |
 | `python tests/smoke.py` | all pass: init → read/write → migrate → check → route → benchmark, including exit-code assertions on conflicts and bad paths |
-| `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` and `tokenizers` are the two declared optional exceptions, both function-scoped and `try`-guarded. `tests/test_deps_check.py` (25 cases) tests the checker itself, including `try/finally` and `except ValueError` around an optional import |
+| `python tests/deps_check.py` | OK: `scripts/` uses only the standard library plus local `lib`; `tiktoken` and `tokenizers` are the two declared optional exceptions, both function-scoped and `try`-guarded. `tests/test_deps_check.py` (32 cases) tests the checker itself, including `try/finally`, `except ValueError` and `except local_lib.ImportError` around an optional import |
 | `python tests/token_language/run_token_benchmark.py --all` | produces the table in §12.2; `deepseek_v4` requires the offline tokenizer, otherwise exit 2 |
 
 ### 18.2 CI (six environments)

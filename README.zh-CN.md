@@ -106,7 +106,7 @@ English edition: [`README.md`](README.md)（英文主手册）。
 | `tiktoken` | `--tokenizer cl100k_base` / `o200k_base`，精确 BPE 计数 | 指定即退出 **2**；`heuristic` 照常可用 |
 | `tokenizers` + DeepSeek 的 `tokenizer.json` | `--tokenizer deepseek_v4`，在 DeepSeek 自有词表上精确计数 | 指定即退出 **2**；`deepseek_estimate` 按官方比例估算 |
 
-没有任何东西静默降级：显式指定的编码器要么能用，要么退出 2；唯一接受估算的办法是 `--allow-tokenizer-fallback`，此时输出自己标 `exact=false`。`tests/deps_check.py` 走每个脚本的**完整 AST**，超出上表的第三方导入、出现在模块顶层、或没包 `try/except`，一律失败；`tests/test_deps_check.py` 再测这个检查器本身，新增依赖不可能不被发现。
+没有任何东西静默降级：显式指定的编码器要么能用，要么退出 2；唯一接受估算的办法是 `--allow-tokenizer-fallback`，此时输出自己标 `exact=false`。`tests/deps_check.py` 走每个脚本的**完整 AST**，超出上表的第三方导入、出现在模块顶层、包里没有能接住 `ImportError` 的 handler、或用别的模块的同名异常（`local_lib.ImportError` 不是 `ImportError`）当兜底，一律失败；`tests/test_deps_check.py` 再测这个检查器本身，新增依赖不可能不被发现。
 
 ```bash
 KB="$HOME/.skills-manager/skills/handoff-kb"   # 换成你的安装目录
@@ -275,7 +275,7 @@ py "$KB/scripts/kb-check.py" --target . --mode template  # 刚初始化的空模
 ## 12. 测试与 benchmark
 
 ```bash
-python -m unittest discover -s tests        # 421 例（341 既有 + 55 例 token_language + 25 例 deps_check）
+python -m unittest discover -s tests        # 428 例（341 既有 + 55 例 token_language + 32 例 deps_check）
 python tests/smoke.py                       # 端到端：init→check→search→context→handoff→write→migrate
 python tests/deps_check.py                  # scripts/ 不得引入标准库以外的依赖
 python scripts/kb-benchmark.py --target . --report markdown
@@ -685,7 +685,7 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 7. **`tests/deps_check.py` 改成走完整 AST**：不再只看模块顶层，可选依赖必须同时满足
    「在函数内」和「包在 try/except 中」。`tokenizers` 正式列入可选依赖清单——代码从
    DeepSeek 计数器加入那天起就在用它，而文档只说 `tiktoken`，这次把声明补齐。
-   `tests/test_deps_check.py`（25 例）测检查器本身，新增第三方依赖会被先发现；
+   `tests/test_deps_check.py`（32 例）测检查器本身，新增第三方依赖会被先发现；
    `try/finally`、`except ValueError` 这类「看着像兜底、其实接不住缺包」的写法也有专门用例。
 8. **`tests/token_language/`**：A/B/C 实测、v2.0.3 冻结基线（19 份文件 + `MANIFEST.json`，
    带 bytes / chars / sha256 / 三套词表 token 数，**三套精确词表都复现**）、19 条规则表
@@ -696,7 +696,7 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
    （三套词表各自独立成一个用例，缺一个不影响另外两个）；其余用例在 CI 照常跑，
    一条命令可本地复现全部：`python tests/token_language/run_token_benchmark.py --all`。
 
-**发布前修正（RC1）**：五处已复现的缺陷，都在原架构内修，不动协议。
+**发布前修正（RC1）**：七处已复现的缺陷，都在原架构内修，不动协议。
 
 1. **`count()` 判错了对象**：`TokenCounter` 用 `requested`（用户要什么）而不是实际生效的算法来分派，
    于是「请求 `deepseek_v4`、词表缺失、显式允许回退」时，报告写着 `deepseek_estimate`，
@@ -713,6 +713,9 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
    现在 `--lines` 的默认值随 `--lang` 走，显式给值永远优先。
 6. **四份中文参考只查存在性**：改成与 v2.0.3 冻结副本比 SHA256，避免「移动」悄悄变成「编辑」
    从而作废 A/B/C 的全部数字。
+7. **限定异常名只看最后一段**：`except local_lib.ImportError` 也曾算作兜底——那只是同名的
+   另一个类，接不住缺包。现在只认裸名与明确的 `builtins.` 前缀；`builtins.ImportError`、
+   元组、裸 `except` 照常通过，`import builtins as bi` 这类别名保守拒绝。
 
 **没变的**：协议版本、文档 ID、保留文件名、章节 ID、命令参数、JSON schema、迁移行为、
 安全/并发/事务/哈希/恢复规则。没有为了省 token 删掉任何一条安全规则——只压缩措辞，
@@ -728,11 +731,11 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 
 | 项 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests` | **421 例，OK（1 skip）**——341 例既有 + 55 例 `token_language` + 25 例 `test_deps_check`；本机唯一的 skip 是一条既有降级用例，它只在**没装** `tiktoken` 时才适用 |
-| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 421 例，**3.12 / 3.13 上 24 skip、3.10 上 25 skip**，0 失败：数字化的 token 用例必须有精确词表才能算。skip 按「词表 × 用例」计数，所以条数多于用例数——每条都在原因里点名缺哪个词表（`cl100k_base` / `o200k_base` / `deepseek_v4`），而不是从汇总里静默消失。不依赖编码器的性质——布局、规则、标识符、JSON 契约、模板、跨语言场景、降级退出码——照常跑 |
+| `python -m unittest discover -s tests` | **428 例，OK（1 skip）**——341 例既有 + 55 例 `token_language` + 32 例 `test_deps_check`；本机唯一的 skip 是一条既有降级用例，它只在**没装** `tiktoken` 时才适用 |
+| 同上，但**不装任何可选编码器**（CI 就是这种环境） | 428 例，**3.12 / 3.13 上 24 skip、3.10 上 25 skip**，0 失败：数字化的 token 用例必须有精确词表才能算。skip 按「词表 × 用例」计数，所以条数多于用例数——每条都在原因里点名缺哪个词表（`cl100k_base` / `o200k_base` / `deepseek_v4`），而不是从汇总里静默消失。不依赖编码器的性质——布局、规则、标识符、JSON 契约、模板、跨语言场景、降级退出码——照常跑 |
 | 运行环境 | Windows 11（10.0.26200）/ Python 3.13（本机 `G:\Python313`） |
 | `python tests/smoke.py` | 全部通过：建库 → 读写 → 迁移 → 体检 → 路由 → 评测，含冲突与坏路径的退出码断言 |
-| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`；`tiktoken` 与 `tokenizers` 是两个已声明的可选例外，都在函数内且包 `try/except`。`tests/test_deps_check.py`（25 例）测检查器本身，含「可选导入包在 `try/finally` 或 `except ValueError` 里」这两个曾漏过的写法 |
+| `python tests/deps_check.py` | OK：`scripts/` 只用标准库 + 本地 `lib`；`tiktoken` 与 `tokenizers` 是两个已声明的可选例外，都在函数内且包 `try/except`。`tests/test_deps_check.py`（32 例）测检查器本身，含「可选导入包在 `try/finally`、`except ValueError`、`except local_lib.ImportError` 里」这三个曾漏过的写法 |
 | `python tests/token_language/run_token_benchmark.py --all` | 产出 §12.1 的表；`deepseek_v4` 需要离线词表，否则退出 2 |
 
 ### 18.2 CI（六个环境）

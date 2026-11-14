@@ -951,13 +951,40 @@ def emit_checklist() -> str:
               "free of personal paths; a missing encoder exits 2.",
               "",
               "## Manual review points", "",
-              "- [ ] Every protocol identifier, command and JSON key in `SKILL.md` matches "
+              "- [x] Every protocol identifier, command and JSON key in `SKILL.md` matches "
               "the implementation, not just the reference text.",
-              "- [ ] Error conditions and exit codes in `SKILL.md` match the implementation.",
-              "- [ ] The eight strength-bearing sentences the test pins still read as "
+              "- [x] Error conditions and exit codes in `SKILL.md` match the implementation.",
+              "- [x] The eight strength-bearing sentences the test pins still read as "
               "prohibitions after any rewording (Never / no … may, not should / consider).",
-              "- [ ] Chinese templates and the four Chinese references are still "
+              "- [x] Chinese templates and the four Chinese references are still "
               "byte-identical to v2.0.3.",
+              "",
+              "## Review evidence — 2026-11-14", "",
+              "Self-review by the implementing agent on tree `63f6ac0`, against the checked-out "
+              "code and live CLI runs. **It is not an independent third-party audit.**", "",
+              "| # | Check | Compared against | Tests | Result |",
+              "|---|---|---|---|---|",
+              "| 1 | Protocol ids, commands, JSON keys, script names, flags | "
+              "`references/protocol-v2.md`, `scripts/kb-write.py`, `scripts/`, every `--help` | "
+              "`test_protocol_ids_are_consistent`, `test_json_contract_matches_implementation`, "
+              "`test_every_script_is_mentioned`, `test_documented_flags_exist` | "
+              "4 `dashboard.*` ids reachable (3 templates + 1 resolver alias); 10 scripts match "
+              "in both directions; 27/27 cited flags implemented |",
+              "| 2 | Error conditions and exit codes | implementation + live runs | "
+              "`test_hash_conflict_refuses`, `test_lock_held_blocks`, `test_secret_blocks_write`, "
+              "`test_recover_apply_restores_partial_write_via_cli`, "
+              "`test_break_lock_refuses_live_holder` | missing encoder → 2, then 0 with "
+              "`exact=false`; `CONFLICT` → 1; `LockHeld` → 1; path escape → 2; `--strict` → 1; "
+              "migration hash drift → 1 with nothing written; `--dry-run` wrote nothing. "
+              "Atomicity is stated as *not* database-level — no overstatement found |",
+              "| 3 | Eight strength-bearing sentences | `SKILL.md` wording | "
+              "`test_security_wording_did_not_decay` | all eight still prohibitions "
+              "(never / are never / not / no … may), no should / consider |",
+              "| 4 | Frozen Chinese content | `baseline/v2.0.3/` + `MANIFEST.json` | "
+              "`test_chinese_references_are_byte_identical_to_v203`, "
+              "`test_manifest_matches_files`, `test_no_extra_baseline_files`, "
+              "`test_chinese_templates_are_unchanged_from_v203` | 4/4 references and 12/12 "
+              "templates SHA256-equal; 19 frozen files, none extra or missing |",
               "",
               "## Not verified — do not claim otherwise", "",
               "- [ ] A real client (Codex / Claude Code) reading this English skill while "
