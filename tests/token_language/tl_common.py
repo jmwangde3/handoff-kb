@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Shared helpers for the Chinese/English token benchmark.
+"""Shared helpers for the A/B/C token benchmark.
 
 Three variants are compared:
 
 - **A** original Chinese v2.0.3 (frozen under `baseline/v2.0.3/`)
-- **B** optimized Chinese v2.0.4 (`SKILL.zh-CN.md`, `references/*.zh-CN.md`, Chinese templates)
-- **C** optimized English v2.0.4 (`SKILL.md`, `references/*.md`, `assets/en/`)
+- **B** optimized Chinese v2.0.4 — **a benchmark sample, not a shipped skill**.
+  It lives in `sample_b/` precisely so it cannot be installed or discovered as a
+  second skill; 2.0.4 ships one skill (`SKILL.md`, English) only.
+- **C** the shipped English v2.0.4 skill (`SKILL.md`, `references/*.md`, `assets/en/`)
 
-B and C are translations of one another: same sections, same protocol IDs, same
-commands. A and B differ in structure (that is the structural saving); B and C
-differ only in language (that is the language saving).
+B is kept because it isolates the *structural* saving (A → B) from the
+*language* saving (B → C). Without a Chinese edition of the optimized text the
+language term could not be measured at all, and every A → C number would be the
+sum of two effects that move in opposite directions. B's bytes are frozen: its
+SHA256 is asserted in `test_token_language.py`, so "move the file" can never
+silently become "edit the file".
 
 Token counting goes through `scripts/lib/tokens.py::TokenCounter` — this module
 never implements a tokenizer of its own.
@@ -31,6 +36,12 @@ ROOT = TL_DIR.parents[1]
 SCRIPTS = ROOT / "scripts"
 BASELINE = TL_DIR / "baseline" / "v2.0.3"
 FIXTURES = TL_DIR / "fixtures" / "paired"
+# B lives outside the repo root: one discoverable skill only.
+SAMPLE_B = TL_DIR / "sample_b" / "SKILL.zh-CN.md"
+# SHA256 of B when it was frozen as a benchmark sample. If this changes, the
+# A → B half of every published number changes with it — which is why it is a
+# hard assertion rather than a note.
+SAMPLE_B_SHA256 = "fb4cad979ce4713bf1517d368509ce6e4675408dcac6261d984e308c119b8c5a"
 
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
@@ -46,26 +57,35 @@ ASSET_NAMES = [
 
 VARIANTS = {
     "A": {
-        "label": "Original Chinese v2.0.3",
+        "label": "Original Chinese v2.0.3 (frozen baseline)",
         "skill": BASELINE / "SKILL.md",
         "ref": lambda name: BASELINE / "references" / ("%s.md" % name),
         "asset": lambda name: BASELINE / "assets" / name,
+        "shipped": False,
     },
     "B": {
-        "label": "Optimized Chinese v2.0.4",
-        "skill": ROOT / "SKILL.zh-CN.md",
+        "label": "Optimized Chinese v2.0.4 (benchmark sample, not a shipped skill)",
+        "skill": SAMPLE_B,
         "ref": lambda name: ROOT / "references" / ("%s.zh-CN.md" % name),
         "asset": lambda name: ROOT / "assets" / name,
+        "shipped": False,
     },
     "C": {
-        "label": "Optimized English v2.0.4",
+        "label": "Optimized English v2.0.4 (the shipped skill)",
         "skill": ROOT / "SKILL.md",
         "ref": lambda name: ROOT / "references" / ("%s.md" % name),
         "asset": lambda name: ROOT / "assets" / "en" / name,
+        "shipped": True,
     },
 }
 
 VARIANT_NAMES = ["A", "B", "C"]
+
+# The 15% target is defined on these two. DeepSeek's vocabulary is Chinese-heavy,
+# so its acceptance criterion is "must not grow" instead — see TokenTargets.
+SPEC_TOKENIZERS = ("cl100k_base", "o200k_base")
+# Every exact vocabulary the baseline is reproduced against when available.
+BASELINE_TOKENIZERS = ("cl100k_base", "o200k_base", "deepseek_v4")
 
 # Six tasks from the specification; the list of documents is what the task
 # actually needs to read (never "every reference by default").
@@ -150,10 +170,11 @@ def saving(base: float, cand: float):
 
 
 def env_info() -> dict:
+    """Environment block for the report. Never contains a personal absolute path."""
     info = {
         "python": platform.python_version(),
         "python_impl": platform.python_implementation(),
-        "platform": platform.platform(),
+        "platform": platform.system(),
         "machine": platform.machine(),
     }
     try:
@@ -166,9 +187,13 @@ def env_info() -> dict:
         info["tokenizers"] = getattr(tokenizers, "__version__", "unknown")
     except Exception:
         info["tokenizers"] = None
-    info["deepseek_tokenizer_dir"] = tokenlib.deepseek_tokenizer_dir()
-    info["deepseek_tokenizer_present"] = os.path.isfile(
-        os.path.join(tokenlib.deepseek_tokenizer_dir(), "tokenizer.json"))
+    path = os.path.join(tokenlib.deepseek_tokenizer_dir(),
+                        tokenlib.DEEPSEEK_TOKENIZER_FILE)
+    info["deepseek_tokenizer_present"] = os.path.isfile(path)
+    info["deepseek_tokenizer_file"] = tokenlib.DEEPSEEK_TOKENIZER_FILE \
+        if os.path.isfile(path) else None
+    info["deepseek_tokenizer_sha256"] = (
+        tokenlib._sha256_file(path) if os.path.isfile(path) else None)
     return info
 
 

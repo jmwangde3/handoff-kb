@@ -10,17 +10,29 @@
     "cl100k_base": {
       "requested": "cl100k_base",
       "actual": "tiktoken:cl100k_base",
-      "exact": true
+      "exact": true,
+      "source": "tiktoken encoder (bundled BPE ranks)",
+      "tokenizer_file": null,
+      "tokenizer_sha256": null,
+      "library": "tiktoken"
     },
     "o200k_base": {
       "requested": "o200k_base",
       "actual": "tiktoken:o200k_base",
-      "exact": true
+      "exact": true,
+      "source": "tiktoken encoder (bundled BPE ranks)",
+      "tokenizer_file": null,
+      "tokenizer_sha256": null,
+      "library": "tiktoken"
     },
     "deepseek_v4": {
       "requested": "deepseek_v4",
-      "actual": "tokenizers:deepseek_v4(tokenizer.json)",
-      "exact": true
+      "actual": "tokenizers:deepseek_v4",
+      "exact": true,
+      "source": "DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json)",
+      "tokenizer_file": "tokenizer.json",
+      "tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614",
+      "library": "tokenizers"
     }
   },
   "files": {

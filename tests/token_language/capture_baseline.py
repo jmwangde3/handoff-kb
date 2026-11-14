@@ -26,19 +26,19 @@ from lib import tokens as tokenlib  # noqa: E402
 
 
 def _describe(counter):
-    """Counter metadata without local absolute paths.
+    """Counter metadata for the manifest.
 
-    `as_dict()["actual"]` embeds the resolved tokenizer.json path, which would
-    put a machine-specific absolute path into a committed artifact. Keep the
-    encoder identity, drop the directory.
+    `as_dict()` carries source + vocabulary file name + SHA256 + library version and
+    deliberately holds no absolute paths, so this stays a plain passthrough — a
+    machine-specific path in a committed artifact is a leak, not metadata.
     """
     if counter is None:
         return None
     row = counter.as_dict()
-    actual = row.get("actual") or ""
-    if "(" in actual and actual.endswith(")"):
-        head, _, tail = actual.partition("(")
-        row["actual"] = "%s(%s)" % (head, Path(tail[:-1]).name)
+    # The library *version* belongs in a benchmark report, not in a committed
+    # baseline: it differs per machine and would turn every re-capture into a
+    # diff that says nothing about the vocabulary. The vocabulary SHA256 stays.
+    row.pop("library_version", None)
     return row
 
 

@@ -8,7 +8,9 @@ description: Build and maintain a layered knowledge handoff system for long-runn
 > **Tool version** `2.0.4` (script behavior) | **Protocol version** `2` (document layout, `<!-- kb:schema: 2 -->`).
 > They are independent: a tool upgrade does not change the protocol, and does not require an existing library to migrate.
 
-Chinese edition of this file: `SKILL.zh-CN.md`. Chinese reference editions: `references/*.zh-CN.md`.
+> **One skill: English instructions, any library language.** Instruction language and
+> library language are independent — this skill manages a Chinese library, an English
+> one, or a mixed one. Never translate existing documents on your own initiative.
 
 ## 1. Purpose and Applicability
 
@@ -45,7 +47,7 @@ Project-level override: if a project will not use this library, put `This projec
 | L3 log | `06_会话日志.md` (read-only history) + `06_流水/<line>.md` | Append-only timeline | Forensics only |
 | L4 archive | `90_过程档案.md` + `归档/` | Process evidence / verification snapshots | Not required |
 
-What 2.0 changed: fact shards moved to `10–17` (`01–04` stay valid, `00/05/06/90` reserved); sections became addressable via `<!-- kb:id: dashboard.current -->`; writes gained full `sha256` + lock + transaction journal; `kb-context.py` assembles P0–P4 under a budget; `kb-handoff.py` grades evidence; `kb-migrate.py` only adds schema markers and section IDs.
+2.0 moved fact shards to `10–17` (`01–04` remain valid, `00/05/06/90` reserved), made sections addressable via `<!-- kb:id: dashboard.current -->`, added `sha256` + lock + journal to writes, and routed context under a budget.
 
 Non-negotiable rules:
 
@@ -75,9 +77,11 @@ py "$KB/scripts/kb-init.py" --target "~/projects/new" --plan      # plan only
 py "$KB/scripts/kb-init.py" --target "~/projects/new" --lines "a,b" --lang en   # English templates
 ```
 
+`--lang zh` is the default; `--lang en` switches template language only (same 17 files, placeholders and `kb:id` set) and never changes this skill's instruction language.
+
 Generated: `AGENTS.md`, `CLAUDE.md`/`GEMINI.md`, `00_基线.md`, `10–17_<line>.md`, `05_进度仪表盘.md`, `06_会话日志.md` + `06_流水/*.md`, `90_过程档案.md`, `新会话启动消息.txt`, `.gitignore`/`.gitattributes`, `scripts/handoff-check.sh` stub, `归档/`.
 
-Then: fill `00` `K-xx` rows (value / status / evidence) and `05` state, next step and hard constraints; extend `.gitignore` (large files, credentials first) and replace the check stub with real read-only checks; run `kb-handoff.py check --target . --strict`.
+Then: fill `00` `K-xx` rows (value / status / evidence) and `05` state, next step and hard constraints; extend `.gitignore` (large files, credentials first); replace the check stub with real read-only checks; run `kb-handoff.py check --target . --strict`.
 
 Safety boundary: `--plan` writes nothing; an existing git repository is never nested or auto-committed; only whitelisted `git add --`; a credential hit blocks the commit (`--force` does not bypass it); protected config files need `--force --overwrite-config`.
 
@@ -105,7 +109,7 @@ py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboa
 
 Assembly order: **P0** hard constraints → **P1** current state + next step → **P2** facts of the matching workstream → **P3** baseline hits + evidence + cross-links → **P4** relevance fill (≤3 blocks, ≤30% of budget, and ≥2 keyword hits or one unique term of ≥4 characters; a file named by the task does not participate in P4; superseded facts are blanked line by line and a section whose relevance comes only from superseded content is skipped; `--include-superseded` or asking about "history" brings them back verbatim, marked "superseded" with the replacement ID).
 
-- On "over budget" **never drop hard constraints**: split the task or raise `--budget`, and surface the overrun in the output.
+- Over budget: **never drop hard constraints** — split the task or raise `--budget`, and surface the overrun in the output.
 - No hit means report a gap and go to `kb-search`. Never invent content.
 - **P4 fills sections, not whole workstreams**: a gap line saying "P4 added N fact sections" means only keyword-selected sections were added; use `--line <name>` to load a whole line. In JSON, `p4_facts` are sections from real fact shards; `p4_candidates` are numbered documents without fact entries (weight 0.5, read as leads).
 - P0 falls back in three steps: `dashboard.constraints` → `dashboard.safety` → the `AGENTS.md` hard-constraints section. An out-of-root symlink entry, or a section holding only placeholders, does not count as a declaration. `kb-check` and `kb-context` share this rule.
@@ -155,7 +159,7 @@ Thresholds (write them into `05`, act only when crossed):
 | `90` archive | > 600 lines | split into volumes or move to `归档/` |
 | Fact shards | > 8 | merge by domain |
 
-Acceptance in one file: from `05` alone you must answer what each line's state is, what the next step is, what is pending / in progress / done and with what evidence, and which files to read before changing a given config. If you cannot, `05` is missing information or has grown again — do not compensate by reading the whole library.
+Acceptance: `05` alone must tell you each line's state, the next step, what is pending / in progress / done with what evidence, and which files to read before changing a config. If it cannot, `05` lost information — do not compensate by reading everything.
 
 ## 7. Reference Loading Guide
 
@@ -169,7 +173,7 @@ Acceptance in one file: from `05` alone you must answer what each line's state i
 | Interpreting token or quality numbers | `references/benchmark.md` |
 | Historical v1 design rationale (Chinese, archived) | `references/protocol.md` |
 
-Chinese editions: replace `.md` with `.zh-CN.md`. The Chinese and English references carry the same protocol IDs, commands, JSON shapes and exit codes; pick by project language, never mix within one answer.
+Chinese editions exist as `references/*.zh-CN.md` — optional reading, **not a second skill**. English is the default here. Both editions carry the same protocol IDs, commands, JSON shapes and exit codes; read the one matching the project's prose language and never mix them within one answer.
 
 ## 8. Anti-patterns and Safety
 
@@ -180,7 +184,7 @@ Chinese editions: replace `.md` with `.zh-CN.md`. The Chinese and English refere
 | `05` filled with completed todos | The todo area is diluted by history |
 | Deleting process together with its pitfalls | The next session repeats the same road |
 | Plaintext credentials reaching `git init` | They stay in history forever |
-| Large videos not excluded before `add` | Repository jumps to tens of MB, history unclearable |
+| Large files (video, logs) not excluded before `add` | Repository bloats; history unclearable |
 | `git add -A` | Commits another session's half-finished work |
 | Whole-file overwrite of `05` | Erases lines another session just appended |
 | Reordering section numbers or reusing a `K-xx` | Every cross-reference breaks |

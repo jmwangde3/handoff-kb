@@ -93,6 +93,7 @@ def pct(value) -> str:
 
 def markdown(report: dict) -> str:
     c = report["counter"]
+    env = report["env"]
     out = []
     out.append("# Token benchmark — A / B / C")
     out.append("")
@@ -101,15 +102,28 @@ def markdown(report: dict) -> str:
     out.append("| tokenizer requested | `%s` |" % report["tokenizer"])
     out.append("| tokenizer actual | `%s` |" % c["actual"])
     out.append("| exact | %s |" % ("true" if report["exact"] else "false (estimate)"))
-    out.append("| python | %s |" % report["env"]["python"])
-    out.append("| tiktoken | %s |" % (report["env"]["tiktoken"] or "not installed"))
-    out.append("| tokenizers | %s |" % (report["env"]["tokenizers"] or "not installed"))
+    out.append("| source | %s |" % c.get("source"))
+    out.append("| vocabulary file | %s |" % (c.get("tokenizer_file") or "n/a"))
+    out.append("| vocabulary SHA256 | %s |" % (c.get("tokenizer_sha256") or "n/a"))
+    out.append("| counting library | %s |"
+               % (("%s %s" % (c["library"], c.get("library_version") or "unknown"))
+                  if c.get("library") else "standard library only"))
+    out.append("| python | %s |" % env["python"])
+    out.append("| tiktoken | %s |" % (env["tiktoken"] or "not installed"))
+    out.append("| tokenizers | %s |" % (env["tokenizers"] or "not installed"))
     out.append("| deepseek tokenizer | %s |"
-               % ("present" if report["env"]["deepseek_tokenizer_present"] else "absent"))
+               % ("present" if env["deepseek_tokenizer_present"] else "absent"))
+    out.append("| deepseek vocabulary SHA256 | %s |"
+               % (env.get("deepseek_tokenizer_sha256") or "n/a"))
     out.append("")
-    out.append("Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, "
-               "**C** optimized English v2.0.4.")
+    out.append("Variants: **A** original Chinese v2.0.3 (frozen baseline) · "
+               "**B** optimized Chinese v2.0.4 — **benchmark sample, not a shipped skill** · "
+               "**C** the shipped English v2.0.4 skill.")
+    out.append("B exists only to separate structure from language: `A → B` is the restructuring "
+               "gain, `B → C` is the language gain. 2.0.4 ships one skill (`SKILL.md`).")
     out.append("`structure = 1 - B/A`, `language = 1 - C/B`, `total = 1 - C/A`.")
+    out.append("Neither the paths above nor the environment block contain a personal directory; "
+               "two reports with the same vocabulary SHA256 used the same vocabulary file.")
     out.append("")
 
     def table(title, rows, header_extra=""):
@@ -144,10 +158,15 @@ def markdown(report: dict) -> str:
     out.append("")
     out.append("## Limitations")
     out.append("")
+    out.append("- B is a **benchmark sample** (`tests/token_language/sample_b/SKILL.zh-CN.md`), "
+               "kept byte-frozen by a SHA256 assertion. It is not installed, not discoverable "
+               "as a skill, and not supported; only `SKILL.md` ships.")
     out.append("- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; "
-               "they are not every model's billing tokenizer.")
+               "they are not every model's billing tokenizer. The 15% target is defined on these two.")
     out.append("- `deepseek_v4` uses the official offline tokenizer "
-               "(`tokenizers` + `tokenizer.json`); `deepseek_estimate` only applies the "
+               "(`tokenizers` + `tokenizer.json`); its acceptance criterion is "
+               "\"must not grow\", not 15% — the vocabulary is Chinese-heavy, so the same "
+               "restructuring gains less. `deepseek_estimate` only applies the "
                "documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.")
     out.append("- The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is "
                "reported as an estimate only and is never used for a conclusion.")

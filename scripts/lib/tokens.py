@@ -14,6 +14,7 @@ tiktoken:o200k_base，块内却按启发式算」的不一致。
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 
@@ -24,6 +25,10 @@ DEEPSEEK_DESC = "deepseek_estimate（官方比例：1 英文字符≈0.3、1 中
 DEEPSEEK_ENV = "KB_DEEPSEEK_TOKENIZER"
 DEEPSEEK_DEFAULT_DIR = os.path.join(
     os.path.expanduser("~"), ".cache", "handoff-kb", "deepseek_v4_tokenizer")
+DEEPSEEK_TOKENIZER_FILE = "tokenizer.json"
+# 报告里只写「来源」，不写本机绝对路径；指纹靠 sha256 而不是路径。
+DEEPSEEK_SOURCE = "DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json)"
+TIKTOKEN_SOURCE = "tiktoken encoder (bundled BPE ranks)"
 
 
 class TokenizerError(Exception):
@@ -48,9 +53,29 @@ def deepseek_tokenizer_dir() -> str:
     return os.environ.get(DEEPSEEK_ENV) or DEEPSEEK_DEFAULT_DIR
 
 
+def _sha256_file(path: str):
+    """文件指纹；读不到就返回 None（报告里宁可缺指纹，也不写绝对路径）。"""
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+
+def _library_version(module_name: str):
+    try:
+        module = __import__(module_name)
+    except Exception:
+        return None
+    return getattr(module, "__version__", None) or "unknown"
+
+
 def _deepseek_encoder():
     """加载 DeepSeek 官方 `tokenizer.json`（可选依赖 `tokenizers`）。"""
-    path = os.path.join(deepseek_tokenizer_dir(), "tokenizer.json")
+    path = os.path.join(deepseek_tokenizer_dir(), DEEPSEEK_TOKENIZER_FILE)
     if not os.path.isfile(path):
         return None, path
     try:
@@ -93,17 +118,30 @@ class TokenCounter:
         self.encoder = None
         self.exact = False
         self.desc = HEURISTIC_DESC
+        # 可复现性指纹：来源 + 词表文件 + 词表 SHA256 + 库版本。
+        # 只写名称与哈希，不写本机路径——报告要能公开。
+        self.source = "heuristic"
+        self.tokenizer_file = None
+        self.tokenizer_sha256 = None
+        self.library = None
+        self.library_version = None
         if self.requested == "heuristic":
             return
         if self.requested == "deepseek_estimate":
             self.desc = DEEPSEEK_DESC
+            self.source = "documented ratio (0.3 / 0.6)"
             return
         if self.requested in ("deepseek_v4", "deepseek"):
             enc, path = _deepseek_encoder()
             if enc is not None:
                 self.encoder = enc
                 self.exact = True
-                self.desc = "tokenizers:deepseek_v4(%s)" % path
+                self.desc = "tokenizers:deepseek_v4"
+                self.source = DEEPSEEK_SOURCE
+                self.tokenizer_file = os.path.basename(path)
+                self.tokenizer_sha256 = _sha256_file(path)
+                self.library = "tokenizers"
+                self.library_version = _library_version("tokenizers")
                 return
             if not allow_fallback:
                 raise TokenizerError(
@@ -115,12 +153,16 @@ class TokenCounter:
                     % (self.requested, deepseek_tokenizer_dir(), DEEPSEEK_ENV))
             self.desc = ("deepseek_estimate（请求 %s 不可用，已按 --allow-tokenizer-fallback "
                          "回退；exact=false）" % self.requested)
+            self.source = "estimate (fallback)"
             return
         enc = _tiktoken_encoder(self.requested)
         if enc is not None:
             self.encoder = enc
             self.exact = True
             self.desc = "tiktoken:%s" % self.requested
+            self.source = TIKTOKEN_SOURCE
+            self.library = "tiktoken"
+            self.library_version = _library_version("tiktoken")
         elif not allow_fallback:
             raise TokenizerError(
                 "指定了 --tokenizer %s，但当前环境没有可用的 tiktoken 编码器。\n"
@@ -130,6 +172,7 @@ class TokenCounter:
         else:
             self.desc = ("heuristic（请求 %s 不可用，已按 --allow-tokenizer-fallback "
                          "回退；exact=false）" % self.requested)
+            self.source = "estimate (fallback)"
 
     def count(self, text: str) -> int:
         if not text:
@@ -147,8 +190,17 @@ class TokenCounter:
         return heuristic(text)
 
     def as_dict(self) -> dict:
-        return {"requested": self.requested, "actual": self.desc,
-                "exact": self.exact}
+        """报告用结构：无绝对路径，带足以判定「两次是否同一套词表」的指纹。"""
+        return {
+            "requested": self.requested,
+            "actual": self.desc,
+            "exact": self.exact,
+            "source": self.source,
+            "tokenizer_file": self.tokenizer_file,
+            "tokenizer_sha256": self.tokenizer_sha256,
+            "library": self.library,
+            "library_version": self.library_version,
+        }
 
 
 def estimate(text: str, tokenizer: str = "heuristic"):
@@ -160,7 +212,7 @@ def estimate(text: str, tokenizer: str = "heuristic"):
         if enc is not None:
             try:
                 return (len(enc.encode(text or "", add_special_tokens=False).ids),
-                        "tokenizers:deepseek_v4(%s)" % path)
+                        "tokenizers:deepseek_v4")
             except Exception:
                 pass
         return deepseek_estimate(text), ("deepseek_estimate（未找到 DeepSeek tokenizer，"
@@ -177,4 +229,10 @@ def estimate(text: str, tokenizer: str = "heuristic"):
 
 
 def is_exact(desc: str) -> bool:
-    return str(desc).startswith("tiktoken:")
+    """计数器描述是否代表精确词表。
+
+    精确实现有两种前缀：`tiktoken:<编码器>` 与 `tokenizers:deepseek_v4`。
+    估算路径（`heuristic…` / `deepseek_estimate…` / 回退串）一律为 False。
+    """
+    text = str(desc)
+    return text.startswith("tiktoken:") or text.startswith("tokenizers:")

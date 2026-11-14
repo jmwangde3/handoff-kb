@@ -5,13 +5,20 @@
 | tokenizer requested | `cl100k_base` |
 | tokenizer actual | `tiktoken:cl100k_base` |
 | exact | true |
+| source | tiktoken encoder (bundled BPE ranks) |
+| vocabulary file | n/a |
+| vocabulary SHA256 | n/a |
+| counting library | tiktoken 0.14.0 |
 | python | 3.13.9 |
 | tiktoken | 0.14.0 |
 | tokenizers | 0.23.2 |
 | deepseek tokenizer | present |
+| deepseek vocabulary SHA256 | 89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614 |
 
-Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** optimized English v2.0.4.
+Variants: **A** original Chinese v2.0.3 (frozen baseline) · **B** optimized Chinese v2.0.4 — **benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
+B exists only to separate structure from language: `A → B` is the restructuring gain, `B → C` is the language gain. 2.0.4 ships one skill (`SKILL.md`).
 `structure = 1 - B/A`, `language = 1 - C/B`, `total = 1 - C/A`.
+Neither the paths above nor the environment block contain a personal directory; two reports with the same vocabulary SHA256 used the same vocabulary file.
 
 ## T1 · YAML description
 
@@ -23,7 +30,7 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 5416 | 5486 | 3871 | -1.3% | +29.4% | +28.5% |
+| SKILL.md | 5416 | 5486 | 3903 | -1.3% | +28.9% | +27.9% |
 
 ## T3 · Reference files (each read alone)
 
@@ -38,12 +45,12 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 5416 | 5486 | 3871 | -1.3% | +29.4% | +28.5% |
-| Existing project diagnosis | 5416 | 5486 | 3871 | -1.3% | +29.4% | +28.5% |
-| Legacy project migration | 11428 | 11498 | 8321 | -0.6% | +27.6% | +27.2% |
-| New-session context recovery | 11930 | 12000 | 8781 | -0.6% | +26.8% | +26.4% |
-| Safe document write | 11930 | 12000 | 8781 | -0.6% | +26.8% | +26.4% |
-| Hook installation | 8429 | 8499 | 6106 | -0.8% | +28.2% | +27.6% |
+| New project initialization | 5416 | 5486 | 3903 | -1.3% | +28.9% | +27.9% |
+| Existing project diagnosis | 5416 | 5486 | 3903 | -1.3% | +28.9% | +27.9% |
+| Legacy project migration | 11428 | 11498 | 8353 | -0.6% | +27.4% | +26.9% |
+| New-session context recovery | 11930 | 12000 | 8813 | -0.6% | +26.6% | +26.1% |
+| Safe document write | 11930 | 12000 | 8813 | -0.6% | +26.6% | +26.1% |
+| Hook installation | 8429 | 8499 | 6138 | -0.8% | +27.8% | +27.2% |
 
 ## T5 · Project templates (each file alone)
 
@@ -64,17 +71,18 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 5416 / B 5486 / C 3871 tokens, total +28.5%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 5416 / B 5486 / C 3871 tokens, total +28.5%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 11428 / B 11498 / C 8321 tokens, total +27.2%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8781 tokens, total +26.4%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8781 tokens, total +26.4%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 8429 / B 8499 / C 6106 tokens, total +27.6%
+- **New project initialization** (`new-project`): reads `skill` — A 5416 / B 5486 / C 3903 tokens, total +27.9%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 5416 / B 5486 / C 3903 tokens, total +27.9%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 11428 / B 11498 / C 8353 tokens, total +26.9%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8813 tokens, total +26.1%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 11930 / B 12000 / C 8813 tokens, total +26.1%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 8429 / B 8499 / C 6138 tokens, total +27.2%
 
 ## Limitations
 
-- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer.
-- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
+- B is a **benchmark sample** (`tests/token_language/sample_b/SKILL.zh-CN.md`), kept byte-frozen by a SHA256 assertion. It is not installed, not discoverable as a skill, and not supported; only `SKILL.md` ships.
+- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer. The 15% target is defined on these two.
+- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); its acceptance criterion is "must not grow", not 15% — the vocabulary is Chinese-heavy, so the same restructuring gains less. `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
 - The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is reported as an estimate only and is never used for a conclusion.
 - Structure is compared through section headings and protocol IDs, not through semantic equivalence of every sentence; see `test_token_language.py`.
 - Task paths list the documents a task actually needs; references that are not required are not counted as default-loaded content.
@@ -86,13 +94,20 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 | tokenizer requested | `o200k_base` |
 | tokenizer actual | `tiktoken:o200k_base` |
 | exact | true |
+| source | tiktoken encoder (bundled BPE ranks) |
+| vocabulary file | n/a |
+| vocabulary SHA256 | n/a |
+| counting library | tiktoken 0.14.0 |
 | python | 3.13.9 |
 | tiktoken | 0.14.0 |
 | tokenizers | 0.23.2 |
 | deepseek tokenizer | present |
+| deepseek vocabulary SHA256 | 89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614 |
 
-Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** optimized English v2.0.4.
+Variants: **A** original Chinese v2.0.3 (frozen baseline) · **B** optimized Chinese v2.0.4 — **benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
+B exists only to separate structure from language: `A → B` is the restructuring gain, `B → C` is the language gain. 2.0.4 ships one skill (`SKILL.md`).
 `structure = 1 - B/A`, `language = 1 - C/B`, `total = 1 - C/A`.
+Neither the paths above nor the environment block contain a personal directory; two reports with the same vocabulary SHA256 used the same vocabulary file.
 
 ## T1 · YAML description
 
@@ -104,7 +119,7 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 4571 | 4612 | 3851 | -0.9% | +16.5% | +15.8% |
+| SKILL.md | 4571 | 4612 | 3878 | -0.9% | +15.9% | +15.2% |
 
 ## T3 · Reference files (each read alone)
 
@@ -119,12 +134,12 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 4571 | 4612 | 3851 | -0.9% | +16.5% | +15.8% |
-| Existing project diagnosis | 4571 | 4612 | 3851 | -0.9% | +16.5% | +15.8% |
-| Legacy project migration | 9587 | 9628 | 8269 | -0.4% | +14.1% | +13.7% |
-| New-session context recovery | 10099 | 10140 | 8732 | -0.4% | +13.9% | +13.5% |
-| Safe document write | 10099 | 10140 | 8732 | -0.4% | +13.9% | +13.5% |
-| Hook installation | 7070 | 7111 | 6094 | -0.6% | +14.3% | +13.8% |
+| New project initialization | 4571 | 4612 | 3878 | -0.9% | +15.9% | +15.2% |
+| Existing project diagnosis | 4571 | 4612 | 3878 | -0.9% | +15.9% | +15.2% |
+| Legacy project migration | 9587 | 9628 | 8296 | -0.4% | +13.8% | +13.5% |
+| New-session context recovery | 10099 | 10140 | 8759 | -0.4% | +13.6% | +13.3% |
+| Safe document write | 10099 | 10140 | 8759 | -0.4% | +13.6% | +13.3% |
+| Hook installation | 7070 | 7111 | 6121 | -0.6% | +13.9% | +13.4% |
 
 ## T5 · Project templates (each file alone)
 
@@ -145,17 +160,18 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 4571 / B 4612 / C 3851 tokens, total +15.8%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4571 / B 4612 / C 3851 tokens, total +15.8%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9587 / B 9628 / C 8269 tokens, total +13.7%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8732 tokens, total +13.5%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8732 tokens, total +13.5%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 7070 / B 7111 / C 6094 tokens, total +13.8%
+- **New project initialization** (`new-project`): reads `skill` — A 4571 / B 4612 / C 3878 tokens, total +15.2%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4571 / B 4612 / C 3878 tokens, total +15.2%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9587 / B 9628 / C 8296 tokens, total +13.5%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8759 tokens, total +13.3%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 10099 / B 10140 / C 8759 tokens, total +13.3%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 7070 / B 7111 / C 6121 tokens, total +13.4%
 
 ## Limitations
 
-- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer.
-- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
+- B is a **benchmark sample** (`tests/token_language/sample_b/SKILL.zh-CN.md`), kept byte-frozen by a SHA256 assertion. It is not installed, not discoverable as a skill, and not supported; only `SKILL.md` ships.
+- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer. The 15% target is defined on these two.
+- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); its acceptance criterion is "must not grow", not 15% — the vocabulary is Chinese-heavy, so the same restructuring gains less. `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
 - The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is reported as an estimate only and is never used for a conclusion.
 - Structure is compared through section headings and protocol IDs, not through semantic equivalence of every sentence; see `test_token_language.py`.
 - Task paths list the documents a task actually needs; references that are not required are not counted as default-loaded content.
@@ -165,15 +181,22 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 | Item | Value |
 |---|---|
 | tokenizer requested | `deepseek_v4` |
-| tokenizer actual | `tokenizers:deepseek_v4(C:\Users\jmwan\.cache\handoff-kb\deepseek_v4_tokenizer\tokenizer.json)` |
+| tokenizer actual | `tokenizers:deepseek_v4` |
 | exact | true |
+| source | DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json) |
+| vocabulary file | tokenizer.json |
+| vocabulary SHA256 | 89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614 |
+| counting library | tokenizers 0.23.2 |
 | python | 3.13.9 |
 | tiktoken | 0.14.0 |
 | tokenizers | 0.23.2 |
 | deepseek tokenizer | present |
+| deepseek vocabulary SHA256 | 89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614 |
 
-Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** optimized English v2.0.4.
+Variants: **A** original Chinese v2.0.3 (frozen baseline) · **B** optimized Chinese v2.0.4 — **benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
+B exists only to separate structure from language: `A → B` is the restructuring gain, `B → C` is the language gain. 2.0.4 ships one skill (`SKILL.md`).
 `structure = 1 - B/A`, `language = 1 - C/B`, `total = 1 - C/A`.
+Neither the paths above nor the environment block contain a personal directory; two reports with the same vocabulary SHA256 used the same vocabulary file.
 
 ## T1 · YAML description
 
@@ -185,7 +208,7 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 4343 | 4338 | 3919 | +0.1% | +9.7% | +9.8% |
+| SKILL.md | 4343 | 4338 | 3943 | +0.1% | +9.1% | +9.2% |
 
 ## T3 · Reference files (each read alone)
 
@@ -200,12 +223,12 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 4343 | 4338 | 3919 | +0.1% | +9.7% | +9.8% |
-| Existing project diagnosis | 4343 | 4338 | 3919 | +0.1% | +9.7% | +9.8% |
-| Legacy project migration | 9018 | 9013 | 8371 | +0.1% | +7.1% | +7.2% |
-| New-session context recovery | 9514 | 9509 | 8888 | +0.1% | +6.5% | +6.6% |
-| Safe document write | 9514 | 9509 | 8888 | +0.1% | +6.5% | +6.6% |
-| Hook installation | 6720 | 6715 | 6219 | +0.1% | +7.4% | +7.5% |
+| New project initialization | 4343 | 4338 | 3943 | +0.1% | +9.1% | +9.2% |
+| Existing project diagnosis | 4343 | 4338 | 3943 | +0.1% | +9.1% | +9.2% |
+| Legacy project migration | 9018 | 9013 | 8395 | +0.1% | +6.9% | +6.9% |
+| New-session context recovery | 9514 | 9509 | 8912 | +0.1% | +6.3% | +6.3% |
+| Safe document write | 9514 | 9509 | 8912 | +0.1% | +6.3% | +6.3% |
+| Hook installation | 6720 | 6715 | 6243 | +0.1% | +7.0% | +7.1% |
 
 ## T5 · Project templates (each file alone)
 
@@ -226,17 +249,18 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 4343 / B 4338 / C 3919 tokens, total +9.8%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4343 / B 4338 / C 3919 tokens, total +9.8%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9018 / B 9013 / C 8371 tokens, total +7.2%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8888 tokens, total +6.6%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8888 tokens, total +6.6%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6720 / B 6715 / C 6219 tokens, total +7.5%
+- **New project initialization** (`new-project`): reads `skill` — A 4343 / B 4338 / C 3943 tokens, total +9.2%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 4343 / B 4338 / C 3943 tokens, total +9.2%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 9018 / B 9013 / C 8395 tokens, total +6.9%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8912 tokens, total +6.3%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 9514 / B 9509 / C 8912 tokens, total +6.3%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6720 / B 6715 / C 6243 tokens, total +7.1%
 
 ## Limitations
 
-- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer.
-- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
+- B is a **benchmark sample** (`tests/token_language/sample_b/SKILL.zh-CN.md`), kept byte-frozen by a SHA256 assertion. It is not installed, not discoverable as a skill, and not supported; only `SKILL.md` ships.
+- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer. The 15% target is defined on these two.
+- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); its acceptance criterion is "must not grow", not 15% — the vocabulary is Chinese-heavy, so the same restructuring gains less. `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
 - The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is reported as an estimate only and is never used for a conclusion.
 - Structure is compared through section headings and protocol IDs, not through semantic equivalence of every sentence; see `test_token_language.py`.
 - Task paths list the documents a task actually needs; references that are not required are not counted as default-loaded content.
@@ -248,13 +272,20 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 | tokenizer requested | `deepseek_estimate` |
 | tokenizer actual | `deepseek_estimate（官方比例：1 英文字符≈0.3、1 中文字符≈0.6）` |
 | exact | false (estimate) |
+| source | documented ratio (0.3 / 0.6) |
+| vocabulary file | n/a |
+| vocabulary SHA256 | n/a |
+| counting library | standard library only |
 | python | 3.13.9 |
 | tiktoken | 0.14.0 |
 | tokenizers | 0.23.2 |
 | deepseek tokenizer | present |
+| deepseek vocabulary SHA256 | 89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614 |
 
-Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** optimized English v2.0.4.
+Variants: **A** original Chinese v2.0.3 (frozen baseline) · **B** optimized Chinese v2.0.4 — **benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
+B exists only to separate structure from language: `A → B` is the restructuring gain, `B → C` is the language gain. 2.0.4 ships one skill (`SKILL.md`).
 `structure = 1 - B/A`, `language = 1 - C/B`, `total = 1 - C/A`.
+Neither the paths above nor the environment block contain a personal directory; two reports with the same vocabulary SHA256 used the same vocabulary file.
 
 ## T1 · YAML description
 
@@ -266,7 +297,7 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 3261 | 3266 | 4525 | -0.2% | -38.5% | -38.8% |
+| SKILL.md | 3261 | 3266 | 4583 | -0.2% | -40.3% | -40.5% |
 
 ## T3 · Reference files (each read alone)
 
@@ -281,12 +312,12 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 3261 | 3266 | 4525 | -0.2% | -38.5% | -38.8% |
-| Existing project diagnosis | 3261 | 3266 | 4525 | -0.2% | -38.5% | -38.8% |
-| Legacy project migration | 6647 | 6652 | 9450 | -0.1% | -42.1% | -42.2% |
-| New-session context recovery | 7091 | 7096 | 10047 | -0.1% | -41.6% | -41.7% |
-| Safe document write | 7091 | 7096 | 10047 | -0.1% | -41.6% | -41.7% |
-| Hook installation | 5199 | 5204 | 7278 | -0.1% | -39.9% | -40.0% |
+| New project initialization | 3261 | 3266 | 4583 | -0.2% | -40.3% | -40.5% |
+| Existing project diagnosis | 3261 | 3266 | 4583 | -0.2% | -40.3% | -40.5% |
+| Legacy project migration | 6647 | 6652 | 9508 | -0.1% | -42.9% | -43.0% |
+| New-session context recovery | 7091 | 7096 | 10105 | -0.1% | -42.4% | -42.5% |
+| Safe document write | 7091 | 7096 | 10105 | -0.1% | -42.4% | -42.5% |
+| Hook installation | 5199 | 5204 | 7336 | -0.1% | -41.0% | -41.1% |
 
 ## T5 · Project templates (each file alone)
 
@@ -307,17 +338,18 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 3261 / B 3266 / C 4525 tokens, total -38.8%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3261 / B 3266 / C 4525 tokens, total -38.8%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 6647 / B 6652 / C 9450 tokens, total -42.2%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10047 tokens, total -41.7%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10047 tokens, total -41.7%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 5199 / B 5204 / C 7278 tokens, total -40.0%
+- **New project initialization** (`new-project`): reads `skill` — A 3261 / B 3266 / C 4583 tokens, total -40.5%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3261 / B 3266 / C 4583 tokens, total -40.5%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 6647 / B 6652 / C 9508 tokens, total -43.0%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10105 tokens, total -42.5%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 7091 / B 7096 / C 10105 tokens, total -42.5%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 5199 / B 5204 / C 7336 tokens, total -41.1%
 
 ## Limitations
 
-- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer.
-- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
+- B is a **benchmark sample** (`tests/token_language/sample_b/SKILL.zh-CN.md`), kept byte-frozen by a SHA256 assertion. It is not installed, not discoverable as a skill, and not supported; only `SKILL.md` ships.
+- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer. The 15% target is defined on these two.
+- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); its acceptance criterion is "must not grow", not 15% — the vocabulary is Chinese-heavy, so the same restructuring gains less. `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
 - The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is reported as an estimate only and is never used for a conclusion.
 - Structure is compared through section headings and protocol IDs, not through semantic equivalence of every sentence; see `test_token_language.py`.
 - Task paths list the documents a task actually needs; references that are not required are not counted as default-loaded content.
@@ -329,13 +361,20 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 | tokenizer requested | `heuristic` |
 | tokenizer actual | `heuristic（CJK 1 字≈1 token，其余 4 字符≈1 token）` |
 | exact | false (estimate) |
+| source | heuristic |
+| vocabulary file | n/a |
+| vocabulary SHA256 | n/a |
+| counting library | standard library only |
 | python | 3.13.9 |
 | tiktoken | 0.14.0 |
 | tokenizers | 0.23.2 |
 | deepseek tokenizer | present |
+| deepseek vocabulary SHA256 | 89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614 |
 
-Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** optimized English v2.0.4.
+Variants: **A** original Chinese v2.0.3 (frozen baseline) · **B** optimized Chinese v2.0.4 — **benchmark sample, not a shipped skill** · **C** the shipped English v2.0.4 skill.
+B exists only to separate structure from language: `A → B` is the restructuring gain, `B → C` is the language gain. 2.0.4 ships one skill (`SKILL.md`).
 `structure = 1 - B/A`, `language = 1 - C/B`, `total = 1 - C/A`.
+Neither the paths above nor the environment block contain a personal directory; two reports with the same vocabulary SHA256 used the same vocabulary file.
 
 ## T1 · YAML description
 
@@ -347,7 +386,7 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| SKILL.md | 3913 | 3980 | 3800 | -1.7% | +4.5% | +2.9% |
+| SKILL.md | 3913 | 3980 | 3848 | -1.7% | +3.3% | +1.7% |
 
 ## T3 · Reference files (each read alone)
 
@@ -362,12 +401,12 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 | Item | A | B | C | structure | language | total |
 |---|---|---|---|---|---|---|
-| New project initialization | 3913 | 3980 | 3800 | -1.7% | +4.5% | +2.9% |
-| Existing project diagnosis | 3913 | 3980 | 3800 | -1.7% | +4.5% | +2.9% |
-| Legacy project migration | 8089 | 8156 | 7956 | -0.8% | +2.5% | +1.6% |
-| New-session context recovery | 8617 | 8684 | 8486 | -0.8% | +2.3% | +1.5% |
-| Safe document write | 8617 | 8684 | 8486 | -0.8% | +2.3% | +1.5% |
-| Hook installation | 6237 | 6304 | 6098 | -1.1% | +3.3% | +2.2% |
+| New project initialization | 3913 | 3980 | 3848 | -1.7% | +3.3% | +1.7% |
+| Existing project diagnosis | 3913 | 3980 | 3848 | -1.7% | +3.3% | +1.7% |
+| Legacy project migration | 8089 | 8156 | 8004 | -0.8% | +1.9% | +1.1% |
+| New-session context recovery | 8617 | 8684 | 8534 | -0.8% | +1.7% | +1.0% |
+| Safe document write | 8617 | 8684 | 8534 | -0.8% | +1.7% | +1.0% |
+| Hook installation | 6237 | 6304 | 6146 | -1.1% | +2.5% | +1.5% |
 
 ## T5 · Project templates (each file alone)
 
@@ -388,17 +427,18 @@ Variants: **A** original Chinese v2.0.3, **B** optimized Chinese v2.0.4, **C** o
 
 ## T4 detail — which files each task reads
 
-- **New project initialization** (`new-project`): reads `skill` — A 3913 / B 3980 / C 3800 tokens, total +2.9%
-- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3913 / B 3980 / C 3800 tokens, total +2.9%
-- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 8089 / B 8156 / C 7956 tokens, total +1.6%
-- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8486 tokens, total +1.5%
-- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8486 tokens, total +1.5%
-- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6237 / B 6304 / C 6098 tokens, total +2.2%
+- **New project initialization** (`new-project`): reads `skill` — A 3913 / B 3980 / C 3848 tokens, total +1.7%
+- **Existing project diagnosis** (`diagnose`): reads `skill` — A 3913 / B 3980 / C 3848 tokens, total +1.7%
+- **Legacy project migration** (`migrate`): reads `skill`, `ref:migration` — A 8089 / B 8156 / C 8004 tokens, total +1.1%
+- **New-session context recovery** (`recovery`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8534 tokens, total +1.0%
+- **Safe document write** (`safe-write`): reads `skill`, `ref:protocol-v2` — A 8617 / B 8684 / C 8534 tokens, total +1.0%
+- **Hook installation** (`hook-install`): reads `skill`, `ref:hooks` — A 6237 / B 6304 / C 6146 tokens, total +1.5%
 
 ## Limitations
 
-- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer.
-- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
+- B is a **benchmark sample** (`tests/token_language/sample_b/SKILL.zh-CN.md`), kept byte-frozen by a SHA256 assertion. It is not installed, not discoverable as a skill, and not supported; only `SKILL.md` ships.
+- tiktoken encodings (`cl100k_base`, `o200k_base`) are reproducible proxies; they are not every model's billing tokenizer. The 15% target is defined on these two.
+- `deepseek_v4` uses the official offline tokenizer (`tokenizers` + `tokenizer.json`); its acceptance criterion is "must not grow", not 15% — the vocabulary is Chinese-heavy, so the same restructuring gains less. `deepseek_estimate` only applies the documented ratio (1 English char ≈ 0.3, 1 Chinese char ≈ 0.6) and is an estimate.
 - The heuristic counter (CJK 1 char ≈ 1 token, other 4 chars ≈ 1 token) is reported as an estimate only and is never used for a conclusion.
 - Structure is compared through section headings and protocol IDs, not through semantic equivalence of every sentence; see `test_token_language.py`.
 - Task paths list the documents a task actually needs; references that are not required are not counted as default-loaded content.

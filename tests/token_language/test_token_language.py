@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Semantic parity, structural parity and token-target tests for 2.0.4.
+"""Layout, rule and token-target tests for 2.0.4 (one skill, English instructions).
 
-Three layers, because keyword presence alone proves nothing:
+2.0.4 ships **one** skill: `SKILL.md`, written in English. It manages a Chinese
+library, an English library or a mixed one — instruction language and document
+language are independent concerns, and the tests are organised along that line:
 
-1. **Structural checks** — section ordinals, script/flag coverage, reference and
-   template file sets, `kb:id` sets, placeholder sets, baseline hashes.
-2. **Rule checks** — one entry per behavioural rule that must survive the
-   Chinese ⇄ English translation; each entry fails if the rule disappears from
-   either document.
-3. **Scenario checks** — a Chinese project running under the English skill
-   (diagnosis, routing, init) must keep working.
+1. **Layout** — exactly one skill document is discoverable; the Chinese optimized
+   text survives only as a frozen benchmark sample under `tests/`.
+2. **Rules** — every behavioural rule that must survive the rewrite is present in
+   `SKILL.md`, and the identifiers it cites exist in the implementation.
+3. **Scenarios** — a Chinese project and an English project both work under the
+   English skill (init, health check, routing).
+4. **Tokens** — the measured targets, the frozen baseline, and the fingerprint
+   that makes a measurement reproducible.
 
-Set `KB_EMIT_CHECKLIST=1` to (re)generate `SEMANTIC_CHECKLIST.md`, the
-human-review sheet that accompanies these automated checks.
+What this file can *not* prove: that a real client (Codex, Claude Code) reading
+`SKILL.md` will behave correctly on a Chinese library. That needs a client run;
+see `SEMANTIC_CHECKLIST.md`, which keeps it explicitly unverified.
+
+Set `KB_EMIT_CHECKLIST=1` to (re)generate `SEMANTIC_CHECKLIST.md`.
 """
 
 from __future__ import annotations
@@ -24,6 +30,8 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+import shutil
 import unittest
 from pathlib import Path
 
@@ -39,63 +47,72 @@ SCRIPTS = ROOT / "scripts"
 PAIRED = tl.FIXTURES
 CHECKLIST = HERE / "SEMANTIC_CHECKLIST.md"
 
-# Every rule the specification requires to stay explicit. `en` and `zh` list
-# acceptable wordings; a rule fails when neither appears in that language.
+# Every rule the specification requires to stay explicit in the shipped skill.
+# One entry per rule, English needles only: there is no second skill to sync with.
 RULES = [
     ("P0 never silently discarded",
-     ["never silently discarded", "P0", "never dropped"],
-     ["永不静默丢弃", "P0"]),
+     ["P0", "never silently discarded"]),
     ("P1 current state and next step",
-     ["P1", "current state", "next step"],
-     ["P1", "现状", "下一手"]),
+     ["P1", "current state and next step"]),
     ("P2 workstream facts",
-     ["P2", "workstream facts", "facts of the matching workstream"],
-     ["P2", "本线事实"]),
+     ["P2", "workstream facts"]),
     ("P3 explicit fact IDs and evidence",
-     ["P3", "fact IDs", "evidence"],
-     ["P3", "事实 ID", "证据"]),
+     ["P3", "fact IDs", "evidence"]),
     ("P4 bounded relevance",
-     ["P4", "relevance", "≤3 blocks"],
-     ["P4", "相关度", "≤3 块"]),
+     ["P4", "relevance"]),
     ("P0 fallback order",
-     ["dashboard.constraints", "dashboard.safety", "AGENTS.md"],
      ["dashboard.constraints", "dashboard.safety", "AGENTS.md"]),
     ("P4 limits (blocks and budget share)",
-     ["≤30%", "≤3 blocks"],
-     ["≤30%", "≤3 块"]),
+     ["≤30%", "≤3 blocks"]),
     ("superseded fact handling",
-     ["superseded", "include-superseded"],
-     ["已作废", "include-superseded"]),
+     ["superseded", "include-superseded"]),
     ("gap reporting honest",
-     ["Gaps and omitted content must be reported honestly", "report a gap"],
-     ["缺口与省略必须如实报告", "报缺口"]),
+     ["Gaps and omitted content must be reported honestly", "report a gap"]),
     ("write requires current hash",
-     ["sha256", "expected_sha256"],
      ["sha256", "expected_sha256"]),
     ("lock conflicts not bypassed",
-     ["LockHeld", "break-lock"],
      ["LockHeld", "break-lock"]),
     ("multi-file writes not database-atomic",
-     ["not database-level atomic", "not a cross-file atomic transaction"],
-     ["不是数据库级原子事务"]),
+     ["not database-level atomic"]),
     ("migration preserves source content",
-     ["no body edits", "does not ", "migration touches only"],
-     ["不改正文", "不删证据"]),
+     ["no body edits", "no evidence deleted"]),
     ("hooks never block a session",
-     ["never blocking", "always 0", "exit 0"],
-     ["永远退出 0", "不阻断"]),
+     ["hooks never block a session", "always exit 0"]),
     ("no credentials committed",
-     ["credentials", "credential hit blocks the commit"],
-     ["凭证"]),
+     ["credentials"]),
     ("reference loading is not default",
-     ["References are not default reading", "Load one only when"],
-     ["参考手册不是默认读物"]),
+     ["References are not default reading", "Load one only when"]),
     ("existing v2 projects keep working",
-     ["existing v2 projects", "compatible with existing v2"],
-     ["兼容现有 v2 项目"]),
+     ["Compatible with existing v2 projects"]),
+    ("language independence declared",
+     ["Instruction language and", "library language are independent"]),
+    ("never auto-translate existing documents",
+     ["Never translate existing documents"]),
 ]
 
-SECTION_ORDINALS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+# `changes.json` keys and operation names that the shipped skill and the protocol
+# reference both cite; they must still exist in the implementation.
+JSON_KEYS = ["schema_version", "expected_sha256", "operation", "section_id",
+             "content", "fact_id"]
+OPERATIONS = ["replace_section", "append", "update_fact"]
+
+SECTION_ORDINALS = [str(i) for i in range(1, 10)]
+
+# Strength-bearing sentences on the safety rules. If one of these is softened into
+# "consider…" / "should…", the rule has been weakened even though the topic still
+# appears — which is exactly the failure mode a keyword check would miss.
+CRITICAL_SENTENCES = [
+    ("P0 never dropped", "keep them and report the overrun"),
+    ("no whole-file overwrite", "Never overwrite a whole file"),
+    ("no blind retry", "Never retry a blind overwrite"),
+    ("credentials", "No credentials may be committed"),
+    ("lock not bypassed", "Lock conflicts are never bypassed silently"),
+    ("atomicity not overstated", "not database-level atomic transactions"),
+    ("hooks never block", "always exit 0"),
+    ("language not auto-converted", "Never translate existing documents"),
+]
+
+GIT_ONLY_FLAGS = {"--oneline", "--short", "--all", "--amend"}
 
 
 def read(path: Path) -> str:
@@ -176,14 +193,58 @@ def kb_ids(text: str):
         i = j + 3
 
 
-GIT_ONLY_FLAGS = {"--oneline", "--short", "--all", "--amend"}
-
-
 def help_text(script: str, *args) -> str:
     proc = subprocess.run([sys.executable, str(SCRIPTS / script)] + list(args) + ["--help"],
                           capture_output=True, text=True, encoding="utf-8",
                           errors="replace")
     return (proc.stdout or "") + (proc.stderr or "")
+
+
+class SingleSkillLayout(unittest.TestCase):
+    """2.0.4 ships one skill. A second discoverable skill is a defect, not a feature."""
+
+    def test_root_has_exactly_one_skill_document(self):
+        found = sorted(p.name for p in ROOT.glob("SKILL*.md") if p.is_file())
+        self.assertEqual(found, ["SKILL.md"],
+                         "the repository root must hold exactly one skill document")
+
+    def test_no_skill_document_outside_root_and_tests(self):
+        strays = []
+        for path in ROOT.rglob("SKILL*.md"):
+            rel = path.relative_to(ROOT).as_posix()
+            if rel == "SKILL.md" or rel.startswith("tests/"):
+                continue
+            strays.append(rel)
+        self.assertEqual(strays, [], "skill documents outside the allowed locations: %s" % strays)
+
+    def test_frontmatter_is_valid(self):
+        text = read(ROOT / "SKILL.md")
+        self.assertTrue(text.startswith("---\n"), "frontmatter must open the file")
+        head = text.split("---", 2)[1]
+        self.assertIn("name: handoff-kb", head)
+        self.assertEqual(len([ln for ln in head.splitlines() if ln.startswith("name:")]), 1,
+                         "frontmatter must declare exactly one name")
+        desc = tl.frontmatter_description(text)
+        self.assertTrue(desc, "description must not be empty")
+        self.assertIn("Do not use", desc, "scope exclusion missing from description")
+
+    def test_benchmark_sample_is_frozen(self):
+        """B is a measurement artefact: moving it must never become editing it."""
+        self.assertTrue(tl.SAMPLE_B.is_file(), "benchmark sample B is missing")
+        digest = hashlib.sha256(tl.SAMPLE_B.read_bytes()).hexdigest()
+        self.assertEqual(digest, tl.SAMPLE_B_SHA256,
+                         "sample B changed; every published structure/language split "
+                         "was measured against these exact bytes")
+        self.assertTrue(str(tl.SAMPLE_B).startswith(str(ROOT / "tests")),
+                        "sample B must stay under tests/ so it cannot be installed")
+
+    def test_chinese_references_are_kept_as_optional_reading(self):
+        for name in tl.REF_NAMES:
+            path = ROOT / "references" / ("%s.zh-CN.md" % name)
+            self.assertTrue(path.is_file(), "optional Chinese reference missing: %s" % path.name)
+        skill = read(ROOT / "SKILL.md")
+        self.assertIn("*.zh-CN.md", skill,
+                      "the skill must tell the agent that Chinese reference editions exist")
 
 
 class BaselineIntegrity(unittest.TestCase):
@@ -220,66 +281,104 @@ class VariantCompleteness(unittest.TestCase):
                 self.assertTrue(tl.doc_path(variant, "asset:%s" % name).is_file(),
                                 "%s: template %s missing" % (variant, name))
 
-    def test_chinese_and_english_structure_match(self):
-        zh = read(tl.doc_path("B", "skill"))
-        en = read(tl.doc_path("C", "skill"))
-        self.assertEqual(section_ordinals(zh), SECTION_ORDINALS)
-        self.assertEqual(section_ordinals(en), SECTION_ORDINALS)
-        self.assertEqual(len(headings(zh)), len(headings(en)))
+    def test_benchmark_samples_stay_structurally_comparable(self):
+        """A → B must measure restructuring, B → C must measure language.
 
-    def test_frontmatter_name_and_boundaries(self):
-        for variant, must_have in (("B", ["不适用"]), ("C", ["Do not use"])):
-            text = read(tl.doc_path(variant, "skill"))
-            self.assertTrue(text.startswith("---"), "%s: frontmatter missing" % variant)
-            self.assertIn("name: handoff-kb", text)
-            desc = tl.frontmatter_description(text)
-            self.assertTrue(desc, "%s: description empty" % variant)
-            for needle in must_have:
-                self.assertIn(needle, desc, "%s: scope exclusion missing" % variant)
+        That split only holds while B and C keep the same section order. This is a
+        measurement-validity check on a test artefact, not a requirement that the
+        shipped skill has a Chinese twin.
+        """
+        sample = read(tl.doc_path("B", "skill"))
+        shipped = read(tl.doc_path("C", "skill"))
+        self.assertEqual(section_ordinals(sample), SECTION_ORDINALS)
+        self.assertEqual(section_ordinals(shipped), SECTION_ORDINALS)
+
+    def test_shipped_skill_sections(self):
+        shipped = read(ROOT / "SKILL.md")
+        self.assertEqual(len(headings(shipped)), len(SECTION_ORDINALS),
+                         "the shipped skill must have exactly 9 numbered sections")
 
 
-class SemanticParity(unittest.TestCase):
-    def test_rules_present_in_both_languages(self):
-        en = norm(read(tl.doc_path("C", "skill")))
-        zh = norm(read(tl.doc_path("B", "skill")))
-        missing = []
-        for label, en_terms, zh_terms in RULES:
-            if not any(t in en for t in en_terms):
-                missing.append("EN: " + label)
-            if not any(t in zh for t in zh_terms):
-                missing.append("ZH: " + label)
+class SkillRuleCoverage(unittest.TestCase):
+    """Rules and identifiers: the skill's claims must match the implementation."""
+
+    def test_every_rule_is_present(self):
+        text = norm(read(ROOT / "SKILL.md"))
+        missing = [label for label, needles in RULES
+                   if not all(n in text for n in needles)]
         self.assertEqual(missing, [], "rules missing from SKILL.md: %s" % missing)
 
-    def test_rules_present_in_references(self):
-        """Protocol-level rules must survive the reference translation too."""
-        pairs = [
-            ("P0 fallback order", "dashboard.safety", "dashboard.safety"),
-            ("lock ownership", "LockOwnershipError", "LockOwnershipError"),
-            ("journal checksum", "checksum", "checksum"),
-            ("atomicity boundary", "atomic", "原子"),
-            ("exit codes", "exit code", "退出码"),
-        ]
-        for ref in ("protocol-v2", "migration", "hooks", "benchmark"):
-            en = read(tl.doc_path("C", "ref:%s" % ref))
-            zh = read(tl.doc_path("B", "ref:%s" % ref))
-            if ref == "protocol-v2":
-                for label, en_needle, zh_needle in pairs:
-                    self.assertIn(en_needle.lower(), en.lower(),
-                                  "EN protocol-v2 lost %s" % label)
-                    self.assertIn(zh_needle.lower(), zh.lower(),
-                                  "ZH protocol-v2 lost %s" % label)
+    def test_protocol_ids_are_consistent(self):
+        """Every `dashboard.*` id cited by the skill must be reachable.
 
-    def test_script_coverage_identical(self):
-        en = script_mentions(read(tl.doc_path("C", "skill")))
-        zh = script_mentions(read(tl.doc_path("B", "skill")))
-        self.assertEqual(en, zh, "script coverage differs between languages")
-        self.assertGreaterEqual(len(en), 9, "SKILL.md should mention every script")
+        Reachable means: defined by a template, or recognised by the P0 resolver as
+        a legacy alias (`dashboard.safety` predates the current skeleton and is still
+        honoured by `constraints.py`). An id that is neither is a typo in the skill.
+        """
+        dash = read(ROOT / "assets" / "00_baseline.md") + read(ROOT / "assets" / "05_dashboard.md") \
+            + read(ROOT / "assets" / "en" / "00_baseline.md") \
+            + read(ROOT / "assets" / "en" / "05_dashboard.md")
+        resolver = read(SCRIPTS / "lib" / "constraints.py")
+        skill = read(ROOT / "SKILL.md")
+        cited = set()
+        i = 0
+        while True:
+            i = skill.find("dashboard.", i)
+            if i < 0:
+                break
+            j = i
+            while j < len(skill) and (skill[j].isalnum() or skill[j] in "._"):
+                j += 1
+            cited.add(skill[i:j].rstrip("."))
+            i = j
+        self.assertTrue(cited, "the skill cites no dashboard section IDs at all")
+        unreachable = [sid for sid in sorted(cited)
+                       if sid not in dash and sid not in resolver]
+        self.assertEqual(unreachable, [],
+                         "ids cited by the skill that no template defines and no resolver "
+                         "recognises: %s" % unreachable)
+
+    def test_json_contract_matches_implementation(self):
+        protocol = read(ROOT / "references" / "protocol-v2.md")
+        write_py = read(SCRIPTS / "kb-write.py")
+        for key in JSON_KEYS:
+            self.assertIn(key, protocol, "protocol-v2.md lost the key %s" % key)
+            self.assertIn(key, write_py, "kb-write.py no longer handles %s" % key)
+        for op in OPERATIONS:
+            self.assertIn(op, protocol, "protocol-v2.md lost the operation %s" % op)
+            self.assertIn(op, write_py, "kb-write.py no longer implements %s" % op)
+
+    def test_security_wording_did_not_decay(self):
+        text = norm(read(ROOT / "SKILL.md"))
+        softened = [label for label, sentence in CRITICAL_SENTENCES
+                    if norm(sentence) not in text]
+        self.assertEqual(softened, [],
+                         "these rules were softened or dropped: %s" % softened)
+
+    def test_reference_links_resolve(self):
+        text = read(ROOT / "SKILL.md")
+        for name in tl.REF_NAMES:
+            rel = "references/%s.md" % name
+            self.assertIn(rel, text, "reference link missing: %s" % rel)
+            self.assertTrue((ROOT / rel).is_file(), "link target missing: %s" % rel)
+        self.assertIn("references/protocol.md", text,
+                      "historical protocol link missing")
+        for target in ("references/protocol.md", "references/protocol-v2.md"):
+            self.assertTrue((ROOT / target).is_file())
+
+    def test_every_script_is_mentioned(self):
+        mentioned = script_mentions(read(ROOT / "SKILL.md"))
+        on_disk = {p.name for p in SCRIPTS.glob("kb-*.py")}
+        self.assertEqual(mentioned - on_disk, set(),
+                         "SKILL.md names scripts that do not exist: %s"
+                         % sorted(mentioned - on_disk))
+        self.assertEqual(on_disk - mentioned, set(),
+                         "SKILL.md omits scripts that do exist: %s"
+                         % sorted(on_disk - mentioned))
 
     def test_documented_flags_exist(self):
         combined = ""
-        for script in ("kb-init.py", "kb-check.py", "kb-context.py", "kb-write.py",
-                       "kb-migrate.py", "kb-handoff.py", "kb-hooks.py", "kb-benchmark.py",
-                       "kb-outline.py", "kb-search.py"):
+        for script in sorted(p.name for p in SCRIPTS.glob("kb-*.py")):
             combined += help_text(script)
         for sub in ("read", "apply", "recover"):
             combined += help_text("kb-write.py", sub)
@@ -287,22 +386,9 @@ class SemanticParity(unittest.TestCase):
             combined += help_text("kb-hooks.py", sub)
         for sub in ("check",):
             combined += help_text("kb-handoff.py", sub)
-        documented = flags(read(tl.doc_path("C", "skill")))
-        documented |= flags(read(tl.doc_path("B", "skill")))
-        documented -= GIT_ONLY_FLAGS
+        documented = flags(read(ROOT / "SKILL.md")) - GIT_ONLY_FLAGS
         missing = sorted(f for f in documented if f not in combined)
         self.assertEqual(missing, [], "flags documented but not implemented: %s" % missing)
-
-    def test_reference_links_resolve(self):
-        for variant in ("B", "C"):
-            text = read(tl.doc_path(variant, "skill"))
-            for name in tl.REF_NAMES:
-                suffix = ".zh-CN.md" if variant == "B" else ".md"
-                rel = "references/%s%s" % (name, suffix)
-                self.assertIn(rel, text, "%s: reference link missing: %s" % (variant, rel))
-                self.assertTrue((ROOT / rel).is_file(), "link target missing: %s" % rel)
-            self.assertIn("references/protocol.md", text,
-                          "%s: historical protocol link missing" % variant)
 
 
 class TemplateParity(unittest.TestCase):
@@ -332,22 +418,36 @@ class TemplateParity(unittest.TestCase):
 
     def test_templates_keep_protocol_values(self):
         """Status vocabulary is protocol data, not prose: it must stay literal."""
-        for variant, root in (("B", ROOT / "assets"), ("C", ROOT / "assets" / "en")):
+        for label, root in (("zh", ROOT / "assets"), ("en", ROOT / "assets" / "en")):
             base = read(root / "00_baseline.md")
-            self.assertIn("有效", base, "%s: status vocabulary lost" % variant)
-            self.assertIn("待核", base, "%s: status vocabulary lost" % variant)
+            for word in ("有效", "待核"):
+                self.assertIn(word, base, "%s: status vocabulary lost (%s)" % (label, word))
             dash = read(root / "05_dashboard.md")
             for sid in ("dashboard.current", "dashboard.next", "dashboard.lines",
                         "dashboard.todo", "dashboard.constraints", "dashboard.summary"):
-                self.assertIn(sid, dash, "%s: %s missing from dashboard template" % (variant, sid))
+                self.assertIn(sid, dash, "%s: %s missing from dashboard template" % (label, sid))
+
+    def test_chinese_templates_are_unchanged_from_v203(self):
+        """The Chinese template set is still byte-identical to the frozen baseline."""
+        manifest = json.loads(read(tl.BASELINE / "MANIFEST.json"))
+        checked = 0
+        for rel, entry in manifest["files"].items():
+            if not rel.startswith("assets/"):
+                continue
+            live = ROOT / rel.replace("assets/", "assets/", 1)
+            self.assertTrue(live.is_file(), "template missing: %s" % rel)
+            self.assertEqual(hashlib.sha256(live.read_bytes()).hexdigest(), entry["sha256"],
+                             "Chinese template changed: %s" % rel)
+            checked += 1
+        self.assertEqual(checked, len(tl.ASSET_NAMES))
 
 
 class TokenTargets(unittest.TestCase):
-    """Default loading cost must not exceed 85% of v2.0.3; task paths must not grow.
+    """Default loading cost must drop >=15% against v2.0.3 on the spec tokenizers.
 
     An exact encoder is an optional dependency. CI installs none, so on CI these
     tests skip with the missing encoder named in the reason — they are never
-    silently absent, and the whole class is reproducible on any machine that has
+    silently absent, and everything here is reproducible on any machine that has
     `tiktoken` (and optionally the DeepSeek offline tokenizer) installed:
 
         python tests/token_language/run_token_benchmark.py --all
@@ -356,16 +456,15 @@ class TokenTargets(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.counters = {}
-        cls.missing = []
-        for name in ("cl100k_base", "o200k_base", "deepseek_v4"):
+        for name in tl.BASELINE_TOKENIZERS:
             try:
                 cls.counters[name] = tokenlib.TokenCounter(name)
             except tokenlib.TokenizerError:
                 cls.counters[name] = None
-                cls.missing.append(name)
         cls.manifest = json.loads(read(tl.BASELINE / "MANIFEST.json"))
 
-    SPEC_TOKENIZERS = ("cl100k_base", "o200k_base")
+    SPEC_TOKENIZERS = tl.SPEC_TOKENIZERS
+    BASELINE_TOKENIZERS = tl.BASELINE_TOKENIZERS
 
     def available(self, names):
         """Return the usable counters, or skip naming exactly what is missing."""
@@ -402,7 +501,7 @@ class TokenTargets(unittest.TestCase):
         Runs per tokenizer as a subtest so one missing encoder cannot hide the
         result of the others.
         """
-        for name, counter in self.available(("cl100k_base", "o200k_base", "deepseek_v4")).items():
+        for name, counter in self.available(self.BASELINE_TOKENIZERS).items():
             for key, title, keys in tl.TASKS:
                 with self.subTest(tokenizer=name, task=key):
                     a = tl.task_stats("A", keys, counter)["tokens"]
@@ -420,22 +519,90 @@ class TokenTargets(unittest.TestCase):
     def test_manifest_matches_tokens_for_every_available_encoder(self):
         """The frozen baseline's recorded counts must still reproduce.
 
-        This is the guard that makes A trustworthy: if the manifest and the live
-        count disagree, the "before" number is fiction.
+        Covers all three exact vocabularies, not just the two the 15% gate uses:
+        `BASELINE_TOKENIZERS` is a separate set on purpose, so "DeepSeek is not
+        required to hit 15%" never turns into "DeepSeek is not verified at all".
+        A missing vocabulary skips that vocabulary only.
         """
-        for name, counter in self.available(self.SPEC_TOKENIZERS).items():
+        for name, counter in self.available(self.BASELINE_TOKENIZERS).items():
             for rel, entry in sorted(self.manifest["files"].items()):
                 path = tl.BASELINE / rel
                 with self.subTest(tokenizer=name, path=rel):
                     data = path.read_bytes()
                     self.assertEqual(len(data), entry["bytes"])
                     self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
+                    self.assertIn(name, entry["tokens"],
+                                  "baseline manifest has no %s count for %s" % (name, rel))
                     self.assertEqual(counter.count(read(path)), entry["tokens"][name],
                                      "%s: baseline token count drifted" % rel)
 
     def test_zero_denominator_is_explicit(self):
         self.assertIsNone(tl.saving(0, 10))
         self.assertEqual(tl.saving(10, 5), 0.5)
+
+
+class TokenizerFingerprint(unittest.TestCase):
+    """A count is only evidence if the vocabulary behind it can be identified."""
+
+    def test_is_exact_matches_every_counter(self):
+        cases = [("cl100k_base", True), ("o200k_base", True),
+                 ("deepseek_v4", True), ("deepseek_estimate", False),
+                 ("heuristic", False)]
+        for name, expected in cases:
+            try:
+                counter = tokenlib.TokenCounter(name)
+            except tokenlib.TokenizerError:
+                self.skipTest("encoder %s not installed in this environment" % name)
+            with self.subTest(tokenizer=name):
+                self.assertEqual(counter.exact, expected)
+                self.assertEqual(tokenlib.is_exact(counter.desc), expected,
+                                 "is_exact() disagrees with the counter for %r" % name)
+
+    def test_is_exact_rejects_estimates_by_prefix(self):
+        self.assertFalse(tokenlib.is_exact(tokenlib.HEURISTIC_DESC))
+        self.assertFalse(tokenlib.is_exact(tokenlib.DEEPSEEK_DESC))
+        self.assertFalse(tokenlib.is_exact("deepseek_estimate（回退；exact=false）"))
+        self.assertTrue(tokenlib.is_exact("tiktoken:o200k_base"))
+        self.assertTrue(tokenlib.is_exact("tokenizers:deepseek_v4"))
+
+    def test_no_absolute_path_in_counter_description(self):
+        home = os.path.expanduser("~")
+        for name in tl.TOKENIZERS:
+            try:
+                counter = tokenlib.TokenCounter(name)
+            except tokenlib.TokenizerError:
+                continue
+            with self.subTest(tokenizer=name):
+                blob = json.dumps(counter.as_dict(), ensure_ascii=False)
+                self.assertNotIn(home, blob, "counter metadata leaked the home directory")
+                self.assertNotIn(":\\", blob, "counter metadata leaked a drive path")
+                self.assertNotIn("/.cache/", blob, "counter metadata leaked a cache path")
+
+    def test_deepseek_fingerprint_is_complete(self):
+        try:
+            counter = tokenlib.TokenCounter("deepseek_v4")
+        except tokenlib.TokenizerError:
+            self.skipTest("deepseek_v4 tokenizer not installed")
+        info = counter.as_dict()
+        self.assertEqual(info["tokenizer_file"], "tokenizer.json")
+        self.assertRegex(info["tokenizer_sha256"] or "", r"^[0-9a-f]{64}$",
+                         "the vocabulary hash is what makes two runs comparable")
+        self.assertEqual(info["library"], "tokenizers")
+        self.assertTrue(info["library_version"])
+        self.assertTrue(info["exact"])
+
+    def test_report_markdown_has_no_personal_path(self):
+        import run_token_benchmark
+        home = os.path.expanduser("~")
+        for name in ("heuristic", "deepseek_v4"):
+            try:
+                report = run_token_benchmark.measure(name)
+            except tokenlib.TokenizerError:
+                continue
+            with self.subTest(tokenizer=name):
+                text = run_token_benchmark.markdown(report)
+                self.assertNotIn(home, text)
+                self.assertIn("exact", text)
 
 
 class NoSilentFallback(unittest.TestCase):
@@ -448,9 +615,36 @@ class NoSilentFallback(unittest.TestCase):
         self.assertFalse(counter.exact)
         self.assertIn("estimate", counter.desc.lower())
 
+    def test_explicit_encoder_without_vocabulary_exits_2(self):
+        """A CLI asked for an exact encoder must fail loudly, not downgrade."""
+        env = dict(os.environ)
+        env["KB_DEEPSEEK_TOKENIZER"] = str(HERE / "nonexistent-tokenizer")
+        env["PYTHONIOENCODING"] = "utf-8"
+        cmd = [sys.executable, str(SCRIPTS / "kb-benchmark.py"),
+               "--target", str(PAIRED / "zh"), "--loose", "--tokenizer", "deepseek_v4"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", env=env)
+        self.assertEqual(proc.returncode, 2,
+                         "missing encoder must exit 2, got %d\n%s"
+                         % (proc.returncode, proc.stderr[-400:]))
+        self.assertIn("ERR", proc.stderr)
+
+    def test_explicit_fallback_must_be_requested(self):
+        env = dict(os.environ)
+        env["KB_DEEPSEEK_TOKENIZER"] = str(HERE / "nonexistent-tokenizer")
+        env["PYTHONIOENCODING"] = "utf-8"
+        cmd = [sys.executable, str(SCRIPTS / "kb-benchmark.py"),
+               "--target", str(PAIRED / "zh"), "--loose", "--tokenizer", "deepseek_v4",
+               "--allow-tokenizer-fallback"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", env=env)
+        self.assertEqual(proc.returncode, 0, proc.stderr[-400:])
+        self.assertIn("exact=false", proc.stdout,
+                      "a fallback must label itself as an estimate in the output")
+
 
 class CrossLanguageScenarios(unittest.TestCase):
-    """A: zh skill + zh project, B: en skill + zh project, C: en skill + en project."""
+    """The English skill must manage a Chinese library, an English one, and a mixed one."""
 
     def run_script(self, script, *args, cwd=None):
         env = dict(os.environ)
@@ -459,7 +653,7 @@ class CrossLanguageScenarios(unittest.TestCase):
                               capture_output=True, text=True, encoding="utf-8",
                               errors="replace", cwd=str(cwd) if cwd else None, env=env)
 
-    def test_chinese_project_works(self):
+    def test_chinese_project_passes_health_check(self):
         """kb-check must exit 0 and emit no `[ERR` line for either fixture.
 
         The bare substring "ERR" also occurs in the summary line
@@ -475,6 +669,18 @@ class CrossLanguageScenarios(unittest.TestCase):
             self.assertEqual(err_lines, [],
                              "%s project reports ERR under the English skill:\n%s"
                              % (name, "\n".join(err_lines) or proc.stdout[-800:]))
+
+    def test_chinese_project_is_not_translated(self):
+        """Reading a Chinese library must not rewrite its prose language."""
+        root = PAIRED / "zh"
+        before = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                  for p in root.rglob("*") if p.is_file()}
+        proc = self.run_script("kb-context.py", "--target", root, "--loose",
+                               "--task", "查看当前状态", "--budget", "2500")
+        self.assertEqual(proc.returncode, 0, proc.stderr[-500:])
+        after = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                 for p in root.rglob("*") if p.is_file()}
+        self.assertEqual(before, after, "a read-only routing run modified the library")
 
     def test_routing_works_on_chinese_project(self):
         root = PAIRED / "zh"
@@ -492,8 +698,6 @@ class CrossLanguageScenarios(unittest.TestCase):
         self.assertIn("dashboard.current", proc.stdout)
 
     def test_scaffold_lang_flag(self):
-        import tempfile
-        import shutil
         tmp = Path(tempfile.mkdtemp(prefix="kblang-"))
         self.addCleanup(shutil.rmtree, tmp, True)
         target = tmp / "enproj"
@@ -509,28 +713,56 @@ class CrossLanguageScenarios(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr[-800:])
         self.assertIn("工作区规则", read(zh_target / "AGENTS.md"))
 
+        en_files = sorted(p.relative_to(target).as_posix()
+                          for p in target.rglob("*") if p.is_file() and ".git" not in p.parts)
+        zh_files = sorted(p.relative_to(zh_target).as_posix()
+                          for p in zh_target.rglob("*") if p.is_file() and ".git" not in p.parts)
+        self.assertEqual(en_files, zh_files,
+                         "both --lang values must scaffold the same file set")
+
 
 def emit_checklist() -> str:
-    en = norm(read(tl.doc_path("C", "skill")))
-    zh = norm(read(tl.doc_path("B", "skill")))
-    lines = ["# Semantic parity checklist — 2.0.4", "",
-             "Automated layer: `test_token_language.py` (structure, rules, scenarios).",
-             "This sheet is for human review after translation changes.", "",
-             "| # | Rule | English | Chinese | Reviewer |", "|---|---|---|---|---|"]
-    for i, (label, en_terms, zh_terms) in enumerate(RULES, 1):
-        e = "ok" if any(t in en for t in en_terms) else "**missing**"
-        z = "ok" if any(t in zh for t in zh_terms) else "**missing**"
-        lines.append("| %d | %s | %s | %s | |" % (i, label, e, z))
-    lines += ["", "## Manual review points", "",
-              "- [ ] Every protocol identifier, command and JSON key in the Chinese and English "
-              "references is byte-identical.",
-              "- [ ] No exception was silently dropped from the translated reference.",
-              "- [ ] Error conditions and exit codes match the implementation.",
-              "- [ ] Security warnings survive translation with the same strength "
-              "(MUST / MUST NOT, not SHOULD).",
-              "- [ ] Chinese templates still render byte-identical to v2.0.3 apart from wording.",
-              "- [ ] An English skill over a Chinese project still produces Chinese document "
-              "content (language is not auto-translated).", ""]
+    skill = norm(read(ROOT / "SKILL.md"))
+    lines = ["# Semantic checklist — 2.0.4 (one skill, English instructions)", "",
+             "Automated layer: `test_token_language.py` (layout, rules, identifiers, "
+             "scenarios, token targets).",
+             "This sheet is the human review that remains after the automated checks.", "",
+             "| # | Rule | In `SKILL.md` | Reviewer |", "|---|---|---|---|"]
+    for i, (label, needles) in enumerate(RULES, 1):
+        state = "ok" if all(n in skill for n in needles) else "**missing**"
+        lines.append("| %d | %s | %s | |" % (i, label, state))
+    lines += ["", "## Verified automatically", "",
+              "- One discoverable skill; no second skill document outside `tests/`.",
+              "- Frontmatter name/description; 9 numbered sections.",
+              "- Every `scripts/kb-*.py` named in the skill exists, and every script that "
+              "exists is named.",
+              "- Every documented `--flag` is implemented (`--help` of each script and "
+              "subcommand).",
+              "- `changes.json` keys and operation names exist in `kb-write.py`.",
+              "- Every cited `dashboard.*` id is either defined by a template or "
+              "recognised by the P0 resolver as a legacy alias.",
+              "- Chinese project / English project: `kb-check` clean, `kb-context` routes, "
+              "`kb-init --lang {zh,en}` scaffold the same file set.",
+              "- Vocabulary fingerprint (file name, SHA256, library version) present and "
+              "free of personal paths; a missing encoder exits 2.",
+              "",
+              "## Manual review points", "",
+              "- [ ] Every protocol identifier, command and JSON key in `SKILL.md` matches "
+              "the implementation, not just the reference text.",
+              "- [ ] Error conditions and exit codes in `SKILL.md` match the implementation.",
+              "- [ ] The eight strength-bearing sentences the test pins still read as "
+              "prohibitions after any rewording (Never / no … may, not should / consider).",
+              "- [ ] Chinese templates and the four Chinese references are still "
+              "byte-identical to v2.0.3.",
+              "",
+              "## Not verified — do not claim otherwise", "",
+              "- [ ] A real client (Codex / Claude Code) reading this English skill while "
+              "maintaining a Chinese library. The *CLI* cross-language path is covered by "
+              "tests above; the *agent following the instructions* has not been run in a "
+              "real client.",
+              "- [ ] The English template set after months of use in a long-lived English "
+              "library.",
+              ""]
     return "\n".join(lines) + "\n"
 
 

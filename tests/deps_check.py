@@ -2,12 +2,22 @@
 # -*- coding: utf-8 -*-
 """检查 scripts/ 只依赖标准库 + 本地 lib。
 
-`tiktoken` 是**唯一**允许出现的可选依赖，且必须满足：
-  - 只在函数内 import（不在模块顶层）
-  - 被 try/except 包住（缺包时降级到启发式估算）
-其余任何第三方导入都算失败（退出码 1）。
+Python 标准库是**唯一必需依赖**。允许出现的可选第三方依赖只有：
 
-用法：py tests/deps_check.py
+    tiktoken     精确 BPE 计数（cl100k_base / o200k_base）
+    tokenizers   DeepSeek 官方离线 tokenizer（deepseek_v4，读 tokenizer.json）
+
+两者都必须满足：
+
+  - 出现在**函数体内**，不能是模块顶层 import（缺包时模块仍可导入）
+  - 包在 `try` / `except` 中（缺包时降到带标注的估算，或明确报错退出 2）
+
+其余任何第三方导入都算失败（退出码 1）。检查走完整 AST，不只看顶层：
+`def f(): import requests` 这种写法同样会被抓出来。
+
+用法：
+    py tests/deps_check.py                 # 检查 scripts/
+    from deps_check import check_source    # 对任意源码字符串做同一套判断
 """
 
 from __future__ import annotations
@@ -20,46 +30,72 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 STDLIB = set(sys.stdlib_module_names)
 LOCAL = {"lib"}
-OPTIONAL = {"tiktoken"}
+OPTIONAL = {"tiktoken", "tokenizers"}
 
 
-def top_level_imports(tree):
-    """只遍历模块顶层的 import 节点。"""
-    for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            yield node
+def _walk(node, ancestors=(), guarded=False):
+    """Yield (node, ancestors, guarded_by_try) for every node in the tree."""
+    yield node, ancestors, guarded
+    body_ids = set()
+    if isinstance(node, ast.Try):
+        body_ids = {id(child) for child in node.body}
+    for child in ast.iter_child_nodes(node):
+        yield from _walk(child, ancestors + (node,), guarded or id(child) in body_ids)
 
 
-def names(node):
+def _imported_names(node):
     if isinstance(node, ast.Import):
-        for a in node.names:
-            yield a.name
-    elif node.level == 0 and node.module:
-        yield node.module
+        for alias in node.names:
+            yield alias.name
+    elif isinstance(node, ast.ImportFrom):
+        if node.level == 0 and node.module:
+            yield node.module
+
+
+def check_source(source: str, filename: str = "<string>"):
+    """Return a list of problems for one source text. Empty list means clean."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        return ["%s: 语法错误 %s" % (filename, exc)]
+
+    problems = []
+    for node, ancestors, guarded in _walk(tree):
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        for name in _imported_names(node):
+            root = name.split(".")[0]
+            if root in STDLIB or root in LOCAL:
+                continue
+            lineno = getattr(node, "lineno", 0)
+            if root not in OPTIONAL:
+                problems.append(
+                    "%s:%d: 第三方依赖 %s（必需依赖只能是 Python 标准库；"
+                    "确需可选依赖请先加进 OPTIONAL 并说明理由）"
+                    % (filename, lineno, name))
+                continue
+            in_function = any(
+                isinstance(a, (ast.FunctionDef, ast.AsyncFunctionDef)) for a in ancestors)
+            if not in_function:
+                problems.append(
+                    "%s:%d: 可选依赖 %s 出现在模块顶层（缺包会让整个模块导入失败；"
+                    "请移到函数内）" % (filename, lineno, name))
+            elif not guarded:
+                problems.append(
+                    "%s:%d: 可选依赖 %s 没有包在 try/except 中（缺包时必须能降级或明确报错）"
+                    % (filename, lineno, name))
+    return problems
 
 
 def main() -> int:
     problems = []
     for path in sorted(SCRIPTS.rglob("*.py")):
         rel = path.relative_to(ROOT).as_posix()
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError as exc:
-            problems.append("%s: 语法错误 %s" % (rel, exc))
-            continue
-        for node in top_level_imports(tree):
-            for name in names(node):
-                root = name.split(".")[0]
-                if root in STDLIB or root in LOCAL:
-                    continue
-                if root in OPTIONAL:
-                    problems.append("%s: 可选依赖 %s 出现在模块顶层（应在函数内 try/except）"
-                                    % (rel, name))
-                else:
-                    problems.append("%s: 第三方依赖 %s" % (rel, name))
+        problems.extend(check_source(path.read_text(encoding="utf-8"), rel))
+
     if problems:
-        for p in problems:
-            print("ERR: %s" % p)
+        for problem in problems:
+            print("ERR: %s" % problem)
         return 1
     print("OK: scripts/ 只用标准库 + 本地 lib；可选依赖仅 %s（函数内 try/except）"
           % ", ".join(sorted(OPTIONAL)))

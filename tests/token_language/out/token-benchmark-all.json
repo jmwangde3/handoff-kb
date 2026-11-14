@@ -2,9 +2,9 @@
   "schema_version": 1,
   "benchmark": "token_language",
   "variants": {
-    "A": "Original Chinese v2.0.3",
-    "B": "Optimized Chinese v2.0.4",
-    "C": "Optimized English v2.0.4"
+    "A": "Original Chinese v2.0.3 (frozen baseline)",
+    "B": "Optimized Chinese v2.0.4 (benchmark sample, not a shipped skill)",
+    "C": "Optimized English v2.0.4 (the shipped skill)"
   },
   "tasks": [
     {
@@ -60,18 +60,24 @@
       "counter": {
         "requested": "cl100k_base",
         "actual": "tiktoken:cl100k_base",
-        "exact": true
+        "exact": true,
+        "source": "tiktoken encoder (bundled BPE ranks)",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": "tiktoken",
+        "library_version": "0.14.0"
       },
       "exact": true,
       "env": {
         "python": "3.13.9",
         "python_impl": "CPython",
-        "platform": "Windows-11-10.0.26200-SP0",
+        "platform": "Windows",
         "machine": "AMD64",
         "tiktoken": "0.14.0",
         "tokenizers": "0.23.2",
-        "deepseek_tokenizer_dir": "C:\\Users\\jmwan\\.cache\\handoff-kb\\deepseek_v4_tokenizer",
-        "deepseek_tokenizer_present": true
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
       },
       "groups": {
         "T1_description": {
@@ -100,7 +106,7 @@
             "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
           },
           "B": {
-            "path": "SKILL.zh-CN.md",
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
             "bytes": 14227,
             "chars": 8372,
             "tokens": 5486,
@@ -108,10 +114,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15201,
-            "chars": 15023,
-            "tokens": 3871,
-            "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+            "bytes": 15399,
+            "chars": 15217,
+            "tokens": 3903,
+            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
           }
         },
         "T3_references": {
@@ -228,7 +234,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 5486,
@@ -237,15 +243,15 @@
               ]
             },
             "C": {
-              "tokens": 3871,
+              "tokens": 3903,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3871,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3903,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -273,7 +279,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 5486,
@@ -282,15 +288,15 @@
               ]
             },
             "C": {
-              "tokens": 3871,
+              "tokens": 3903,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3871,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3903,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -326,7 +332,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 5486,
@@ -343,15 +349,15 @@
               ]
             },
             "C": {
-              "tokens": 8321,
+              "tokens": 8353,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3871,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3903,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:migration",
@@ -396,7 +402,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 5486,
@@ -413,15 +419,15 @@
               ]
             },
             "C": {
-              "tokens": 8781,
+              "tokens": 8813,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3871,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3903,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -466,7 +472,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 5486,
@@ -483,15 +489,15 @@
               ]
             },
             "C": {
-              "tokens": 8781,
+              "tokens": 8813,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3871,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3903,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -536,7 +542,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 5486,
@@ -553,15 +559,15 @@
               ]
             },
             "C": {
-              "tokens": 6106,
+              "tokens": 6138,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3871,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3903,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:hooks",
@@ -871,10 +877,10 @@
         "T2_skill": {
           "A": 5416,
           "B": 5486,
-          "C": 3871,
+          "C": 3903,
           "structure_saving": -0.012925,
-          "language_saving": 0.294386,
-          "total_saving": 0.285266
+          "language_saving": 0.288553,
+          "total_saving": 0.279357
         },
         "T3_references": {
           "protocol-v2": {
@@ -914,10 +920,10 @@
           "new-project": {
             "A": 5416,
             "B": 5486,
-            "C": 3871,
+            "C": 3903,
             "structure_saving": -0.012925,
-            "language_saving": 0.294386,
-            "total_saving": 0.285266,
+            "language_saving": 0.288553,
+            "total_saving": 0.279357,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -926,10 +932,10 @@
           "diagnose": {
             "A": 5416,
             "B": 5486,
-            "C": 3871,
+            "C": 3903,
             "structure_saving": -0.012925,
-            "language_saving": 0.294386,
-            "total_saving": 0.285266,
+            "language_saving": 0.288553,
+            "total_saving": 0.279357,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -938,10 +944,10 @@
           "migrate": {
             "A": 11428,
             "B": 11498,
-            "C": 8321,
+            "C": 8353,
             "structure_saving": -0.006125,
-            "language_saving": 0.276309,
-            "total_saving": 0.271876,
+            "language_saving": 0.273526,
+            "total_saving": 0.269076,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -951,10 +957,10 @@
           "recovery": {
             "A": 11930,
             "B": 12000,
-            "C": 8781,
+            "C": 8813,
             "structure_saving": -0.005868,
-            "language_saving": 0.26825,
-            "total_saving": 0.263956,
+            "language_saving": 0.265583,
+            "total_saving": 0.261274,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -964,10 +970,10 @@
           "safe-write": {
             "A": 11930,
             "B": 12000,
-            "C": 8781,
+            "C": 8813,
             "structure_saving": -0.005868,
-            "language_saving": 0.26825,
-            "total_saving": 0.263956,
+            "language_saving": 0.265583,
+            "total_saving": 0.261274,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -977,10 +983,10 @@
           "hook-install": {
             "A": 8429,
             "B": 8499,
-            "C": 6106,
+            "C": 6138,
             "structure_saving": -0.008305,
-            "language_saving": 0.281563,
-            "total_saving": 0.275596,
+            "language_saving": 0.277797,
+            "total_saving": 0.2718,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -1093,18 +1099,24 @@
       "counter": {
         "requested": "o200k_base",
         "actual": "tiktoken:o200k_base",
-        "exact": true
+        "exact": true,
+        "source": "tiktoken encoder (bundled BPE ranks)",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": "tiktoken",
+        "library_version": "0.14.0"
       },
       "exact": true,
       "env": {
         "python": "3.13.9",
         "python_impl": "CPython",
-        "platform": "Windows-11-10.0.26200-SP0",
+        "platform": "Windows",
         "machine": "AMD64",
         "tiktoken": "0.14.0",
         "tokenizers": "0.23.2",
-        "deepseek_tokenizer_dir": "C:\\Users\\jmwan\\.cache\\handoff-kb\\deepseek_v4_tokenizer",
-        "deepseek_tokenizer_present": true
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
       },
       "groups": {
         "T1_description": {
@@ -1133,7 +1145,7 @@
             "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
           },
           "B": {
-            "path": "SKILL.zh-CN.md",
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
             "bytes": 14227,
             "chars": 8372,
             "tokens": 4612,
@@ -1141,10 +1153,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15201,
-            "chars": 15023,
-            "tokens": 3851,
-            "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+            "bytes": 15399,
+            "chars": 15217,
+            "tokens": 3878,
+            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
           }
         },
         "T3_references": {
@@ -1261,7 +1273,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4612,
@@ -1270,15 +1282,15 @@
               ]
             },
             "C": {
-              "tokens": 3851,
+              "tokens": 3878,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3851,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3878,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -1306,7 +1318,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4612,
@@ -1315,15 +1327,15 @@
               ]
             },
             "C": {
-              "tokens": 3851,
+              "tokens": 3878,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3851,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3878,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -1359,7 +1371,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4612,
@@ -1376,15 +1388,15 @@
               ]
             },
             "C": {
-              "tokens": 8269,
+              "tokens": 8296,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3851,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3878,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:migration",
@@ -1429,7 +1441,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4612,
@@ -1446,15 +1458,15 @@
               ]
             },
             "C": {
-              "tokens": 8732,
+              "tokens": 8759,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3851,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3878,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -1499,7 +1511,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4612,
@@ -1516,15 +1528,15 @@
               ]
             },
             "C": {
-              "tokens": 8732,
+              "tokens": 8759,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3851,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3878,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -1569,7 +1581,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4612,
@@ -1586,15 +1598,15 @@
               ]
             },
             "C": {
-              "tokens": 6094,
+              "tokens": 6121,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3851,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3878,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:hooks",
@@ -1904,10 +1916,10 @@
         "T2_skill": {
           "A": 4571,
           "B": 4612,
-          "C": 3851,
+          "C": 3878,
           "structure_saving": -0.00897,
-          "language_saving": 0.165004,
-          "total_saving": 0.157515
+          "language_saving": 0.15915,
+          "total_saving": 0.151608
         },
         "T3_references": {
           "protocol-v2": {
@@ -1947,10 +1959,10 @@
           "new-project": {
             "A": 4571,
             "B": 4612,
-            "C": 3851,
+            "C": 3878,
             "structure_saving": -0.00897,
-            "language_saving": 0.165004,
-            "total_saving": 0.157515,
+            "language_saving": 0.15915,
+            "total_saving": 0.151608,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -1959,10 +1971,10 @@
           "diagnose": {
             "A": 4571,
             "B": 4612,
-            "C": 3851,
+            "C": 3878,
             "structure_saving": -0.00897,
-            "language_saving": 0.165004,
-            "total_saving": 0.157515,
+            "language_saving": 0.15915,
+            "total_saving": 0.151608,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -1971,10 +1983,10 @@
           "migrate": {
             "A": 9587,
             "B": 9628,
-            "C": 8269,
+            "C": 8296,
             "structure_saving": -0.004277,
-            "language_saving": 0.141151,
-            "total_saving": 0.137478,
+            "language_saving": 0.138346,
+            "total_saving": 0.134662,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -1984,10 +1996,10 @@
           "recovery": {
             "A": 10099,
             "B": 10140,
-            "C": 8732,
+            "C": 8759,
             "structure_saving": -0.00406,
-            "language_saving": 0.138856,
-            "total_saving": 0.13536,
+            "language_saving": 0.136193,
+            "total_saving": 0.132686,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -1997,10 +2009,10 @@
           "safe-write": {
             "A": 10099,
             "B": 10140,
-            "C": 8732,
+            "C": 8759,
             "structure_saving": -0.00406,
-            "language_saving": 0.138856,
-            "total_saving": 0.13536,
+            "language_saving": 0.136193,
+            "total_saving": 0.132686,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -2010,10 +2022,10 @@
           "hook-install": {
             "A": 7070,
             "B": 7111,
-            "C": 6094,
+            "C": 6121,
             "structure_saving": -0.005799,
-            "language_saving": 0.143018,
-            "total_saving": 0.138048,
+            "language_saving": 0.139221,
+            "total_saving": 0.134229,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -2125,19 +2137,25 @@
       "tokenizer": "deepseek_v4",
       "counter": {
         "requested": "deepseek_v4",
-        "actual": "tokenizers:deepseek_v4(C:\\Users\\jmwan\\.cache\\handoff-kb\\deepseek_v4_tokenizer\\tokenizer.json)",
-        "exact": true
+        "actual": "tokenizers:deepseek_v4",
+        "exact": true,
+        "source": "DeepSeek official offline tokenizer (deepseek_tokenizer.zip → tokenizer.json)",
+        "tokenizer_file": "tokenizer.json",
+        "tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614",
+        "library": "tokenizers",
+        "library_version": "0.23.2"
       },
       "exact": true,
       "env": {
         "python": "3.13.9",
         "python_impl": "CPython",
-        "platform": "Windows-11-10.0.26200-SP0",
+        "platform": "Windows",
         "machine": "AMD64",
         "tiktoken": "0.14.0",
         "tokenizers": "0.23.2",
-        "deepseek_tokenizer_dir": "C:\\Users\\jmwan\\.cache\\handoff-kb\\deepseek_v4_tokenizer",
-        "deepseek_tokenizer_present": true
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
       },
       "groups": {
         "T1_description": {
@@ -2166,7 +2184,7 @@
             "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
           },
           "B": {
-            "path": "SKILL.zh-CN.md",
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
             "bytes": 14227,
             "chars": 8372,
             "tokens": 4338,
@@ -2174,10 +2192,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15201,
-            "chars": 15023,
-            "tokens": 3919,
-            "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+            "bytes": 15399,
+            "chars": 15217,
+            "tokens": 3943,
+            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
           }
         },
         "T3_references": {
@@ -2294,7 +2312,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4338,
@@ -2303,15 +2321,15 @@
               ]
             },
             "C": {
-              "tokens": 3919,
+              "tokens": 3943,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3919,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3943,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -2339,7 +2357,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4338,
@@ -2348,15 +2366,15 @@
               ]
             },
             "C": {
-              "tokens": 3919,
+              "tokens": 3943,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3919,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3943,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -2392,7 +2410,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4338,
@@ -2409,15 +2427,15 @@
               ]
             },
             "C": {
-              "tokens": 8371,
+              "tokens": 8395,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3919,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3943,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:migration",
@@ -2462,7 +2480,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4338,
@@ -2479,15 +2497,15 @@
               ]
             },
             "C": {
-              "tokens": 8888,
+              "tokens": 8912,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3919,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3943,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -2532,7 +2550,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4338,
@@ -2549,15 +2567,15 @@
               ]
             },
             "C": {
-              "tokens": 8888,
+              "tokens": 8912,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3919,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3943,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -2602,7 +2620,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 4338,
@@ -2619,15 +2637,15 @@
               ]
             },
             "C": {
-              "tokens": 6219,
+              "tokens": 6243,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3919,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3943,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:hooks",
@@ -2937,10 +2955,10 @@
         "T2_skill": {
           "A": 4343,
           "B": 4338,
-          "C": 3919,
+          "C": 3943,
           "structure_saving": 0.001151,
-          "language_saving": 0.096588,
-          "total_saving": 0.097628
+          "language_saving": 0.091056,
+          "total_saving": 0.092102
         },
         "T3_references": {
           "protocol-v2": {
@@ -2980,10 +2998,10 @@
           "new-project": {
             "A": 4343,
             "B": 4338,
-            "C": 3919,
+            "C": 3943,
             "structure_saving": 0.001151,
-            "language_saving": 0.096588,
-            "total_saving": 0.097628,
+            "language_saving": 0.091056,
+            "total_saving": 0.092102,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -2992,10 +3010,10 @@
           "diagnose": {
             "A": 4343,
             "B": 4338,
-            "C": 3919,
+            "C": 3943,
             "structure_saving": 0.001151,
-            "language_saving": 0.096588,
-            "total_saving": 0.097628,
+            "language_saving": 0.091056,
+            "total_saving": 0.092102,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -3004,10 +3022,10 @@
           "migrate": {
             "A": 9018,
             "B": 9013,
-            "C": 8371,
+            "C": 8395,
             "structure_saving": 0.000554,
-            "language_saving": 0.07123,
-            "total_saving": 0.071745,
+            "language_saving": 0.068568,
+            "total_saving": 0.069084,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -3017,10 +3035,10 @@
           "recovery": {
             "A": 9514,
             "B": 9509,
-            "C": 8888,
+            "C": 8912,
             "structure_saving": 0.000526,
-            "language_saving": 0.065307,
-            "total_saving": 0.065798,
+            "language_saving": 0.062783,
+            "total_saving": 0.063275,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -3030,10 +3048,10 @@
           "safe-write": {
             "A": 9514,
             "B": 9509,
-            "C": 8888,
+            "C": 8912,
             "structure_saving": 0.000526,
-            "language_saving": 0.065307,
-            "total_saving": 0.065798,
+            "language_saving": 0.062783,
+            "total_saving": 0.063275,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -3043,10 +3061,10 @@
           "hook-install": {
             "A": 6720,
             "B": 6715,
-            "C": 6219,
+            "C": 6243,
             "structure_saving": 0.000744,
-            "language_saving": 0.073864,
-            "total_saving": 0.074554,
+            "language_saving": 0.07029,
+            "total_saving": 0.070982,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -3159,18 +3177,24 @@
       "counter": {
         "requested": "deepseek_estimate",
         "actual": "deepseek_estimate（官方比例：1 英文字符≈0.3、1 中文字符≈0.6）",
-        "exact": false
+        "exact": false,
+        "source": "documented ratio (0.3 / 0.6)",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": null,
+        "library_version": null
       },
       "exact": false,
       "env": {
         "python": "3.13.9",
         "python_impl": "CPython",
-        "platform": "Windows-11-10.0.26200-SP0",
+        "platform": "Windows",
         "machine": "AMD64",
         "tiktoken": "0.14.0",
         "tokenizers": "0.23.2",
-        "deepseek_tokenizer_dir": "C:\\Users\\jmwan\\.cache\\handoff-kb\\deepseek_v4_tokenizer",
-        "deepseek_tokenizer_present": true
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
       },
       "groups": {
         "T1_description": {
@@ -3199,7 +3223,7 @@
             "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
           },
           "B": {
-            "path": "SKILL.zh-CN.md",
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
             "bytes": 14227,
             "chars": 8372,
             "tokens": 3266,
@@ -3207,10 +3231,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15201,
-            "chars": 15023,
-            "tokens": 4525,
-            "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+            "bytes": 15399,
+            "chars": 15217,
+            "tokens": 4583,
+            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
           }
         },
         "T3_references": {
@@ -3327,7 +3351,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3266,
@@ -3336,15 +3360,15 @@
               ]
             },
             "C": {
-              "tokens": 4525,
+              "tokens": 4583,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 4525,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 4583,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -3372,7 +3396,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3266,
@@ -3381,15 +3405,15 @@
               ]
             },
             "C": {
-              "tokens": 4525,
+              "tokens": 4583,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 4525,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 4583,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -3425,7 +3449,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3266,
@@ -3442,15 +3466,15 @@
               ]
             },
             "C": {
-              "tokens": 9450,
+              "tokens": 9508,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 4525,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 4583,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:migration",
@@ -3495,7 +3519,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3266,
@@ -3512,15 +3536,15 @@
               ]
             },
             "C": {
-              "tokens": 10047,
+              "tokens": 10105,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 4525,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 4583,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -3565,7 +3589,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3266,
@@ -3582,15 +3606,15 @@
               ]
             },
             "C": {
-              "tokens": 10047,
+              "tokens": 10105,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 4525,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 4583,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -3635,7 +3659,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3266,
@@ -3652,15 +3676,15 @@
               ]
             },
             "C": {
-              "tokens": 7278,
+              "tokens": 7336,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 4525,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 4583,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:hooks",
@@ -3970,10 +3994,10 @@
         "T2_skill": {
           "A": 3261,
           "B": 3266,
-          "C": 4525,
+          "C": 4583,
           "structure_saving": -0.001533,
-          "language_saving": -0.385487,
-          "total_saving": -0.387611
+          "language_saving": -0.403246,
+          "total_saving": -0.405397
         },
         "T3_references": {
           "protocol-v2": {
@@ -4013,10 +4037,10 @@
           "new-project": {
             "A": 3261,
             "B": 3266,
-            "C": 4525,
+            "C": 4583,
             "structure_saving": -0.001533,
-            "language_saving": -0.385487,
-            "total_saving": -0.387611,
+            "language_saving": -0.403246,
+            "total_saving": -0.405397,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -4025,10 +4049,10 @@
           "diagnose": {
             "A": 3261,
             "B": 3266,
-            "C": 4525,
+            "C": 4583,
             "structure_saving": -0.001533,
-            "language_saving": -0.385487,
-            "total_saving": -0.387611,
+            "language_saving": -0.403246,
+            "total_saving": -0.405397,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -4037,10 +4061,10 @@
           "migrate": {
             "A": 6647,
             "B": 6652,
-            "C": 9450,
+            "C": 9508,
             "structure_saving": -0.000752,
-            "language_saving": -0.420625,
-            "total_saving": -0.421694,
+            "language_saving": -0.429345,
+            "total_saving": -0.43042,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -4050,10 +4074,10 @@
           "recovery": {
             "A": 7091,
             "B": 7096,
-            "C": 10047,
+            "C": 10105,
             "structure_saving": -0.000705,
-            "language_saving": -0.415868,
-            "total_saving": -0.416866,
+            "language_saving": -0.424042,
+            "total_saving": -0.425046,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -4063,10 +4087,10 @@
           "safe-write": {
             "A": 7091,
             "B": 7096,
-            "C": 10047,
+            "C": 10105,
             "structure_saving": -0.000705,
-            "language_saving": -0.415868,
-            "total_saving": -0.416866,
+            "language_saving": -0.424042,
+            "total_saving": -0.425046,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -4076,10 +4100,10 @@
           "hook-install": {
             "A": 5199,
             "B": 5204,
-            "C": 7278,
+            "C": 7336,
             "structure_saving": -0.000962,
-            "language_saving": -0.39854,
-            "total_saving": -0.399885,
+            "language_saving": -0.409685,
+            "total_saving": -0.411041,
             "title": "Hook installation",
             "required": [
               "skill",
@@ -4192,18 +4216,24 @@
       "counter": {
         "requested": "heuristic",
         "actual": "heuristic（CJK 1 字≈1 token，其余 4 字符≈1 token）",
-        "exact": false
+        "exact": false,
+        "source": "heuristic",
+        "tokenizer_file": null,
+        "tokenizer_sha256": null,
+        "library": null,
+        "library_version": null
       },
       "exact": false,
       "env": {
         "python": "3.13.9",
         "python_impl": "CPython",
-        "platform": "Windows-11-10.0.26200-SP0",
+        "platform": "Windows",
         "machine": "AMD64",
         "tiktoken": "0.14.0",
         "tokenizers": "0.23.2",
-        "deepseek_tokenizer_dir": "C:\\Users\\jmwan\\.cache\\handoff-kb\\deepseek_v4_tokenizer",
-        "deepseek_tokenizer_present": true
+        "deepseek_tokenizer_present": true,
+        "deepseek_tokenizer_file": "tokenizer.json",
+        "deepseek_tokenizer_sha256": "89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614"
       },
       "groups": {
         "T1_description": {
@@ -4232,7 +4262,7 @@
             "sha256": "ba5d8c7beede9d9a3b4c57ec4d33d3dacca7a1013ddf887cb3a8b6eaf3329993"
           },
           "B": {
-            "path": "SKILL.zh-CN.md",
+            "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
             "bytes": 14227,
             "chars": 8372,
             "tokens": 3980,
@@ -4240,10 +4270,10 @@
           },
           "C": {
             "path": "SKILL.md",
-            "bytes": 15201,
-            "chars": 15023,
-            "tokens": 3800,
-            "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+            "bytes": 15399,
+            "chars": 15217,
+            "tokens": 3848,
+            "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
           }
         },
         "T3_references": {
@@ -4360,7 +4390,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3980,
@@ -4369,15 +4399,15 @@
               ]
             },
             "C": {
-              "tokens": 3800,
+              "tokens": 3848,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3800,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3848,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -4405,7 +4435,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3980,
@@ -4414,15 +4444,15 @@
               ]
             },
             "C": {
-              "tokens": 3800,
+              "tokens": 3848,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3800,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3848,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 }
               ]
             },
@@ -4458,7 +4488,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3980,
@@ -4475,15 +4505,15 @@
               ]
             },
             "C": {
-              "tokens": 7956,
+              "tokens": 8004,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3800,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3848,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:migration",
@@ -4528,7 +4558,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3980,
@@ -4545,15 +4575,15 @@
               ]
             },
             "C": {
-              "tokens": 8486,
+              "tokens": 8534,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3800,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3848,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -4598,7 +4628,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3980,
@@ -4615,15 +4645,15 @@
               ]
             },
             "C": {
-              "tokens": 8486,
+              "tokens": 8534,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3800,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3848,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:protocol-v2",
@@ -4668,7 +4698,7 @@
               "files": [
                 {
                   "key": "skill",
-                  "path": "SKILL.zh-CN.md",
+                  "path": "tests/token_language/sample_b/SKILL.zh-CN.md",
                   "bytes": 14227,
                   "chars": 8372,
                   "tokens": 3980,
@@ -4685,15 +4715,15 @@
               ]
             },
             "C": {
-              "tokens": 6098,
+              "tokens": 6146,
               "files": [
                 {
                   "key": "skill",
                   "path": "SKILL.md",
-                  "bytes": 15201,
-                  "chars": 15023,
-                  "tokens": 3800,
-                  "sha256": "59dc4c97d07f7dce124eb5df4cc9dc315951e932e0ad8e64c95625b984ae7ba3"
+                  "bytes": 15399,
+                  "chars": 15217,
+                  "tokens": 3848,
+                  "sha256": "a898a69bef2ad306bd1728801d3f97389b27bfd25aa8c2ef6145f643377b718e"
                 },
                 {
                   "key": "ref:hooks",
@@ -5003,10 +5033,10 @@
         "T2_skill": {
           "A": 3913,
           "B": 3980,
-          "C": 3800,
+          "C": 3848,
           "structure_saving": -0.017122,
-          "language_saving": 0.045226,
-          "total_saving": 0.028878
+          "language_saving": 0.033166,
+          "total_saving": 0.016611
         },
         "T3_references": {
           "protocol-v2": {
@@ -5046,10 +5076,10 @@
           "new-project": {
             "A": 3913,
             "B": 3980,
-            "C": 3800,
+            "C": 3848,
             "structure_saving": -0.017122,
-            "language_saving": 0.045226,
-            "total_saving": 0.028878,
+            "language_saving": 0.033166,
+            "total_saving": 0.016611,
             "title": "New project initialization",
             "required": [
               "skill"
@@ -5058,10 +5088,10 @@
           "diagnose": {
             "A": 3913,
             "B": 3980,
-            "C": 3800,
+            "C": 3848,
             "structure_saving": -0.017122,
-            "language_saving": 0.045226,
-            "total_saving": 0.028878,
+            "language_saving": 0.033166,
+            "total_saving": 0.016611,
             "title": "Existing project diagnosis",
             "required": [
               "skill"
@@ -5070,10 +5100,10 @@
           "migrate": {
             "A": 8089,
             "B": 8156,
-            "C": 7956,
+            "C": 8004,
             "structure_saving": -0.008283,
-            "language_saving": 0.024522,
-            "total_saving": 0.016442,
+            "language_saving": 0.018637,
+            "total_saving": 0.010508,
             "title": "Legacy project migration",
             "required": [
               "skill",
@@ -5083,10 +5113,10 @@
           "recovery": {
             "A": 8617,
             "B": 8684,
-            "C": 8486,
+            "C": 8534,
             "structure_saving": -0.007775,
-            "language_saving": 0.022801,
-            "total_saving": 0.015203,
+            "language_saving": 0.017273,
+            "total_saving": 0.009632,
             "title": "New-session context recovery",
             "required": [
               "skill",
@@ -5096,10 +5126,10 @@
           "safe-write": {
             "A": 8617,
             "B": 8684,
-            "C": 8486,
+            "C": 8534,
             "structure_saving": -0.007775,
-            "language_saving": 0.022801,
-            "total_saving": 0.015203,
+            "language_saving": 0.017273,
+            "total_saving": 0.009632,
             "title": "Safe document write",
             "required": [
               "skill",
@@ -5109,10 +5139,10 @@
           "hook-install": {
             "A": 6237,
             "B": 6304,
-            "C": 6098,
+            "C": 6146,
             "structure_saving": -0.010742,
-            "language_saving": 0.032678,
-            "total_saving": 0.022286,
+            "language_saving": 0.025063,
+            "total_saving": 0.01459,
             "title": "Hook installation",
             "required": [
               "skill",
