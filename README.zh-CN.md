@@ -711,10 +711,12 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 每个环境跑：环境信息 → 单元测试（`-v`）→ 端到端冒烟 → 依赖检查。
 
 2.0.3 那一轮（run `43451488874`，2026-11-13）六环境全绿、341 例无 skip。
-2.0.4 以 **PR 的 CI 状态**为准，不在本文件里自述：当前 HEAD 的运行结果记在
-PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5) 上。每个 job 跑 394 例，
-那 7 条 skip 是数字化的 token 用例——它们需要精确词表，而 CI 故意不装可选依赖。
-**它们不是在掩盖失败**：数字本身一条命令可本地复现（§12.1）。
+2.0.4 这一轮：run [43599244790](https://github.com/jmwangde3/handoff-kb/actions/runs/43599244790)
+（2026-11-14，`pull_request`，HEAD `0c5e43d`）六环境全绿，每个 job 都是
+`Ran 394 tests … OK (skipped=7)`。那 7 条 skip 是数字化的 token 用例——它们需要精确词表，
+而 CI 故意不装可选依赖。**它们不是在掩盖失败**：数字本身一条命令可本地复现（§12.1）。
+若 HEAD 比 `0c5e43d` 更新，仍以 PR [#5](https://github.com/jmwangde3/handoff-kb/pull/5)
+的 CI 状态为准，不以本节为准。
 
 > 已知噪音：GitHub 提示 `actions/checkout@v4` 与 `setup-python@v5` 的 Node 20 弃用，属行动升级提醒，不影响结果。
 

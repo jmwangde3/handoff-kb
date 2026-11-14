@@ -443,7 +443,7 @@ Stating what was and was not tested is worth more than a few more PASS lines.
 
 The 2.0.3 run (run `43451488874`, 2026-11-13) was green in all six environments with 341 tests, no skips.
 
-For 2.0.4 the authoritative statement is the PR's CI status, not this file: the run for the current HEAD is on pull request [#5](https://github.com/jmwangde3/handoff-kb/pull/5). Each job runs 394 tests; the 7 skips are the numeric token tests, which need an exact encoder that CI deliberately does not install — they are not hiding a failure, and the numbers themselves are reproducible locally with one command (§12.2).
+For 2.0.4: run [43599244790](https://github.com/jmwangde3/handoff-kb/actions/runs/43599244790) (2026-11-14, `pull_request`, HEAD `0c5e43d`) is green in all six environments — `Ran 394 tests … OK (skipped=7)` in every job. Each job still runs 394 tests; the 7 skips are the numeric token tests, which need an exact encoder that CI deliberately does not install — they are not hiding a failure, and the numbers themselves are reproducible locally with one command (§12.2). The authoritative statement for any newer HEAD is still the PR's own CI status, not this file.
 
 > Known noise: GitHub warns about Node 20 deprecation in `actions/checkout@v4` and `setup-python@v5`; that is an action-upgrade reminder and does not affect results.
 
