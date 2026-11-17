@@ -120,6 +120,49 @@ Assembly order: **P0** hard constraints → **P1** current state + next step →
 
 Never overwrite a whole file.
 
+### Finish levels (distinct from the document layers above)
+
+Decide from the work already done, before reading the library: **L0** for no durable
+change or new conclusion (skip all writeback calls); **L1** for ordinary development,
+state changes and new next steps (default); **L2** only for a release, major
+architecture change, phase closeout, migration or a concrete need for full review.
+Length alone is not an L2 trigger. Reuse context and valid checks already in the
+session. L1 normally reads at most 2–3 relevant files, changes 1–2, and does not run
+full-library checks. Update `00` or fact shards only for durable changes, `05` only
+for changed status/blocker/next step, and `06` only for a durable event. Raw journals
+keep necessary evidence, not another copy of the summary. Project-specific safety
+rules remain binding; do not write another workstream's content.
+
+For L1, prepare a concise, persistent UTF-8 JSON input and invoke once:
+
+```json
+{"updates":[{"path":"05_进度仪表盘.md","section_id":"dashboard.next","before":"exact old text","after":"exact new text"}],"event":{"id":"stable-task-id","path":"06_流水/Agent环境.md","content":"- done; evidence: path or test; next: ..."}}
+```
+
+```bash
+py "$KB/scripts/kb-finish.py" --target . --input task.json
+```
+
+Both `updates` and `event` are optional; give only necessary ones. Reuse the same
+event ID and identical content for retries. Updates must specify an exact, unique
+old text within a stable section; old/new must not contain one another. An absent or
+ambiguous expected value, a reused event ID with different content, lock failure,
+or a transaction conflict stops the write and leaves the input intact for manual
+review and merge. Use paths inside the target; never put credentials in input.
+`--level L0` exits without reading input or target; auto selects L0 for empty input,
+otherwise L1. `--level L2` uses the same safe operations but does **not** itself
+perform a complete review: select all needed files and run the checks in §6.
+For complex edits use the existing `kb-write.py` workflow below. The transaction
+retains its existing limitations; non-cooperating external editors are not locked.
+
+If a suitable subagent is available, delegate with the input path, relevant rules,
+and exact ownership; wait for its result before reporting writeback as complete.
+Do not assume a subagent survives the parent session. Use a durable, independently
+verified background executor only when its lifecycle, status, failure recovery and
+serialization are established; otherwise use a subagent or synchronous L1. Never
+claim queued work succeeded. A retained input is a recovery artifact, not an
+automatically running queue. Project rules can require additional operations.
+
 1. `py "$KB/scripts/kb-write.py" read --target . --file 05_进度仪表盘.md --json` → obtain `sha256` and section IDs.
 2. Build `changes.json` (`replace_section` / `append` / `update_fact`, every entry carrying a 64-hex `expected_sha256`).
 3. `--dry-run` to inspect the diff, then `apply`.
@@ -201,6 +244,7 @@ Safety rules that must survive any refactor: P0 never dropped; hash required for
 | `scripts/kb-check.py` | Read-only diagnosis (`--loose` / `--strict` / `--json` / `--mode`) |
 | `scripts/kb-outline.py` | Outline, `--section-id` reads, `--hash` |
 | `scripts/kb-write.py` | Safe writes (hash / lock / transaction / `recover`) |
+| `scripts/kb-finish.py` | L0/L1/L2 finish entry with exact-text updates and deduplicated events |
 | `scripts/kb-migrate.py` | Lossless v1 → v2 migration (plan bound to hashes) |
 | `scripts/kb-search.py` | Section-level full-text search |
 | `scripts/kb-context.py` | Budget-aware context routing (`--explain`) |

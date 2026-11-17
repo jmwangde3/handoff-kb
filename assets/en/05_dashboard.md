@@ -38,7 +38,7 @@
 
 | Action | Also affects | Rule |
 |---|---|---|
-| [fill] | [fill] | After the change, immediately write `05` + the shard + a commit |
+| [fill] | [fill] | Select writeback files based on actual state and evidence |
 
 <!-- kb:id: dashboard.order -->
 ## 5. Handoff order
@@ -46,14 +46,14 @@
 1. `py "$KB/scripts/kb-context.py" --target . --task "<task>" --budget 3000`
 2. Read by line: {{ROUTE_INLINE}}; for cross-layer baseline always read `00`.
 3. Run `sh scripts/handoff-check.sh` (read-only) before touching anything.
-4. Wrap up: write back with `kb-write.py` → `kb-handoff.py check` → `git add -- <files>` + commit.
+4. Wrap up: select L0/L1/L2 per `AGENTS.md` §3; obtain authorization before committing.
 
 <!-- kb:id: dashboard.rules -->
 ## 6. Maintenance rules (no bloat allowed)
 
 - **§0 is at most 4 lines**; **keep only 5 summary entries, each ≤3 lines** — overflow goes to the shard in full, leaving one summary line plus a pointer here.
 - `git status` before editing (is another session writing?), `git diff` to self-review after.
-- Write back through `kb-write.py` (with `expected_sha256`); **never overwrite the whole file**.
+- Write back through `kb-finish.py` or `kb-write.py`, retaining locks and hash checks; **never overwrite the whole file**.
 - A shard beyond **200 lines / 60 KB** is folded into `90` by topic (act only when crossed).
 
 <!-- kb:id: dashboard.constraints -->

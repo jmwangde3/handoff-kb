@@ -38,7 +38,7 @@
 
 | 动作 | 同时波及 | 规矩 |
 |---|---|---|
-| [填] | [填] | 改完立刻写 `05` + 分片 + commit |
+| [填] | [填] | 按实际状态与证据需要选择写回文件 |
 
 <!-- kb:id: dashboard.order -->
 ## 5. 接手顺序
@@ -46,14 +46,14 @@
 1. `py "$KB/scripts/kb-context.py" --target . --task "<任务>" --budget 3000`
 2. 按线读：{{ROUTE_INLINE}}；跨层基线一律读 `00`。
 3. 跑 `sh scripts/handoff-check.sh`（只读）→ 再动手。
-4. 收尾：`kb-write.py` 写回 → `kb-handoff.py check` → `git add -- <文件>` + commit。
+4. 收尾：按 `AGENTS.md` §3 选择 L0/L1/L2；提交须获授权。
 
 <!-- kb:id: dashboard.rules -->
 ## 6. 维护规则（不许膨胀）
 
 - **§0 最多 4 行**；**最近记录只留 5 条摘要、单条 ≤3 行**，超了整条写分片，本文件只留一行摘要 + 指针。
 - 改前 `git status`（有没有别的会话在改），改后 `git diff` 自查。
-- 写回用 `kb-write.py`（带 `expected_sha256`），**别整文件覆盖写**。
+- 写回使用 `kb-finish.py` 或 `kb-write.py`，保留锁与哈希校验，**别整文件覆盖写**。
 - 单分片超 **200 行 / 60 KB** 按主题折叠进 `90`（触线再拆）。
 
 <!-- kb:id: dashboard.constraints -->

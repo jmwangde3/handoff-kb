@@ -35,7 +35,11 @@ py "$KB/scripts/kb-outline.py" --file 05_进度仪表盘.md --section-id dashboa
 
 `kb-context.py` 报"超额"时不要盲目删硬约束——先把任务拆小，或显式提高预算。
 
-## 3. 写回：哈希校验 + 锁，禁止整文件覆盖
+## 3. 写回：分级、哈希校验 + 锁
+
+L0 无持久变化或新结论：直接跳过，不调用写回工具。L1 是日常默认：只更新必要状态或长期事件，用持久 JSON 调用 `kb-finish.py`（格式见 Skill §5），冲突时保留输入并人工合并。L2 仅用于发布、重大架构调整、阶段收尾、迁移或确需全面整理；按需执行 §5 检查。子代理须在会话结束前确认结果，未经验证的后台生命周期不可假定。
+
+复杂修改仍可使用原有流程：
 
 1. 读：`py "$KB/scripts/kb-write.py" read --target . --file 05_进度仪表盘.md --json` → 拿全量 `sha256` 与章节 ID。
 2. 写：把改动写成 `changes.json`（`replace_section` / `append` / `update_fact`，每条带 `expected_sha256`），先 `--dry-run` 再 apply。
@@ -58,10 +62,11 @@ py "$KB/scripts/kb-write.py" apply --target . --changes changes.json
 
 ## 5. 收尾与交接
 
+L0 跳过；L1 仅做必要检查；L2 按需执行以下检查。提交须获授权。
+
 ```bash
 py "$KB/scripts/kb-handoff.py" check --target . --strict   # 交接是否可验证
 py "$KB/scripts/kb-check.py"   --target .                  # 体积 / 编号 / 凭证 / git
-git add -- <本次改的文件> && git commit -m "<线> <做了什么>"
 ```
 
 交接必须能回答：当前任务、确实完成了什么、证据、未核实项、阻塞、下一步、受影响文件、禁止重复的操作。
