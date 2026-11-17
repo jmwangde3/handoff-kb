@@ -97,6 +97,18 @@ def main() -> int:
         run("kb-write.py", "apply", "--target", demo, "--changes", changes,
             expect=1, contains="哈希冲突")
 
+        task = tmp / "task.json"
+        task.write_text(json.dumps({
+            "updates": [{"path": "05_进度仪表盘.md", "section_id": "dashboard.current",
+                         "before": "- 冒烟测试写入的现状。", "after": "- 冒烟测试已由 kb-finish 更新。"}],
+            "event": {"id": "smoke-1", "path": "06_流水/固件.md",
+                      "content": "- 2026-11-17 smoke finish; evidence: smoke.py"}
+        }, ensure_ascii=False), encoding="utf-8")
+        run("kb-finish.py", "--target", demo, "--input", task, "--dry-run", contains='"dry-run"')
+        run("kb-finish.py", "--target", demo, "--input", task, contains='"written"')
+        run("kb-finish.py", "--target", demo, "--input", task, contains='"unchanged"')
+        run("kb-write.py", "recover", "--target", demo, "--inspect")
+
         # v1 → v2 迁移
         v1.mkdir()
         (v1 / "00_基线.md").write_text(

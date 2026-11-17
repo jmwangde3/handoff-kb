@@ -37,7 +37,7 @@ When `kb-context.py` reports an overrun, do not delete hard constraints blindly 
 
 ## 3. Write-back: levels, hash check and lock
 
-L0: skip writeback calls when there is no durable change or new conclusion. L1 is the everyday default: update only necessary state or durable events using persistent JSON and `kb-finish.py` (see Skill §5); retain input and merge on conflict. L2 is for releases, major architecture changes, phase closeout, migration or a specific need for full review; run §5 checks as needed. Confirm subagent completion before ending the session; do not assume independent background lifetime.
+L0: skip writeback calls when there is no durable change or new conclusion. L1 is the everyday default: update only necessary state or durable events using persistent JSON and `kb-finish.py` (see Skill §5); recover first or retain input and merge on transaction conflict. L2 is for releases, major architecture changes, phase closeout, migration or a specific need for full review; run §5 checks as needed. Confirm subagent completion before ending the session; do not assume independent background lifetime.
 
 For complex edits, use the original workflow:
 
@@ -62,7 +62,7 @@ py "$KB/scripts/kb-write.py" apply --target . --changes changes.json
 
 ## 5. Wrap-up and handoff
 
-L0 skips checks; L1 runs only necessary checks; L2 runs the following as needed. Obtain authorization before committing.
+L0 skips checks; L1 runs only necessary checks; L2 runs the following as needed without re-running passing checks. Obtain authorization before committing.
 
 ```bash
 py "$KB/scripts/kb-handoff.py" check --target . --strict   # is the handoff verifiable
