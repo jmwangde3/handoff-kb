@@ -660,6 +660,7 @@ class Transaction:
     def commit(self):
         if not self.entries:
             raise SafeIOError("事务没有任何条目")
+        assert_transaction_slot_clean(self.root)
         self._prepare()
         self._set_state(S_APPLYING)
         written = []
@@ -725,9 +726,16 @@ class Transaction:
 
 def _load_journal(tdir: Path):
     """返回 (journal, error)。error 非空表示不可信，任何自动清理都必须放弃。"""
+    from . import scope
     j = tdir / "journal.json"
-    if not j.is_file():
+    if not j.exists() and not j.is_symlink():
         return None, "journal.json 缺失"
+    if not scope.is_within(tdir, j):
+        return None, "journal.json 指向事务目录外（真实路径 %s）" % os.path.realpath(str(j))
+    if j.is_symlink():
+        return None, "journal.json 是符号链接，拒绝读取"
+    if not j.is_file():
+        return None, "journal.json 不是常规文件"
     try:
         data = json.loads(j.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -748,6 +756,45 @@ def _load_journal(tdir: Path):
     return data, None
 
 
+def assert_transaction_slot_clean(root):
+    """新事务写入前预检：只要存在未恢复、损坏、孤立或越界的事务现场，一律拒绝写入。"""
+    from . import scope
+    root = Path(root).resolve()
+    txn_dir = root / TXN_DIR
+    if not txn_dir.exists() and not txn_dir.is_symlink():
+        return
+    if not scope.is_within(root, txn_dir):
+        raise SafeIOError(
+            "事务目录指向工作区外（真实路径 %s），拒绝写入"
+            % os.path.realpath(str(txn_dir))
+        )
+    if txn_dir.is_symlink():
+        raise SafeIOError("事务目录是符号链接，拒绝写入")
+    if not txn_dir.is_dir():
+        raise SafeIOError("事务路径存在但不是目录")
+
+    pending = pending_transactions(root)
+    if pending:
+        details = [
+            item.get("error") or
+            (item.get("journal") or {}).get("transaction_id", "unknown")
+            for item in pending
+        ]
+        raise SafeIOError(
+            "存在未完成或不可信的事务，拒绝开始新事务："
+            + "; ".join(details)
+            + "。请先执行 recover 检查和恢复。"
+        )
+
+    leftovers = sorted(x.name for x in txn_dir.iterdir())
+    if leftovers:
+        names = ", ".join(leftovers[:10])
+        raise SafeIOError(
+            "事务目录存在未识别的遗留文件，保留现场并拒绝新写入："
+            + names
+        )
+
+
 def pending_transactions(root):
     """列出事务目录。不可读的也列出来，但带 error 且 entries=[]，绝不是「零文件事务」。
 
@@ -758,23 +805,49 @@ def pending_transactions(root):
 
     安全：`.kb-txn` 本身或其中的子目录若是越界链接，**不进去读**，
     但仍然返回一条 readable=False 的记录，让 recover 明确拒绝并保留现场。
+    孤立 `backup/`、孤立文件与未知目录同样返回 readable=False 记录，绝不静默忽略或清理。
     """
     from . import scope
     root = Path(root)
     d = root / TXN_DIR
     out = []
-    if not d.is_dir():
+    if not d.exists() and not d.is_symlink():
         return out
     if not scope.is_within(root, d):
         out.append({"dir": str(d), "journal": None, "readable": False,
                     "error": "事务目录指向工作区外（真实路径 %s）：拒绝读取与清理"
                              % os.path.realpath(str(d))})
         return out
+    if d.is_symlink():
+        out.append({"dir": str(d), "journal": None, "readable": False,
+                    "error": "事务目录是符号链接：拒绝读取与清理"})
+        return out
+    if not d.is_dir():
+        out.append({"dir": str(d), "journal": None, "readable": False,
+                    "error": "事务路径存在但不是目录：拒绝读取与清理"})
+        return out
     dirs = []
-    if (d / "journal.json").is_file():
+    j_path = d / "journal.json"
+    b_path = d / "backup"
+    has_root_journal = j_path.exists() or j_path.is_symlink()
+    has_root_backup = b_path.exists() or b_path.is_symlink()
+    if has_root_journal:
         dirs.append(d)
-    for sub in sorted(x for x in d.iterdir() if x.is_dir()):
-        if sub.name == "backup" and not (sub / "journal.json").is_file():
+    elif has_root_backup:
+        if not scope.is_within(root, b_path):
+            out.append({"dir": str(d), "journal": None, "readable": False,
+                        "error": "事务备份目录指向工作区外（真实路径 %s）：拒绝读取与清理"
+                                 % os.path.realpath(str(b_path))})
+        else:
+            out.append({"dir": str(d), "journal": None, "readable": False,
+                        "error": "事务备份存在但缺少 journal，无法自动确认其归属"})
+    for sub in sorted(x for x in d.iterdir() if x.is_dir() or x.is_symlink()):
+        if sub.name == "backup" and not ((sub / "journal.json").exists() or (sub / "journal.json").is_symlink()):
+            continue
+        if not sub.is_dir():
+            if not has_root_journal:
+                out.append({"dir": str(sub), "journal": None, "readable": False,
+                            "error": "事务目录存在未识别的链接或文件：%s" % sub.name})
             continue
         if not scope.is_within(root, sub):
             out.append({"dir": str(sub), "journal": None, "readable": False,
@@ -786,6 +859,18 @@ def pending_transactions(root):
         data, err = _load_journal(sub)
         out.append({"dir": str(sub), "journal": data, "error": err,
                     "readable": err is None})
+    if not has_root_journal:
+        stray_files = sorted(
+            x.name for x in d.iterdir()
+            if not x.is_dir() and not x.is_symlink() and x.name != "journal.json"
+        )
+        if stray_files:
+            out.append({
+                "dir": str(d),
+                "journal": None,
+                "readable": False,
+                "error": "事务目录存在孤立文件（缺少 journal）：%s" % ", ".join(stray_files[:10]),
+            })
     return out
 
 
