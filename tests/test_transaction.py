@@ -263,6 +263,139 @@ class TxnTest(unittest.TestCase):
                 t.commit()
         self.assertEqual((self.root / "a.md").read_text(encoding="utf-8"), "A0\n")
 
+    # 18
+    def test_new_commit_refuses_when_unfinished_journal_exists(self):
+        self.f("a.md", "A0\n")
+        self.f("b.md", "B0\n")
+        d = self.root / safeio.TXN_DIR
+        d.mkdir(parents=True)
+        (d / "backup").mkdir()
+        (d / "backup" / "a.md").write_bytes(b"A0\n")
+        journal = {
+            "schema_version": safeio.JOURNAL_SCHEMA,
+            "transaction_id": "prev-1",
+            "root_id": safeio.root_id(self.root),
+            "pid": 123,
+            "root": str(self.root),
+            "host": safeio.host_name(),
+            "session": "prev",
+            "created": 1.0,
+            "updated": 1.0,
+            "state": safeio.S_APPLYING,
+            "entry_count": 1,
+            "entries": [{
+                "path": "a.md", "op": "replace",
+                "sha_before": self.sha("a.md"),
+                "sha_after": safeio.sha256_text("A1\n"),
+                "backup": "backup/a.md",
+                "backup_sha256": safeio.sha256_text("A0\n"),
+                "state": "staged",
+            }],
+        }
+        journal["checksum"] = safeio.journal_checksum(journal)
+        j_bytes = json.dumps(journal, ensure_ascii=False, indent=2).encode("utf-8")
+        (d / "journal.json").write_bytes(j_bytes)
+        j_sha = safeio.sha256_bytes(j_bytes)
+        b_sha = safeio.sha256_file(d / "backup" / "a.md")
+
+        t = self.txn()
+        t.stage("b.md", self.sha("b.md"), "B1\n")
+        with self.assertRaises(safeio.SafeIOError):
+            t.commit()
+        self.assertEqual(safeio.sha256_file(d / "journal.json"), j_sha)
+        self.assertEqual(safeio.sha256_file(d / "backup" / "a.md"), b_sha)
+        self.assertEqual((self.root / "b.md").read_bytes(), b"B0\n")
+
+    # 19
+    def test_new_commit_refuses_when_corrupt_journal_exists(self):
+        self.f("a.md", "A0\n")
+        d = self.root / safeio.TXN_DIR
+        d.mkdir(parents=True)
+        (d / "backup").mkdir()
+        (d / "backup" / "a.md").write_bytes(b"A0\n")
+        (d / "journal.json").write_bytes(b"{corrupt")
+        t = self.txn()
+        t.stage("a.md", self.sha("a.md"), "A1\n")
+        with self.assertRaises(safeio.SafeIOError):
+            t.commit()
+        self.assertEqual((d / "journal.json").read_bytes(), b"{corrupt")
+        self.assertEqual((d / "backup" / "a.md").read_bytes(), b"A0\n")
+        self.assertEqual((self.root / "a.md").read_bytes(), b"A0\n")
+
+    # 20
+    def test_orphan_backup_without_journal_is_flagged_and_blocks_commit(self):
+        self.f("a.md", "A0\n")
+        bdir = self.root / safeio.TXN_DIR / "backup"
+        bdir.mkdir(parents=True)
+        (bdir / "a.md").write_bytes(b"A0\n")
+        pending = safeio.pending_transactions(self.root)
+        self.assertEqual(len(pending), 1)
+        self.assertFalse(pending[0]["readable"])
+        self.assertIn("缺少 journal", pending[0]["error"])
+
+        reports = safeio.recover(self.root, mode="apply")
+        self.assertTrue(reports[0]["manual"])
+        self.assertTrue((bdir / "a.md").is_file(), "孤立备份不得被自动删除")
+
+        t = self.txn()
+        t.stage("a.md", self.sha("a.md"), "A1\n")
+        with self.assertRaises(safeio.SafeIOError):
+            t.commit()
+        self.assertEqual((self.root / "a.md").read_bytes(), b"A0\n")
+        self.assertTrue((bdir / "a.md").is_file())
+
+    # 21
+    def test_stray_file_in_txn_dir_is_flagged_and_blocks_commit(self):
+        self.f("a.md", "A0\n")
+        d = self.root / safeio.TXN_DIR
+        d.mkdir(parents=True)
+        (d / "stray.tmp").write_bytes(b"orphan")
+        pending = safeio.pending_transactions(self.root)
+        self.assertEqual(len(pending), 1)
+        self.assertFalse(pending[0]["readable"])
+        t = self.txn()
+        t.stage("a.md", self.sha("a.md"), "A1\n")
+        with self.assertRaises(safeio.SafeIOError):
+            t.commit()
+        self.assertTrue((d / "stray.tmp").is_file())
+
+    # 22
+    def test_empty_txn_dir_allows_commit(self):
+        self.f("a.md", "A0\n")
+        (self.root / safeio.TXN_DIR).mkdir(parents=True)
+        t = self.txn()
+        t.stage("a.md", self.sha("a.md"), "A1\n")
+        t.commit()
+        self.assertEqual((self.root / "a.md").read_bytes(), b"A1\n")
+
+    def test_recover_preserves_unowned_material_beside_valid_journal(self):
+        for extra_name in ("stray.tmp", "other-transaction"):
+            with self.subTest(extra=extra_name):
+                self.f("a.md", "A0\n")
+                transaction = self.txn()
+                transaction.stage("a.md", self.sha("a.md"), "A1\n")
+                transaction._prepare()
+                txn_dir = self.root / safeio.TXN_DIR
+                extra = txn_dir / extra_name
+                if extra_name == "other-transaction":
+                    extra.mkdir()
+                    (extra / "journal.json").write_bytes(b"{corrupt")
+                else:
+                    extra.write_bytes(b"unowned recovery material")
+                before = {path.relative_to(txn_dir): path.read_bytes()
+                          for path in txn_dir.rglob("*") if path.is_file()}
+                reports = safeio.recover(self.root, mode="apply")
+                self.assertTrue(all(report["manual"] for report in reports))
+                after = {path.relative_to(txn_dir): path.read_bytes()
+                         for path in txn_dir.rglob("*") if path.is_file()}
+                self.assertEqual(before, after)
+                self.assertEqual((self.root / "a.md").read_bytes(), b"A0\n")
+                extra_file = extra / "journal.json" if extra.is_dir() else extra
+                extra_file.unlink()
+                if extra.is_dir():
+                    extra.rmdir()
+                safeio.recover(self.root, mode="apply")
+
     def write_pair(self):
         self.f("a.md", "A0\n")
         self.f("b.md", "B0\n")

@@ -1,11 +1,11 @@
-# handoff-kb 2.0.4
+# handoff-kb 2.0.5
 
-> **工具版本** `2.0.4`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
+> **工具版本** `2.0.5`（脚本行为）｜**协议版本** `2`（文档布局，`<!-- kb:schema: 2 -->`）。
 > 两者独立：换工具版本不改协议，也不要求现有库迁移。
 
 English edition: [`README.md`](README.md)（英文主手册）。
 
-**给多会话并行项目的分层交接库。** 一套 Markdown 协议 + 十个零依赖 Python 脚本：让「上下文快满、几条线同时推、文档越堆越多」的项目，新会话接手时只读固定的一小份，而不是全库重读。
+**给多会话并行项目的分层交接库。** 一套 Markdown 协议 + 十一个零依赖 Python 脚本：让「上下文快满、几条线同时推、文档越堆越多」的项目，新会话接手时只读固定的一小份，而不是全库重读。
 
 2.0 的重点不是加脚本，而是把四件事做实：**按预算取上下文、带证据的交接、带哈希校验的写入、能跑起来的测试**。仍然是纯文本、可 diff、无服务、无 embedding、无 SQLite。
 
@@ -385,6 +385,7 @@ scripts/kb-init.py              脚手架 + 预检查 + 白名单提交 + 凭证
 scripts/kb-check.py             只读体检（--loose / --json / --mode）
 scripts/kb-outline.py           目录树 + 稳定章节 ID + 按节读 + hash 校验
 scripts/kb-write.py             安全写入（哈希 / 锁 / 事务 / recover）
+scripts/kb-finish.py            L0/L1/L2 收尾入口（--dry-run、精确文本替换、事件去重）
 scripts/kb-migrate.py           v1 → v2 无损迁移（计划绑定哈希）
 scripts/kb-search.py            轻量全文检索（章节级打分）
 scripts/kb-context.py           预算内上下文路由（--explain）
@@ -720,6 +721,20 @@ tests/deps_check.py             非标准库导入检查（走完整 AST，只�
 **没变的**：协议版本、文档 ID、保留文件名、章节 ID、命令参数、JSON schema、迁移行为、
 安全/并发/事务/哈希/恢复规则。没有为了省 token 删掉任何一条安全规则——只压缩措辞，
 不删条目；`--dry-run`、`--plan`、锁、journal、二次哈希、回滚全部保留。
+
+---
+
+### 17.7 2.0.5：写回可靠性收口与 L0/L1/L2 规则完善
+
+- `scripts/lib/safeio.py`：`Transaction.commit()` 在 `_prepare()` 前执行 `assert_transaction_slot_clean(root)`，
+  存在未完成或损坏 journal、孤立 `backup/`、非法符号链接或游离文件时拒绝新写入；`pending_transactions()`
+  完整报告异常现场且不静默删除任何恢复材料。
+- `scripts/kb-finish.py`：新增 `--dry-run`（持锁 + 事务预检 + 返回 before/after SHA256，不落盘、不删输入）；
+  加强重复内容冲突保护（校验 `before` / `after` 计数及 `before == after` 缺失场景，并修复空文件追加事件）。
+- `tests/token_language/test_token_language.py`：将 `test_v203_frozen_assets_match_manifest` 修正为
+  核对 `tests/token_language/baseline/v2.0.3/` 与其自身 `MANIFEST.json` 的 SHA256，不再拿实时模板与历史基线逐字节比较。
+- `SKILL.md` / `assets/AGENTS.md` / `assets/en/AGENTS.md`：明确 L0 跳过、L1 默认增量写回、L2 完整整理与冲突恢复规则，
+  协议版本仍为 `2`，现有库无需迁移。
 
 ---
 

@@ -1,11 +1,11 @@
-# handoff-kb 2.0.4
+# handoff-kb 2.0.5
 
-> **Tool version** `2.0.4` (script behavior) | **Protocol version** `2` (document layout, `<!-- kb:schema: 2 -->`).
+> **Tool version** `2.0.5` (script behavior) | **Protocol version** `2` (document layout, `<!-- kb:schema: 2 -->`).
 > The two are independent: a tool upgrade does not change the protocol and does not require an existing library to migrate.
 
 Chinese edition: [`README.zh-CN.md`](README.zh-CN.md) (full manual and version chronicle).
 
-**A layered handoff library for projects with parallel sessions.** One Markdown protocol plus ten zero-dependency Python scripts, so that a project with "context almost full, several workstreams moving at once, documents piling up" only has to read a fixed small slice when a new session takes over — instead of re-reading the whole library.
+**A layered handoff library for projects with parallel sessions.** One Markdown protocol plus eleven zero-dependency Python scripts, so that a project with "context almost full, several workstreams moving at once, documents piling up" only has to read a fixed small slice when a new session takes over — instead of re-reading the whole library.
 
 2.0 is not about adding scripts. It makes four things real: **budget-aware context retrieval, evidence-backed handoff, hash-verified writes, tests that actually run**. Still plain text, diffable, no service, no embeddings, no SQLite.
 
@@ -382,6 +382,7 @@ scripts/kb-init.py              scaffold + pre-checks + whitelisted commit + cre
 scripts/kb-check.py             read-only health check (--loose / --json / --mode)
 scripts/kb-outline.py           outline + stable section IDs + section reads + hash verification
 scripts/kb-write.py             safe write (hash / lock / transaction / recover)
+scripts/kb-finish.py            L0/L1/L2 finish entry (--dry-run, exact-text updates, deduped events)
 scripts/kb-migrate.py           lossless v1 → v2 migration (plan bound to hashes)
 scripts/kb-search.py            lightweight full-text search (section-level scoring)
 scripts/kb-context.py           budget-aware context routing (--explain)
@@ -407,7 +408,8 @@ tests/deps_check.py             non-stdlib import check (full AST; only tiktoken
 | 2.0.1-hotfix | Path/symlink/transaction hardening, hook protocol fixes, fact-ID immutability, P4 containment, withdrawn numbers |
 | 2.0.2 | Quality-gate rounding, "recent records" counting, `--loose` numbered books; six assembly-layer defects (agent dirs, parent-section scoring, file preamble, false P0 gap, `other` weight, small books); five judgment-layer defects (two P0 implementations, fenced content, loose prose books, P4 gap withdrawal, duplicate loading) |
 | 2.0.3 | Four early-return / half-check defects: P0 level-by-level fallback, h1 sentence comparison, short-sentence relevance, preamble-and-fact mixed sentences |
-| 2.0.4 | English skill + bilingual templates + measured token benchmark (this release) |
+| 2.0.4 | English skill + bilingual templates + measured token benchmark |
+| 2.0.5 | Write-back transaction preflight, orphan backup protection, `kb-finish.py --dry-run`, L0/L1/L2 rules (this release) |
 
 The full Chinese chronicle — what each defect did on a real library, before/after numbers, and the withdrawn figures — is in [`README.zh-CN.md`](README.zh-CN.md) §16.
 
@@ -433,6 +435,15 @@ The full Chinese chronicle — what each defect did on a real library, before/af
 - `kb-init --lang en` without `--lines` generated Chinese workstream file names; the `--lines` default now follows `--lang`, and an explicit list always wins.
 
 **What did not change**: protocol version stays `2`; document IDs, reserved filenames, section IDs, command arguments, JSON schemas and migration behavior are all untouched; an existing Chinese library needs no migration and is still read correctly. Security, concurrency, transaction, hashing and recovery rules are preserved verbatim in substance — nothing was removed to make the token numbers look better.
+
+---
+
+### 17.2 What 2.0.5 changed
+
+- `scripts/lib/safeio.py`: added `assert_transaction_slot_clean(root)` before `Transaction._prepare()`, and hardened `pending_transactions()` / `_load_journal()` so unfinished journals, corrupt journals, orphan `backup/` dirs, symlinks, and stray files in `.kb-txn/` block new writes and stay intact for `kb-write.py recover`.
+- `scripts/kb-finish.py`: added `--dry-run` (lock + transaction preflight + staged before/after SHA256 without disk mutation) and tightened duplicate-content conflict detection (`before == after` missing check, `before`/`after` count checks, empty-file event append).
+- `tests/token_language/test_token_language.py`: fixed `test_v203_frozen_assets_match_manifest` to verify `tests/token_language/baseline/v2.0.3/` against its own `MANIFEST.json`.
+- `SKILL.md` / `assets/AGENTS.md` / `assets/en/AGENTS.md`: refined L0/L1/L2 finish levels and conflict-recovery guidance without changing protocol schema `2`.
 
 ---
 

@@ -5,6 +5,37 @@ Tool version and protocol version move independently: a tool upgrade never chang
 Chinese chronicle — what each defect did on a real library, before/after numbers —
 is in [`README.zh-CN.md`](README.zh-CN.md) §17.
 
+## 2.0.5 — 2026-11-17
+
+### Fixed
+
+- Recovery refuses cleanup when a valid journal shares its transaction directory
+  with unowned files or nested transaction material, preserving the entire scene
+  for manual inspection instead of recursively deleting unrelated backups.
+- `Transaction.commit()` now runs `assert_transaction_slot_clean(root)` before
+  preparing or staging, blocking new writes when `.kb-txn/` holds an unfinished
+  or corrupt journal, an orphan `backup/`, a symlink/non-directory `.kb-txn`, or
+  stray files/directories.
+- `pending_transactions()` and `_load_journal()` report orphan `backup/`
+  directories, out-of-root backup symlinks, `.kb-txn` symlinks/non-directories,
+  and stray files with `readable=False` while preserving every artifact for
+  `kb-write.py recover` or manual inspection.
+- `kb-finish.py` strengthens duplicate-content conflict detection (checking both
+  `before` and `after` counts, rejecting missing `before` when `before == after`,
+  and handling empty target files cleanly when appending an event).
+- `tests/token_language/test_token_language.py` fixes
+  `test_v203_frozen_assets_match_manifest` to verify the frozen `v2.0.3`
+  baseline against its own `MANIFEST.json` instead of live `assets/`.
+
+### Added / Changed
+
+- `scripts/kb-finish.py --dry-run` previews planned files and before/after SHA256
+  under `WorkspaceLock` and transaction preflight without mutating the KB,
+  `.kb-txn/`, or the input JSON.
+- Updated `SKILL.md` (tool version `2.0.5`, protocol schema stays `2`),
+  `assets/AGENTS.md`, `assets/en/AGENTS.md`, and `tests/test_finish.py` to
+  codify L0/L1/L2 finish levels and transaction-conflict recovery rules.
+
 ## 2.0.4 — 2026-11-14
 
 ### Added

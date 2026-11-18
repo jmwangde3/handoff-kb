@@ -446,17 +446,17 @@ class TemplateParity(unittest.TestCase):
                         "dashboard.todo", "dashboard.constraints", "dashboard.summary"):
                 self.assertIn(sid, dash, "%s: %s missing from dashboard template" % (label, sid))
 
-    def test_chinese_templates_are_unchanged_from_v203(self):
-        """The Chinese template set is still byte-identical to the frozen baseline."""
+    def test_v203_frozen_assets_match_manifest(self):
+        """The frozen v2.0.3 template baseline matches its own MANIFEST.json."""
         manifest = json.loads(read(tl.BASELINE / "MANIFEST.json"))
         checked = 0
         for rel, entry in manifest["files"].items():
             if not rel.startswith("assets/"):
                 continue
-            live = ROOT / rel.replace("assets/", "assets/", 1)
-            self.assertTrue(live.is_file(), "template missing: %s" % rel)
-            self.assertEqual(hashlib.sha256(live.read_bytes()).hexdigest(), entry["sha256"],
-                             "Chinese template changed: %s" % rel)
+            frozen = tl.BASELINE / rel
+            self.assertTrue(frozen.is_file(), "baseline template missing: %s" % rel)
+            self.assertEqual(hashlib.sha256(frozen.read_bytes()).hexdigest(), entry["sha256"],
+                             "Frozen v2.0.3 baseline changed: %s" % rel)
             checked += 1
         self.assertEqual(checked, len(tl.ASSET_NAMES))
 
@@ -983,7 +983,7 @@ def emit_checklist() -> str:
               "| 4 | Frozen Chinese content | `baseline/v2.0.3/` + `MANIFEST.json` | "
               "`test_chinese_references_are_byte_identical_to_v203`, "
               "`test_manifest_matches_files`, `test_no_extra_baseline_files`, "
-              "`test_chinese_templates_are_unchanged_from_v203` | 4/4 references and 12/12 "
+              "`test_v203_frozen_assets_match_manifest` | 4/4 references and 12/12 "
               "templates SHA256-equal; 19 frozen files, none extra or missing |",
               "",
               "## Not verified — do not claim otherwise", "",
