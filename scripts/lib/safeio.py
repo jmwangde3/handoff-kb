@@ -753,6 +753,10 @@ def _load_journal(tdir: Path):
         return None, "journal state=%r 非法" % data.get("state")
     if not isinstance(data.get("entries"), list):
         return None, "journal entries 不是数组"
+    unexpected = sorted(child.name for child in tdir.iterdir()
+                        if child.name not in ("journal.json", "backup"))
+    if unexpected:
+        return None, "事务目录包含未归属的恢复材料：%s" % ", ".join(unexpected[:10])
     return data, None
 
 
@@ -832,7 +836,9 @@ def pending_transactions(root):
     has_root_journal = j_path.exists() or j_path.is_symlink()
     has_root_backup = b_path.exists() or b_path.is_symlink()
     if has_root_journal:
-        dirs.append(d)
+        data, err = _load_journal(d)
+        return [{"dir": str(d), "journal": data, "error": err,
+                 "readable": err is None}]
     elif has_root_backup:
         if not scope.is_within(root, b_path):
             out.append({"dir": str(d), "journal": None, "readable": False,

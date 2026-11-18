@@ -368,6 +368,34 @@ class TxnTest(unittest.TestCase):
         t.commit()
         self.assertEqual((self.root / "a.md").read_bytes(), b"A1\n")
 
+    def test_recover_preserves_unowned_material_beside_valid_journal(self):
+        for extra_name in ("stray.tmp", "other-transaction"):
+            with self.subTest(extra=extra_name):
+                self.f("a.md", "A0\n")
+                transaction = self.txn()
+                transaction.stage("a.md", self.sha("a.md"), "A1\n")
+                transaction._prepare()
+                txn_dir = self.root / safeio.TXN_DIR
+                extra = txn_dir / extra_name
+                if extra_name == "other-transaction":
+                    extra.mkdir()
+                    (extra / "journal.json").write_bytes(b"{corrupt")
+                else:
+                    extra.write_bytes(b"unowned recovery material")
+                before = {path.relative_to(txn_dir): path.read_bytes()
+                          for path in txn_dir.rglob("*") if path.is_file()}
+                reports = safeio.recover(self.root, mode="apply")
+                self.assertTrue(all(report["manual"] for report in reports))
+                after = {path.relative_to(txn_dir): path.read_bytes()
+                         for path in txn_dir.rglob("*") if path.is_file()}
+                self.assertEqual(before, after)
+                self.assertEqual((self.root / "a.md").read_bytes(), b"A0\n")
+                extra_file = extra / "journal.json" if extra.is_dir() else extra
+                extra_file.unlink()
+                if extra.is_dir():
+                    extra.rmdir()
+                safeio.recover(self.root, mode="apply")
+
     def write_pair(self):
         self.f("a.md", "A0\n")
         self.f("b.md", "B0\n")

@@ -9,6 +9,9 @@ is in [`README.zh-CN.md`](README.zh-CN.md) §17.
 
 ### Fixed
 
+- Recovery refuses cleanup when a valid journal shares its transaction directory
+  with unowned files or nested transaction material, preserving the entire scene
+  for manual inspection instead of recursively deleting unrelated backups.
 - `Transaction.commit()` now runs `assert_transaction_slot_clean(root)` before
   preparing or staging, blocking new writes when `.kb-txn/` holds an unfinished
   or corrupt journal, an orphan `backup/`, a symlink/non-directory `.kb-txn`, or
